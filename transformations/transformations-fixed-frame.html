@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>3D Homogeneous Transformations - Fixed Frame Pure</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; display: flex; background: #0f172a; }
+        #ui-panel {
+            width: 350px; height: 100vh; background: rgba(255,255,255,0.95);
+            position: absolute; left: 0; top: 0; z-index: 10;
+            padding: 20px; box-shadow: 5px 0 15px rgba(0,0,0,0.5);
+            overflow-y: auto; box-sizing: border-box;
+        }
+        .control-group { margin-bottom: 15px; border-bottom: 1px solid #cbd5e1; padding-bottom: 10px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 13px; color: #1e293b; }
+        input[type="range"] { width: 100%; cursor: pointer; accent-color: #6366f1; }
+        .matrix-display {
+            background: #000; color: #fbbf24; font-family: 'Fira Code', 'Consolas', monospace;
+            padding: 15px; border-radius: 8px; font-size: 11px;
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+            border: 1px solid #334155; margin-top: 10px;
+        }
+        .info-box { 
+            background: #fff7ed; border-left: 4px solid #f59e0b; 
+            padding: 10px; font-size: 12px; margin-bottom: 20px; color: #9a3412;
+        }
+        button { 
+            width: 100%; padding: 12px; background: #6366f1; color: white; 
+            border: none; border-radius: 6px; cursor: pointer; font-weight: bold;
+            transition: all 0.2s;
+        }
+        button:hover { background: #4f46e5; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+        span.val { float: right; color: #6366f1; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div id="ui-panel">
+    <h2>Cinemática 3D</h2>
+    <div class="info-box">
+        <strong>Modo: Sistema FIJO (Espacio)</strong><br>
+        Las transformaciones se aplican siempre respecto a los ejes del mundo, sin importar la pose del objeto.
+    </div>
+
+    <div class="control-group">
+        <label>Traslación Mundo X <span id="tx-val" class="val">0</span></label>
+        <input type="range" id="tx" min="-10" max="10" step="0.1" value="0">
+        
+        <label>Traslación Mundo Y <span id="ty-val" class="val">0</span></label>
+        <input type="range" id="ty" min="-10" max="10" step="0.1" value="0">
+
+        <label>Traslación Mundo Z <span id="tz-val" class="val">0</span></label>
+        <input type="range" id="tz" min="-10" max="10" step="0.1" value="0">
+    </div>
+
+    <div class="control-group">
+        <label>Rotación Mundo X <span id="rx-val" class="val">0</span>°</label>
+        <input type="range" id="rx" min="-180" max="180" step="1" value="0">
+        
+        <label>Rotación Mundo Y <span id="ry-val" class="val">0</span>°</label>
+        <input type="range" id="ry" min="-180" max="180" step="1" value="0">
+
+        <label>Rotación Mundo Z <span id="rz-val" class="val">0</span>°</label>
+        <input type="range" id="rz" min="-180" max="180" step="1" value="0">
+    </div>
+
+    <button id="reset">Resetear Pose</button>
+
+    <label style="margin-top:20px">Matriz Homogénea T (Body to World)</label>
+    <div class="matrix-display" id="matrix-ui"></div>
+</div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+        }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // Escena y Cámara
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f172a);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(12, 12, 12);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+
+    // Ayudas visuales - Rejilla del Mundo
+    scene.add(new THREE.GridHelper(20, 20, 0x334155, 0x1e293b));
+    const worldAxes = new THREE.AxesHelper(6);
+    scene.add(worldAxes); 
+
+    // Objeto (Cuerpo Rígido)
+    const geometry = new THREE.BoxGeometry(3, 1.5, 0.7);
+    const material = new THREE.MeshPhongMaterial({ color: 0x6366f1, transparent: true, opacity: 0.85, shininess: 100 });
+    const cube = new THREE.Mesh(geometry, material);
+    
+    // Sistema Móvil (Para ver cómo se aleja de los ejes del mundo)
+    const bodyAxes = new THREE.AxesHelper(3);
+    cube.add(bodyAxes);
+    scene.add(cube);
+
+    cube.matrixAutoUpdate = false;
+
+    // Iluminación
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const light = new THREE.DirectionalLight(0xffffff, 1);
+    light.position.set(10, 20, 10);
+    scene.add(light);
+
+    // --- LÓGICA DE TRANSFORMACIÓN FIJA (PRE-MULTIPLICACIÓN) ---
+
+    let params = { tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 };
+    let prevParams = { tx: 0, ty: 0, tz: 0, rx: 0, ry: 0, rz: 0 };
+    let T_actual = new THREE.Matrix4(); 
+
+    function updateTransform() {
+        // Calcular incrementos
+        const dt = {
+            x: params.tx - prevParams.tx,
+            y: params.ty - prevParams.ty,
+            z: params.tz - prevParams.tz,
+            rx: THREE.MathUtils.degToRad(params.rx - prevParams.rx),
+            ry: THREE.MathUtils.degToRad(params.ry - prevParams.ry),
+            rz: THREE.MathUtils.degToRad(params.rz - prevParams.rz)
+        };
+
+        // Crear matriz incremental
+        const mDelta = new THREE.Matrix4();
+        
+        // El orden interno del delta es menos relevante que el orden de composición global
+        mDelta.multiply(new THREE.Matrix4().makeTranslation(dt.x, dt.y, dt.z));
+        mDelta.multiply(new THREE.Matrix4().makeRotationX(dt.rx));
+        mDelta.multiply(new THREE.Matrix4().makeRotationY(dt.ry));
+        mDelta.multiply(new THREE.Matrix4().makeRotationZ(dt.rz));
+
+        // --- LA CLAVE MATEMÁTICA ---
+        // PRE-MULTIPLICACIÓN: T_nuevo = M_delta * T_actual
+        // Al multiplicar por la IZQUIERDA, el movimiento se refiere al marco fijo original.
+        const T_temp = new THREE.Matrix4();
+        T_temp.multiplyMatrices(mDelta, T_actual);
+        T_actual.copy(T_temp);
+
+        // Aplicar al cubo
+        cube.matrix.copy(T_actual);
+        cube.matrixWorldNeedsUpdate = true;
+
+        // Sincronizar
+        prevParams = { ...params };
+        updateMatrixUI(T_actual);
+        console.log('T_actual:', T_actual);
+    }
+
+    // function updateMatrixUI(m) {
+    //     const ui = document.getElementById('matrix-ui');
+    //     ui.innerHTML = '';
+    //     m.elements.forEach(val => {
+    //         const el = document.createElement('div');
+    //         el.textContent = val.toFixed(2);
+    //         ui.appendChild(el);
+    //     });
+    // }
+
+    function updateMatrixUI(m) {
+        const ui = document.getElementById('matrix-ui');
+        ui.innerHTML = '';
+        
+        const te = m.elements;
+
+        // Ejecutamos un bucle anidado para transformar 
+        // visualmente de columnas a filas
+        for (let i = 0; i < 4; i++) { // i = Fila
+            for (let j = 0; j < 4; j++) { // j = Columna
+                const el = document.createElement('div');
+                
+                // Fórmula: (Columna * 4) + Fila
+                const index = j * 4 + i; 
+                
+                el.textContent = te[index].toFixed(2);
+                ui.appendChild(el);
+            }
+        }
+    }
+
+
+    // --- EVENTOS ---
+    const inputs = ['tx', 'ty', 'tz', 'rx', 'ry', 'rz'];
+    inputs.forEach(id => {
+        const el = document.getElementById(id);
+        el.addEventListener('input', (e) => {
+            params[id] = parseFloat(e.target.value);
+            document.getElementById(`${id}-val`).textContent = params[id];
+            updateTransform();
+        });
+    });
+
+    document.getElementById('reset').onclick = () => {
+        T_actual.identity();
+        inputs.forEach(id => {
+            params[id] = 0;
+            prevParams[id] = 0;
+            document.getElementById(id).value = 0;
+            document.getElementById(`${id}-val`).textContent = 0;
+        });
+        updateTransform();
+    };
+
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+    }
+
+    updateMatrixUI(T_actual);
+    animate();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador de Inercia - Control Temporal</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #f0f2f5;
+            --panel: #ffffff;
+            --primary: #2563eb;
+            --secondary: #64748b;
+            --success: #22c55e;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg);
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        #controls {
+            width: 380px;
+            background: var(--panel);
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            overflow-y: auto;
+        }
+
+        #canvas-container {
+            flex-grow: 1;
+            background: #1a1a1a;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        canvas#simCanvas {
+            background: #242424;
+            cursor: crosshair;
+            border-radius: 8px;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        .stat-card {
+            background: #f8fafc;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border-left: 4px solid var(--primary);
+        }
+
+        .stat-value {
+            font-family: 'monospace';
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .chart-container { height: 180px; background: white; border-radius: 6px; padding: 5px; }
+
+        .control-group { display: flex; flex-direction: column; gap: 4px; }
+        
+        .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+        button {
+            padding: 10px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background: var(--primary);
+            color: white;
+            font-weight: bold;
+        }
+
+        button#btn-play.paused { background: var(--success); }
+        button#btn-play.playing { background: var(--secondary); }
+        button.danger { background: var(--danger); }
+        
+        small { font-size: 0.8em; color: #64748b; }
+    </style>
+</head>
+<body>
+
+<div id="controls">
+    <h3>Simulación Rotacional</h3>
+    
+    <div class="stat-grid">
+        <div class="stat-card" style="border-color: #6366f1;"><small>Tiempo (s)</small><div id="val-time" class="stat-value">0.00</div></div>
+        <div class="stat-card" style="border-color: #ef4444;"><small>Acel. (α)</small><div id="val-a" class="stat-value">0.00</div></div>
+        <div class="stat-card" style="border-color: #22c55e;"><small>Veloc. (ω)</small><div id="val-w" class="stat-value">0.00</div></div>
+        <div class="stat-card" style="border-color: #3b82f6;"><small>Inercia (I)</small><div id="val-i" class="stat-value">0.00</div></div>
+    </div>
+
+    <div class="chart-container">
+        <canvas id="kineticsChart"></canvas>
+    </div>
+
+    <div class="btn-row">
+        <button id="btn-play" class="paused">Iniciar</button>
+        <button id="btn-reset">Reset Posición</button>
+    </div>
+
+    <div class="control-group">
+        <label>Masa ($m$): <span id="label-mass">10</span> kg</label>
+        <input type="range" id="input-mass" min="1" max="100" value="10">
+    </div>
+
+    <div class="control-group">
+        <label>Torque Constante ($\tau$): <span id="label-torque">0</span> N·m</label>
+        <input type="range" id="input-torque" min="0" max="200" value="0">
+    </div>
+
+    <button id="btn-clear" class="danger">Limpiar Escena</button>
+</div>
+
+<div id="canvas-container">
+    <canvas id="simCanvas"></canvas>
+</div>
+
+<script>
+/** --- CONFIGURACIÓN GRÁFICA --- **/
+const ctxChart = document.getElementById('kineticsChart').getContext('2d');
+const kineticsChart = new Chart(ctxChart, {
+    type: 'line',
+    data: {
+        labels: Array(50).fill(0),
+        datasets: [{ label: 'ω', borderColor: '#22c55e', data: Array(50).fill(0), borderWidth: 2, pointRadius: 0, fill: false },
+                   { label: 'α', borderColor: '#ef4444', data: Array(50).fill(0), borderWidth: 2, pointRadius: 0, fill: false }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { x: { display: false } } }
+});
+
+/** --- LÓGICA DE FÍSICA --- **/
+const canvas = document.getElementById('simCanvas');
+const ctx = canvas.getContext('2d');
+
+let particles = [];
+let initialPositions = []; // Para el reset
+let pivot = { x: 0, y: 0, radius: 10 };
+let isDragging = null;
+
+let isPlaying = false;
+let simTime = 0;
+let omega = 0, alpha = 0, theta = 0, inertia = 0, torque = 0;
+let lastTimestamp = performance.now();
+
+function init() {
+    canvas.width = window.innerWidth - 380;
+    canvas.height = window.innerHeight;
+    pivot.x = canvas.width / 2;
+    pivot.y = canvas.height / 2;
+}
+
+function updatePhysics() {
+    const now = performance.now();
+    const dt = (now - lastTimestamp) / 1000;
+    lastTimestamp = now;
+
+    if (!isPlaying) return;
+
+    simTime += dt;
+
+    // Calcular I = Σ m r²
+    inertia = particles.reduce((acc, p) => {
+        const r = Math.hypot(p.x - pivot.x, p.y - pivot.y) / 30;
+        return acc + (p.mass * r * r);
+    }, 0);
+
+    // Dinámica
+    if (inertia > 0.01) {
+        alpha = torque / inertia;
+        omega += alpha * dt;
+        theta += omega * dt;
+    } else {
+        alpha = 0; omega = 0;
+    }
+
+    // Rotación
+    const dTheta = omega * dt;
+    particles.forEach(p => {
+        const dx = p.x - pivot.x, dy = p.y - pivot.y;
+        p.x = pivot.x + (dx * Math.cos(dTheta) - dy * Math.sin(dTheta));
+        p.y = pivot.y + (dx * Math.sin(dTheta) + dy * Math.cos(dTheta));
+    });
+
+    // UI
+    document.getElementById('val-time').innerText = simTime.toFixed(2);
+    document.getElementById('val-i').innerText = inertia.toFixed(2);
+    document.getElementById('val-a').innerText = alpha.toFixed(2);
+    document.getElementById('val-w').innerText = omega.toFixed(2);
+
+    // Gráfica
+    if (Math.round(now) % 10 === 0) {
+        kineticsChart.data.datasets[0].data.push(omega);
+        kineticsChart.data.datasets[1].data.push(alpha);
+        kineticsChart.data.datasets[0].data.shift();
+        kineticsChart.data.datasets[1].data.shift();
+        kineticsChart.update();
+    }
+}
+
+function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    
+    // Eje
+    ctx.beginPath();
+    ctx.arc(pivot.x, pivot.y, pivot.radius, 0, Math.PI * 2);
+    ctx.fillStyle = "#3b82f6"; ctx.fill();
+
+    // Partículas
+    particles.forEach(p => {
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(255,255,255,0.15)";
+        ctx.moveTo(pivot.x, pivot.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+        
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 8 + p.mass/5, 0, Math.PI * 2);
+        ctx.fillStyle = "#eab308"; ctx.fill();
+        ctx.stroke();
+    });
+
+    updatePhysics();
+    requestAnimationFrame(draw);
+}
+
+/** --- EVENTOS --- **/
+const btnPlay = document.getElementById('btn-play');
+
+btnPlay.onclick = () => {
+    isPlaying = !isPlaying;
+    btnPlay.innerText = isPlaying ? "Pausar" : "Continuar";
+    btnPlay.className = isPlaying ? "playing" : "paused";
+    if (isPlaying) {
+        lastTimestamp = performance.now();
+        // Guardar posiciones iniciales si es el primer arranque
+        if (simTime === 0) {
+            initialPositions = particles.map(p => ({...p}));
+        }
+    }
+};
+
+document.getElementById('btn-reset').onclick = () => {
+    isPlaying = false;
+    btnPlay.innerText = "Iniciar";
+    btnPlay.className = "paused";
+    simTime = 0;
+    omega = 0;
+    alpha = 0;
+    theta = 0;
+    // Restaurar posiciones
+    if (initialPositions.length > 0) {
+        particles = initialPositions.map(p => ({...p}));
+    }
+    document.getElementById('val-time').innerText = "0.00";
+    document.getElementById('val-w').innerText = "0.00";
+    document.getElementById('val-a').innerText = "0.00";
+};
+
+document.getElementById('btn-clear').onclick = () => {
+    particles = [];
+    initialPositions = [];
+    simTime = 0;
+    omega = 0;
+    isPlaying = false;
+    btnPlay.innerText = "Iniciar";
+};
+
+canvas.onmousedown = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
+    if (e.button === 2) return;
+    if (Math.hypot(mx - pivot.x, my - pivot.y) < 20) { isDragging = pivot; return; }
+    
+    const pFound = particles.find(p => Math.hypot(mx - p.x, my - p.y) < 20);
+    if (pFound) isDragging = pFound;
+    else {
+        const newP = { x: mx, y: my, mass: parseInt(document.getElementById('input-mass').value) };
+        particles.push(newP);
+        if (simTime === 0) initialPositions.push({...newP});
+    }
+};
+
+canvas.onmousemove = (e) => {
+    if (!isDragging) return;
+    const rect = canvas.getBoundingClientRect();
+    isDragging.x = e.clientX - rect.left;
+    isDragging.y = e.clientY - rect.top;
+};
+
+window.onmouseup = () => isDragging = null;
+canvas.oncontextmenu = e => e.preventDefault();
+
+document.getElementById('input-mass').oninput = (e) => document.getElementById('label-mass').innerText = e.target.value;
+document.getElementById('input-torque').oninput = (e) => {
+    torque = parseFloat(e.target.value);
+    document.getElementById('label-torque').innerText = torque;
+};
+
+window.onresize = init;
+init();
+draw();
+</script>
+</body>
+</html>
