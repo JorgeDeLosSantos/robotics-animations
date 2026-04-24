@@ -1,0 +1,1415 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Momento de Inercia — Simulador Interactivo</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* ======================================================
+   VARIABLES Y RESET
+   ====================================================== */
+:root {
+  --bg:          #060912;
+  --panel-bg:    #0c1220;
+  --panel-border:#182035;
+  --axis-color:  #f5c842;
+  --data-color:  #3ddc84;
+  --accent:      #4f8ef7;
+  --accent-dim:  #1e3a6e;
+  --danger:      #f05252;
+  --warning:     #fb923c;
+  --text:        #8899bb;
+  --text-bright: #dde6ff;
+  --text-dim:    #445566;
+  --radius:      6px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  font-family: 'Syne', sans-serif;
+  color: var(--text-bright);
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  font-size: 13px;
+}
+
+/* ======================================================
+   ENCABEZADO
+   ====================================================== */
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 18px;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--panel-border);
+  flex-shrink: 0;
+  gap: 12px;
+}
+
+header h1 {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  color: var(--text-bright);
+}
+
+header .formula {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--axis-color);
+  background: #1a1600;
+  border: 1px solid #3a3000;
+  padding: 2px 10px;
+  border-radius: 4px;
+}
+
+header .hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: right;
+  line-height: 1.5;
+}
+
+/* ======================================================
+   LAYOUT PRINCIPAL
+   ====================================================== */
+.main-layout {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+}
+
+/* ======================================================
+   ÁREA DEL CANVAS
+   ====================================================== */
+#canvas-wrap {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: #04070f;
+}
+
+#main-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+}
+
+/* Estado de simulación activa sobre canvas */
+#sim-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: #f05252ee;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 4px 10px;
+  border-radius: 4px;
+  display: none;
+  pointer-events: none;
+}
+
+#sim-badge.visible { display: block; }
+
+/* Tooltip de posición del cursor */
+#cursor-info {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+  pointer-events: none;
+}
+
+/* ======================================================
+   PANEL LATERAL
+   ====================================================== */
+#panel {
+  width: 300px;
+  flex-shrink: 0;
+  background: var(--panel-bg);
+  border-left: 1px solid var(--panel-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#panel::-webkit-scrollbar { width: 4px; }
+#panel::-webkit-scrollbar-track { background: transparent; }
+#panel::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 2px; }
+
+.panel-section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--panel-border);
+}
+
+.section-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+/* ======================================================
+   BOTONES DE MODO
+   ====================================================== */
+.mode-group {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 5px;
+}
+
+.mode-btn {
+  padding: 7px 4px;
+  border: 1px solid var(--panel-border);
+  background: transparent;
+  color: var(--text);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: 'Syne', sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+  transition: all 0.15s;
+  text-align: center;
+  line-height: 1.3;
+}
+
+.mode-btn:hover { background: var(--panel-border); color: var(--text-bright); }
+.mode-btn.active {
+  background: var(--accent-dim);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ======================================================
+   CONTROLES / SLIDERS
+   ====================================================== */
+.control-row {
+  margin-bottom: 10px;
+}
+
+.control-row:last-child { margin-bottom: 0; }
+
+.control-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  color: var(--text);
+  font-size: 12px;
+}
+
+.control-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  color: var(--text-bright);
+}
+
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--panel-border);
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+}
+
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--bg);
+  transition: transform 0.1s;
+}
+
+input[type=range]:hover::-webkit-slider-thumb { transform: scale(1.2); }
+
+/* ======================================================
+   PARTÍCULA SELECCIONADA
+   ====================================================== */
+#sel-section {
+  display: none;
+  background: #0f1825;
+}
+
+#sel-section.visible { display: block; }
+
+.sel-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+.sel-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 8px;
+  margin: 8px 0;
+}
+
+.sel-stat {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.sel-stat span {
+  display: block;
+  font-size: 11px;
+  color: var(--data-color);
+}
+
+/* ======================================================
+   READOUTS DE DATOS
+   ====================================================== */
+.data-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 8px;
+  align-items: center;
+}
+
+.data-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.data-val {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--data-color);
+  text-align: right;
+}
+
+.data-val.highlight {
+  color: var(--axis-color);
+  font-size: 13px;
+}
+
+/* ======================================================
+   BOTONES DE ACCIÓN
+   ====================================================== */
+.btn {
+  display: block;
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-family: 'Syne', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  transition: all 0.15s;
+  margin-bottom: 6px;
+  background: transparent;
+  color: var(--text-bright);
+}
+
+.btn:last-child { margin-bottom: 0; }
+.btn:hover { filter: brightness(1.2); transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+
+.btn-primary { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+.btn-success { background: #0d2e1a; border-color: #22c55e; color: #22c55e; }
+.btn-danger  { background: #2e0d0d; border-color: var(--danger); color: var(--danger); }
+.btn-warn    { background: #2e1a0d; border-color: var(--warning); color: var(--warning); }
+.btn-dim     { background: transparent; border-color: var(--panel-border); color: var(--text-dim); font-size: 11px; }
+
+.btn.active-state { animation: pulse-border 1.2s infinite; }
+
+@keyframes pulse-border {
+  0%, 100% { box-shadow: 0 0 0 0 transparent; }
+  50%       { box-shadow: 0 0 0 3px #22c55e44; }
+}
+
+/* Grupo de dos botones lado a lado */
+.btn-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.btn-row .btn { margin-bottom: 0; }
+
+/* ======================================================
+   OPCIONES (CHECKBOXES)
+   ====================================================== */
+.check-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 12px;
+  user-select: none;
+}
+
+.check-item input[type=checkbox] {
+  accent-color: var(--accent);
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+}
+
+.check-item:hover { color: var(--text-bright); }
+
+/* ======================================================
+   GRÁFICA
+   ====================================================== */
+#graph-canvas {
+  width: 100%;
+  height: 110px;
+  display: block;
+  border-radius: var(--radius);
+  border: 1px solid var(--panel-border);
+}
+
+.graph-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.graph-tab {
+  font-size: 10px;
+  padding: 3px 8px;
+  border: 1px solid var(--panel-border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-dim);
+  background: transparent;
+  font-family: 'Syne', sans-serif;
+  font-weight: 600;
+  transition: all 0.1s;
+}
+
+.graph-tab.active { border-color: var(--accent); color: var(--accent); }
+
+/* ======================================================
+   FOOTER DEL PANEL
+   ====================================================== */
+.panel-footer {
+  padding: 12px 16px;
+  margin-top: auto;
+  border-top: 1px solid var(--panel-border);
+}
+</style>
+</head>
+<body>
+
+<!-- ====================================================
+     ENCABEZADO
+     ==================================================== -->
+<header>
+  <div style="display:flex;align-items:center;gap:14px;">
+    <h1>Momento de Inercia</h1>
+    <span class="formula">I = Σ m · r²</span>
+  </div>
+  <div class="hint">
+    Clic → agregar · Clic derecho → eliminar · Arrastrar → mover
+  </div>
+</header>
+
+<!-- ====================================================
+     LAYOUT PRINCIPAL
+     ==================================================== -->
+<div class="main-layout">
+
+  <!-- CANVAS -->
+  <div id="canvas-wrap">
+    <canvas id="main-canvas"></canvas>
+    <div id="sim-badge">● SIMULACIÓN ACTIVA</div>
+    <div id="cursor-info"></div>
+  </div>
+
+  <!-- PANEL LATERAL -->
+  <div id="panel">
+
+    <!-- MODO -->
+    <div class="panel-section">
+      <div class="section-title">Modo de interacción</div>
+      <div class="mode-group">
+        <button class="mode-btn active" data-mode="add" id="btn-mode-add">
+          + Agregar
+        </button>
+        <button class="mode-btn" data-mode="delete" id="btn-mode-delete">
+          ✕ Eliminar
+        </button>
+        <button class="mode-btn" data-mode="axis" id="btn-mode-axis">
+          ⊕ Eje
+        </button>
+      </div>
+    </div>
+
+    <!-- CONTROLES GLOBALES -->
+    <div class="panel-section">
+      <div class="section-title">Controles globales</div>
+      <div class="control-row">
+        <div class="control-label">
+          <span>Masa predeterminada</span>
+          <span class="control-val" id="lbl-default-mass">1.0 kg</span>
+        </div>
+        <input type="range" id="sl-default-mass" min="0.1" max="5" step="0.1" value="1.0">
+      </div>
+      <div class="control-row">
+        <div class="control-label">
+          <span>Torque aplicado</span>
+          <span class="control-val" id="lbl-torque">5.0 N·m</span>
+        </div>
+        <input type="range" id="sl-torque" min="0.1" max="30" step="0.1" value="5.0">
+      </div>
+    </div>
+
+    <!-- PARTÍCULA SELECCIONADA -->
+    <div class="panel-section" id="sel-section">
+      <div class="section-title">
+        <span class="sel-dot" id="sel-dot"></span>
+        Partícula seleccionada
+      </div>
+      <div class="control-row">
+        <div class="control-label">
+          <span>Masa</span>
+          <span class="control-val" id="lbl-sel-mass">1.0 kg</span>
+        </div>
+        <input type="range" id="sl-sel-mass" min="0.1" max="5" step="0.1" value="1.0">
+      </div>
+      <div class="sel-stats">
+        <div class="sel-stat">r (distancia al eje)<span id="sel-r">—</span></div>
+        <div class="sel-stat">m · r² (contribución)<span id="sel-mr2">—</span></div>
+      </div>
+      <button class="btn btn-danger" id="btn-delete-sel">✕ Eliminar partícula</button>
+    </div>
+
+    <!-- DATOS EN TIEMPO REAL -->
+    <div class="panel-section">
+      <div class="section-title">Datos en tiempo real</div>
+      <div class="data-grid">
+        <div class="data-label">N partículas</div>
+        <div class="data-val" id="val-N">0</div>
+
+        <div class="data-label">I (momento inercia)</div>
+        <div class="data-val highlight" id="val-I">0.0000 kg·m²</div>
+
+        <div class="data-label">α (acel. angular)</div>
+        <div class="data-val" id="val-alpha">0.0000 rad/s²</div>
+
+        <div class="data-label">ω (vel. angular)</div>
+        <div class="data-val" id="val-omega">0.0000 rad/s</div>
+
+        <div class="data-label">θ (ángulo total)</div>
+        <div class="data-val" id="val-theta">0.0000 rad</div>
+      </div>
+    </div>
+
+    <!-- SIMULACIÓN -->
+    <div class="panel-section">
+      <div class="section-title">Simulación</div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btn-sim-toggle">▶ Iniciar</button>
+        <button class="btn btn-warn"    id="btn-torque-toggle" disabled>⚡ Torque</button>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-dim"     id="btn-reset-sim">↺ Reset sim</button>
+        <button class="btn btn-dim"     id="btn-reset-all">⟳ Reset todo</button>
+      </div>
+    </div>
+
+    <!-- VISUALIZACIÓN -->
+    <div class="panel-section">
+      <div class="section-title">Visualización</div>
+      <div class="check-list">
+        <label class="check-item">
+          <input type="checkbox" id="chk-radii" checked>
+          Líneas de radio (r)
+        </label>
+        <label class="check-item">
+          <input type="checkbox" id="chk-r2">
+          Mostrar r² por partícula
+        </label>
+        <label class="check-item">
+          <input type="checkbox" id="chk-labels" checked>
+          Etiquetas de masa
+        </label>
+        <label class="check-item">
+          <input type="checkbox" id="chk-grid" checked>
+          Cuadrícula de referencia
+        </label>
+      </div>
+    </div>
+
+    <!-- GRÁFICA -->
+    <div class="panel-section">
+      <div class="section-title">Gráfica en tiempo real</div>
+      <div class="graph-tabs">
+        <button class="graph-tab active" data-graph="omega">ω vs t</button>
+        <button class="graph-tab" data-graph="theta">θ vs t</button>
+        <button class="graph-tab" data-graph="alpha">α vs t</button>
+      </div>
+      <canvas id="graph-canvas"></canvas>
+    </div>
+
+    <!-- FOOTER -->
+    <div class="panel-footer">
+      <div style="font-size:10px;color:var(--text-dim);line-height:1.6;">
+        <strong style="color:var(--text)">Cómo usar:</strong><br>
+        1. Agrega partículas haciendo clic<br>
+        2. Arrastra partículas o el eje ⊕<br>
+        3. Ajusta masas y observa I = Σmr²<br>
+        4. Inicia la sim. y aplica torque
+      </div>
+    </div>
+
+  </div><!-- /panel -->
+</div><!-- /main-layout -->
+
+<script>
+/* ============================================================
+   CONFIGURACIÓN
+   ============================================================ */
+const PIXEL_SCALE   = 0.01;   // 1 px = 0.01 m  →  100 px = 1 m
+const AXIS_HIT_R    = 18;     // radio de captura del eje (px)
+const PARTICLE_MIN_R = 10;    // radio visual mínimo de partícula (px)
+const MAX_GRAPH_PTS  = 300;   // máx. puntos en gráfica
+
+// Paleta de colores para partículas
+const COLORS = [
+  '#f87171', '#fb923c', '#facc15',
+  '#4ade80', '#38bdf8', '#a78bfa',
+  '#f472b6', '#34d399', '#fbbf24',
+  '#60a5fa',
+];
+
+/* ============================================================
+   ESTADO DE LA APLICACIÓN
+   ============================================================ */
+let particles        = [];       // lista de partículas
+let axis             = { x: 0, y: 0 };  // posición del eje en px
+let selectedParticle = null;     // partícula actualmente seleccionada
+let interactionMode  = 'add';    // 'add' | 'delete' | 'axis'
+let defaultMass      = 1.0;      // masa al crear nueva partícula
+let torqueValue      = 5.0;      // N·m
+let idCounter        = 0;        // contador de IDs
+
+// Opciones visuales
+let showRadii  = true;
+let showR2     = false;
+let showLabels = true;
+let showGrid   = true;
+
+// Estado de arrastre
+const drag = {
+  active: false,
+  target: null,   // null | 'axis' | <partícula ref>
+  offsetX: 0,
+  offsetY: 0,
+};
+
+// Posición del cursor (para preview y tooltip)
+let mouseX = 0, mouseY = 0;
+
+// Gráfica seleccionada
+let activeGraph = 'omega'; // 'omega' | 'theta' | 'alpha'
+
+/* ============================================================
+   MÓDULO DE FÍSICA
+   ============================================================ */
+const Physics = {
+  running:       false,
+  torqueOn:      false,
+  omega:         0,      // velocidad angular (rad/s)
+  alpha:         0,      // aceleración angular (rad/s²)
+  theta:         0,      // ángulo acumulado (rad)
+  time:          0,      // tiempo simulado (s)
+  basePositions: [],     // posiciones guardadas al iniciar sim
+
+  // Historial para gráficas: [{t, omega, theta, alpha}]
+  history: [],
+
+  /**
+   * Calcula el momento de inercia del sistema: I = Σ m·r²
+   * Las distancias se convierten de px a metros con PIXEL_SCALE.
+   */
+  computeI() {
+    return particles.reduce((sum, p) => {
+      const dx = (p.x - axis.x) * PIXEL_SCALE;
+      const dy = (p.y - axis.y) * PIXEL_SCALE;
+      return sum + p.mass * (dx * dx + dy * dy);
+    }, 0);
+  },
+
+  /**
+   * Avanza la simulación un paso de tiempo dt (segundos).
+   * Actualiza alpha, omega, theta y las posiciones de partículas.
+   */
+  step(dt) {
+    const I = this.computeI();
+    if (I < 1e-12) { this.alpha = 0; return; }
+
+    // α = τ / I  (solo cuando el torque está activo)
+    this.alpha = this.torqueOn ? torqueValue / I : 0;
+    this.omega += this.alpha * dt;
+    this.theta += this.omega * dt;
+    this.time  += dt;
+
+    // Rotar partículas alrededor del eje según el ángulo acumulado
+    particles.forEach((p, i) => {
+      const bp = this.basePositions[i];
+      if (!bp) return;
+      const dx = bp.x - axis.x;
+      const dy = bp.y - axis.y;
+      const r  = Math.sqrt(dx * dx + dy * dy);
+      const a0 = Math.atan2(dy, dx);
+      p.x = axis.x + r * Math.cos(a0 + this.theta);
+      p.y = axis.y + r * Math.sin(a0 + this.theta);
+    });
+
+    // Guardar punto en historial
+    this.history.push({
+      t:     this.time,
+      omega: this.omega,
+      theta: this.theta,
+      alpha: this.alpha,
+    });
+    if (this.history.length > MAX_GRAPH_PTS) this.history.shift();
+  },
+
+  /** Inicia la simulación guardando posiciones actuales. */
+  start() {
+    this.basePositions = particles.map(p => ({ x: p.x, y: p.y }));
+    this.running = true;
+    this.torqueOn = false;
+  },
+
+  /** Detiene la simulación y restaura posiciones originales. */
+  stop() {
+    this.running  = false;
+    this.torqueOn = false;
+    // Restaurar posiciones base
+    particles.forEach((p, i) => {
+      const bp = this.basePositions[i];
+      if (bp) { p.x = bp.x; p.y = bp.y; }
+    });
+    this.reset();
+  },
+
+  /** Resetea solo las variables de movimiento (no posiciones). */
+  reset() {
+    this.omega   = 0;
+    this.alpha   = 0;
+    this.theta   = 0;
+    this.time    = 0;
+    this.history = [];
+  },
+};
+
+/* ============================================================
+   CANVAS PRINCIPAL
+   ============================================================ */
+const canvas = document.getElementById('main-canvas');
+const ctx    = canvas.getContext('2d');
+
+/** Redimensiona el canvas al tamaño de su contenedor. */
+function resizeCanvas() {
+  const wrap = document.getElementById('canvas-wrap');
+  const prevW = canvas.width, prevH = canvas.height;
+  canvas.width  = wrap.clientWidth;
+  canvas.height = wrap.clientHeight;
+
+  // En el primer render, centrar el eje
+  if (prevW === 0) {
+    axis.x = canvas.width  / 2;
+    axis.y = canvas.height / 2;
+  }
+}
+
+/* ============================================================
+   MÓDULO DE RENDERIZADO
+   ============================================================ */
+const Renderer = {
+
+  /** Dibuja cuadrícula de referencia. */
+  drawGrid() {
+    if (!showGrid) return;
+    ctx.save();
+    ctx.strokeStyle = '#101d35';
+    ctx.lineWidth   = 0.5;
+    const step = 50;
+    for (let x = 0; x < canvas.width; x += step) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+    }
+    for (let y = 0; y < canvas.height; y += step) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+    }
+    // Etiqueta de escala
+    ctx.fillStyle = '#1a2d4f';
+    ctx.font = '9px JetBrains Mono, monospace';
+    ctx.fillText('50 px = 0.5 m', 6, canvas.height - 6);
+    ctx.restore();
+  },
+
+  /** Dibuja líneas de radio desde el eje a cada partícula. */
+  drawRadii() {
+    if (!showRadii) return;
+    ctx.save();
+    ctx.setLineDash([5, 5]);
+    ctx.lineWidth = 1.2;
+    particles.forEach(p => {
+      ctx.strokeStyle = p.color + '50';
+      ctx.beginPath();
+      ctx.moveTo(axis.x, axis.y);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+
+      // Mostrar valor r² junto a la línea
+      if (showR2) {
+        const dx  = (p.x - axis.x) * PIXEL_SCALE;
+        const dy  = (p.y - axis.y) * PIXEL_SCALE;
+        const r2  = (dx * dx + dy * dy).toFixed(3);
+        const mx  = (axis.x + p.x) / 2;
+        const my  = (axis.y + p.y) / 2;
+        ctx.fillStyle = p.color;
+        ctx.font = '9px JetBrains Mono, monospace';
+        ctx.setLineDash([]);
+        ctx.fillText(`r²=${r2}`, mx + 4, my - 4);
+        ctx.setLineDash([5, 5]);
+      }
+    });
+    ctx.restore();
+  },
+
+  /** Dibuja el eje de rotación. */
+  drawAxis() {
+    const x = axis.x, y = axis.y;
+    const sz = 14;
+    ctx.save();
+
+    // Halo de resplandor
+    const grad = ctx.createRadialGradient(x, y, 0, x, y, 32);
+    grad.addColorStop(0,   '#f5c84230');
+    grad.addColorStop(0.5, '#f5c84210');
+    grad.addColorStop(1,   'transparent');
+    ctx.beginPath();
+    ctx.arc(x, y, 32, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Cruz del eje
+    ctx.strokeStyle = '#f5c842';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - sz, y); ctx.lineTo(x + sz, y);
+    ctx.moveTo(x, y - sz); ctx.lineTo(x, y + sz);
+    ctx.stroke();
+
+    // Círculo central
+    ctx.beginPath();
+    ctx.arc(x, y, 7, 0, Math.PI * 2);
+    ctx.fillStyle   = '#f5c84220';
+    ctx.strokeStyle = '#f5c842';
+    ctx.lineWidth   = 2;
+    ctx.fill();
+    ctx.stroke();
+
+    // Etiqueta
+    ctx.fillStyle = '#f5c842aa';
+    ctx.font = '10px Syne, sans-serif';
+    ctx.fillText('eje', x + 12, y - 11);
+    ctx.restore();
+  },
+
+  /** Dibuja una partícula individual. */
+  drawParticle(p) {
+    const isSelected = p === selectedParticle;
+    const r = PARTICLE_MIN_R + p.mass * 3.5;
+
+    ctx.save();
+
+    // Halo suave
+    const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r * 2.2);
+    grad.addColorStop(0,   p.color + '55');
+    grad.addColorStop(0.6, p.color + '18');
+    grad.addColorStop(1,   'transparent');
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r * 2.2, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Anillo de selección
+    if (isSelected) {
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r + 5, 0, Math.PI * 2);
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth   = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    // Cuerpo de la partícula
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+
+    // Borde
+    ctx.strokeStyle = isSelected ? '#ffffff' : p.color + 'cc';
+    ctx.lineWidth   = isSelected ? 2 : 1;
+    ctx.stroke();
+
+    // Etiqueta de masa
+    if (showLabels) {
+      ctx.fillStyle    = '#000000cc';
+      ctx.font         = `bold ${Math.max(9, Math.round(r * 0.85))}px Syne, sans-serif`;
+      ctx.textAlign    = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(p.mass % 1 === 0 ? p.mass.toFixed(0) : p.mass.toFixed(1), p.x, p.y);
+    }
+
+    ctx.restore();
+  },
+
+  /** Dibuja arco de rotación acumulada alrededor del eje. */
+  drawRotationArc() {
+    if (!Physics.running || Math.abs(Physics.theta) < 0.01) return;
+    const arcR = 38;
+    const start = -Math.PI / 2;
+    const end   = start + Physics.theta;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(axis.x, axis.y, arcR, start, end, Physics.theta < 0);
+    ctx.strokeStyle = '#f5c84288';
+    ctx.lineWidth   = 3;
+    ctx.stroke();
+
+    // Flecha al final del arco
+    const tipX = axis.x + arcR * Math.cos(end);
+    const tipY = axis.y + arcR * Math.sin(end);
+    ctx.beginPath();
+    ctx.arc(tipX, tipY, 3, 0, Math.PI * 2);
+    ctx.fillStyle = '#f5c842';
+    ctx.fill();
+    ctx.restore();
+  },
+
+  /** Dibuja preview de nueva partícula en la posición del cursor. */
+  drawPreview() {
+    if (Physics.running) return;
+    if (interactionMode !== 'add') return;
+    if (drag.active) return;
+    // No mostrar preview si el cursor está cerca del eje o de otra partícula
+    if (hitAxis(mouseX, mouseY)) return;
+    if (hitParticle(mouseX, mouseY)) return;
+
+    const r = PARTICLE_MIN_R + defaultMass * 3.5;
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.beginPath();
+    ctx.arc(mouseX, mouseY, r, 0, Math.PI * 2);
+    ctx.fillStyle   = COLORS[particles.length % COLORS.length];
+    ctx.strokeStyle = COLORS[particles.length % COLORS.length];
+    ctx.lineWidth   = 1.5;
+    ctx.setLineDash([4, 3]);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  },
+
+  /** Frame de renderizado completo. */
+  draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#04070f';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    this.drawGrid();
+    this.drawRadii();
+    this.drawRotationArc();
+    particles.forEach(p => this.drawParticle(p));
+    this.drawAxis();
+    this.drawPreview();
+  },
+};
+
+/* ============================================================
+   CANVAS DE GRÁFICA
+   ============================================================ */
+const graphCanvas = document.getElementById('graph-canvas');
+const gCtx        = graphCanvas.getContext('2d');
+
+function resizeGraph() {
+  const wrap = graphCanvas.parentElement;
+  graphCanvas.width  = wrap.clientWidth - 32; // padding
+  graphCanvas.height = 110;
+}
+
+const GRAPH_COLORS = { omega: '#3ddc84', theta: '#4f8ef7', alpha: '#fb923c' };
+const GRAPH_LABELS = { omega: 'ω (rad/s)', theta: 'θ (rad)', alpha: 'α (rad/s²)' };
+
+function drawGraph() {
+  const w = graphCanvas.width, h = graphCanvas.height;
+  gCtx.clearRect(0, 0, w, h);
+  gCtx.fillStyle = '#070e1c';
+  gCtx.fillRect(0, 0, w, h);
+
+  const data = Physics.history;
+
+  if (data.length < 2) {
+    gCtx.fillStyle = '#1a2d4f';
+    gCtx.font = '10px Syne, sans-serif';
+    gCtx.textAlign = 'center';
+    gCtx.fillText('Inicia la simulación para ver datos', w / 2, h / 2);
+    gCtx.textAlign = 'left';
+    return;
+  }
+
+  // Obtener valores según la gráfica activa
+  const vals   = data.map(d => d[activeGraph]);
+  const tVals  = data.map(d => d.t);
+  const minV   = Math.min(...vals);
+  const maxV   = Math.max(...vals);
+  const range  = Math.max(Math.abs(maxV - minV), 0.001);
+  const tRange = Math.max(tVals[tVals.length - 1] - tVals[0], 0.001);
+
+  // Cuadrícula de fondo
+  gCtx.strokeStyle = '#0f1f38';
+  gCtx.lineWidth   = 0.5;
+  for (let i = 0; i <= 4; i++) {
+    const y = (i / 4) * h;
+    gCtx.beginPath(); gCtx.moveTo(0, y); gCtx.lineTo(w, y); gCtx.stroke();
+  }
+
+  // Línea cero
+  const zeroY = h - ((0 - minV) / range) * h;
+  gCtx.strokeStyle = '#1a3058';
+  gCtx.lineWidth   = 1;
+  gCtx.beginPath(); gCtx.moveTo(0, zeroY); gCtx.lineTo(w, zeroY); gCtx.stroke();
+
+  // Curva de datos
+  const color = GRAPH_COLORS[activeGraph];
+  gCtx.beginPath();
+  gCtx.strokeStyle = color;
+  gCtx.lineWidth   = 1.8;
+  data.forEach((d, i) => {
+    const x  = ((d.t - tVals[0]) / tRange) * w;
+    const y  = h - ((d[activeGraph] - minV) / range) * h;
+    if (i === 0) gCtx.moveTo(x, y); else gCtx.lineTo(x, y);
+  });
+  gCtx.stroke();
+
+  // Relleno bajo la curva
+  gCtx.lineTo(w, zeroY); gCtx.lineTo(0, zeroY);
+  gCtx.closePath();
+  gCtx.fillStyle = color + '18';
+  gCtx.fill();
+
+  // Etiquetas
+  gCtx.fillStyle = color + 'cc';
+  gCtx.font = '9px JetBrains Mono, monospace';
+  gCtx.fillText(GRAPH_LABELS[activeGraph], 4, 11);
+  gCtx.textAlign = 'right';
+  gCtx.fillText(`${vals[vals.length - 1].toFixed(3)}`, w - 3, 11);
+  gCtx.textAlign = 'left';
+}
+
+/* ============================================================
+   UTILIDADES DE HIT-TESTING
+   ============================================================ */
+
+/** ¿El punto (x, y) está dentro del radio de captura del eje? */
+function hitAxis(x, y) {
+  const dx = x - axis.x, dy = y - axis.y;
+  return Math.sqrt(dx * dx + dy * dy) <= AXIS_HIT_R;
+}
+
+/**
+ * Devuelve la partícula bajo el punto (x, y), o null.
+ * Se usa el radio visual de la partícula más un margen.
+ */
+function hitParticle(x, y) {
+  // Iterar en orden inverso para priorizar las partículas dibujadas al frente
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p  = particles[i];
+    const r  = PARTICLE_MIN_R + p.mass * 3.5 + 4;
+    const dx = x - p.x, dy = y - p.y;
+    if (dx * dx + dy * dy <= r * r) return p;
+  }
+  return null;
+}
+
+/* ============================================================
+   GESTIÓN DE PARTÍCULAS
+   ============================================================ */
+
+/** Crea y agrega una nueva partícula en la posición (x, y). */
+function addParticle(x, y) {
+  particles.push({
+    id:    ++idCounter,
+    x,
+    y,
+    mass:  defaultMass,
+    color: COLORS[(idCounter - 1) % COLORS.length],
+  });
+}
+
+/** Elimina una partícula del arreglo. */
+function removeParticle(p) {
+  const idx = particles.indexOf(p);
+  if (idx !== -1) particles.splice(idx, 1);
+  if (selectedParticle === p) selectedParticle = null;
+}
+
+/* ============================================================
+   ACTUALIZACIÓN DE LA INTERFAZ (DOM)
+   ============================================================ */
+function updateUI() {
+  const I      = Physics.computeI();
+  const alpha  = Physics.running
+    ? Physics.alpha
+    : (I > 1e-12 ? torqueValue / I : 0);
+
+  // Datos físicos
+  document.getElementById('val-N').textContent     = particles.length;
+  document.getElementById('val-I').textContent     = I.toFixed(5) + ' kg·m²';
+  document.getElementById('val-alpha').textContent = (Physics.running ? Physics.alpha : alpha).toFixed(5) + ' rad/s²';
+  document.getElementById('val-omega').textContent = Physics.omega.toFixed(5) + ' rad/s';
+  document.getElementById('val-theta').textContent =
+    Physics.theta.toFixed(4) + ' rad  (' +
+    (Physics.theta * 180 / Math.PI).toFixed(1) + '°)';
+
+  // Panel de partícula seleccionada
+  const selSec = document.getElementById('sel-section');
+  if (selectedParticle) {
+    selSec.classList.add('visible');
+    const dx  = (selectedParticle.x - axis.x) * PIXEL_SCALE;
+    const dy  = (selectedParticle.y - axis.y) * PIXEL_SCALE;
+    const r   = Math.sqrt(dx * dx + dy * dy);
+    const mr2 = selectedParticle.mass * r * r;
+    document.getElementById('sel-dot').style.background = selectedParticle.color;
+    document.getElementById('lbl-sel-mass').textContent = selectedParticle.mass.toFixed(1) + ' kg';
+    document.getElementById('sl-sel-mass').value        = selectedParticle.mass;
+    document.getElementById('sel-r').textContent        = r.toFixed(3) + ' m';
+    document.getElementById('sel-mr2').textContent      = mr2.toFixed(4) + ' kg·m²';
+  } else {
+    selSec.classList.remove('visible');
+  }
+
+  // Cursor info
+  const dx0 = (mouseX - axis.x) * PIXEL_SCALE;
+  const dy0 = (mouseY - axis.y) * PIXEL_SCALE;
+  const rM  = Math.sqrt(dx0 * dx0 + dy0 * dy0).toFixed(2);
+  document.getElementById('cursor-info').textContent =
+    `cursor  r=${rM} m  |  x=${mouseX.toFixed(0)} y=${mouseY.toFixed(0)}`;
+
+  // Badge de simulación
+  const badge = document.getElementById('sim-badge');
+  Physics.running ? badge.classList.add('visible') : badge.classList.remove('visible');
+
+  // Cursor del canvas
+  const overAxis     = hitAxis(mouseX, mouseY);
+  const overParticle = hitParticle(mouseX, mouseY);
+  if (overAxis) {
+    canvas.style.cursor = 'move';
+  } else if (overParticle) {
+    canvas.style.cursor = interactionMode === 'delete' ? 'not-allowed' : 'grab';
+  } else if (interactionMode === 'add' && !Physics.running) {
+    canvas.style.cursor = 'crosshair';
+  } else {
+    canvas.style.cursor = 'default';
+  }
+}
+
+/* ============================================================
+   EVENTOS DEL CANVAS
+   ============================================================ */
+canvas.addEventListener('mousedown', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+
+  // Botón derecho → eliminar partícula
+  if (e.button === 2) {
+    const p = hitParticle(x, y);
+    if (p) removeParticle(p);
+    return;
+  }
+
+  // Botón central → seleccionar modo eje temporalmente (no implementado aquí)
+  if (e.button !== 0) return;
+
+  // ¿Hizo clic en el eje?
+  if (hitAxis(x, y)) {
+    drag.active  = true;
+    drag.target  = 'axis';
+    drag.offsetX = x - axis.x;
+    drag.offsetY = y - axis.y;
+    return;
+  }
+
+  // ¿Hizo clic en una partícula?
+  const p = hitParticle(x, y);
+  if (p) {
+    if (interactionMode === 'delete') {
+      removeParticle(p);
+      return;
+    }
+    // Seleccionar y preparar arrastre
+    selectedParticle = p;
+    if (!Physics.running) {
+      drag.active  = true;
+      drag.target  = p;
+      drag.offsetX = x - p.x;
+      drag.offsetY = y - p.y;
+    }
+    return;
+  }
+
+  // Clic en espacio vacío
+  if (interactionMode === 'axis') {
+    // Mover eje a la posición clicada
+    axis.x = x;
+    axis.y = y;
+    return;
+  }
+
+  // Modo add: agregar partícula (solo si la sim no está corriendo)
+  if (interactionMode === 'add' && !Physics.running) {
+    addParticle(x, y);
+    selectedParticle = particles[particles.length - 1];
+    return;
+  }
+
+  // Deseleccionar si se hace clic en vacío
+  selectedParticle = null;
+});
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  mouseX = e.clientX - rect.left;
+  mouseY = e.clientY - rect.top;
+
+  if (!drag.active) return;
+
+  if (drag.target === 'axis') {
+    axis.x = mouseX - drag.offsetX;
+    axis.y = mouseY - drag.offsetY;
+    // Clamp dentro del canvas
+    axis.x = Math.max(0, Math.min(canvas.width,  axis.x));
+    axis.y = Math.max(0, Math.min(canvas.height, axis.y));
+  } else if (drag.target && drag.target !== 'axis') {
+    drag.target.x = mouseX - drag.offsetX;
+    drag.target.y = mouseY - drag.offsetY;
+  }
+});
+
+canvas.addEventListener('mouseup', () => {
+  drag.active = false;
+  drag.target = null;
+  if (canvas.style.cursor === 'grabbing') canvas.style.cursor = 'grab';
+});
+
+canvas.addEventListener('mouseleave', () => {
+  drag.active = false;
+  drag.target = null;
+});
+
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+/* ============================================================
+   CONTROLES DEL PANEL
+   ============================================================ */
+
+// --- Botones de modo ---
+document.querySelectorAll('.mode-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    interactionMode = btn.dataset.mode;
+    document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  });
+});
+
+// --- Sliders globales ---
+document.getElementById('sl-default-mass').addEventListener('input', e => {
+  defaultMass = parseFloat(e.target.value);
+  document.getElementById('lbl-default-mass').textContent = defaultMass.toFixed(1) + ' kg';
+});
+
+document.getElementById('sl-torque').addEventListener('input', e => {
+  torqueValue = parseFloat(e.target.value);
+  document.getElementById('lbl-torque').textContent = torqueValue.toFixed(1) + ' N·m';
+});
+
+// --- Masa de partícula seleccionada ---
+document.getElementById('sl-sel-mass').addEventListener('input', e => {
+  if (!selectedParticle) return;
+  selectedParticle.mass = parseFloat(e.target.value);
+  document.getElementById('lbl-sel-mass').textContent = selectedParticle.mass.toFixed(1) + ' kg';
+});
+
+document.getElementById('btn-delete-sel').addEventListener('click', () => {
+  if (selectedParticle) removeParticle(selectedParticle);
+});
+
+// --- Simulación ---
+const btnSim    = document.getElementById('btn-sim-toggle');
+const btnTorque = document.getElementById('btn-torque-toggle');
+
+btnSim.addEventListener('click', () => {
+  if (!Physics.running) {
+    if (particles.length === 0) return alert('Agrega al menos una partícula primero.');
+    Physics.start();
+    btnSim.textContent    = '⏹ Detener';
+    btnSim.className      = 'btn btn-danger';
+    btnTorque.disabled    = false;
+    selectedParticle      = null;
+  } else {
+    Physics.stop();
+    btnSim.textContent    = '▶ Iniciar';
+    btnSim.className      = 'btn btn-primary';
+    btnTorque.textContent = '⚡ Torque';
+    btnTorque.className   = 'btn btn-warn';
+    btnTorque.disabled    = true;
+  }
+});
+
+btnTorque.addEventListener('click', () => {
+  Physics.torqueOn = !Physics.torqueOn;
+  if (Physics.torqueOn) {
+    btnTorque.textContent = '⏸ Detener Torque';
+    btnTorque.classList.add('active-state');
+  } else {
+    btnTorque.textContent = '⚡ Torque';
+    btnTorque.classList.remove('active-state');
+  }
+});
+
+document.getElementById('btn-reset-sim').addEventListener('click', () => {
+  Physics.stop();
+  btnSim.textContent    = '▶ Iniciar';
+  btnSim.className      = 'btn btn-primary';
+  btnTorque.textContent = '⚡ Torque';
+  btnTorque.className   = 'btn btn-warn';
+  btnTorque.disabled    = true;
+  btnTorque.classList.remove('active-state');
+});
+
+document.getElementById('btn-reset-all').addEventListener('click', () => {
+  Physics.stop();
+  particles        = [];
+  selectedParticle = null;
+  Physics.reset();
+  btnSim.textContent    = '▶ Iniciar';
+  btnSim.className      = 'btn btn-primary';
+  btnTorque.textContent = '⚡ Torque';
+  btnTorque.className   = 'btn btn-warn';
+  btnTorque.disabled    = true;
+  btnTorque.classList.remove('active-state');
+  // Recentrar eje
+  axis.x = canvas.width  / 2;
+  axis.y = canvas.height / 2;
+});
+
+// --- Opciones visuales ---
+document.getElementById('chk-radii').addEventListener('change',  e => showRadii  = e.target.checked);
+document.getElementById('chk-r2').addEventListener('change',     e => showR2     = e.target.checked);
+document.getElementById('chk-labels').addEventListener('change', e => showLabels = e.target.checked);
+document.getElementById('chk-grid').addEventListener('change',   e => showGrid   = e.target.checked);
+
+// --- Gráfica: cambio de pestaña ---
+document.querySelectorAll('.graph-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    activeGraph = tab.dataset.graph;
+    document.querySelectorAll('.graph-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+  });
+});
+
+/* ============================================================
+   BUCLE PRINCIPAL (requestAnimationFrame)
+   ============================================================ */
+let lastTimestamp = null;
+
+function loop(ts) {
+  if (lastTimestamp === null) lastTimestamp = ts;
+  const dt = Math.min((ts - lastTimestamp) / 1000, 0.05); // máx 50 ms por frame
+  lastTimestamp = ts;
+
+  // Paso de física
+  if (Physics.running) Physics.step(dt);
+
+  // Renderizado
+  Renderer.draw();
+  updateUI();
+  drawGraph();
+
+  requestAnimationFrame(loop);
+}
+
+/* ============================================================
+   INICIALIZACIÓN
+   ============================================================ */
+function init() {
+  resizeCanvas();
+  resizeGraph();
+
+  // Partículas de ejemplo para empezar con algo visible
+  const cx = canvas.width  / 2;
+  const cy = canvas.height / 2;
+  const demos = [
+    { x: cx + 120, y: cy,       mass: 1.0 },
+    { x: cx - 80,  y: cy - 100, mass: 2.0 },
+    { x: cx - 60,  y: cy + 110, mass: 1.5 },
+  ];
+  demos.forEach(d => {
+    particles.push({
+      id:    ++idCounter,
+      x:     d.x,
+      y:     d.y,
+      mass:  d.mass,
+      color: COLORS[(idCounter - 1) % COLORS.length],
+    });
+  });
+
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  resizeGraph();
+});
+
+init();
+</script>
+</body>
+</html>
