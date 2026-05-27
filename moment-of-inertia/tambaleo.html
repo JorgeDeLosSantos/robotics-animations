@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Simulación: Ejes de Inercia</title>
+    <style>
+        body { margin: 0; font-family: sans-serif; background: #1a1a1a; color: white; overflow: hidden; }
+        .label { position: absolute; top: 20px; width: 50%; text-align: center; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; }
+        #left-label { left: 0; color: #4ade80; }
+        #right-label { right: 0; color: #f87171; }
+        .canvas-container { display: flex; height: 100vh; }
+        canvas { width: 50% !important; height: 100% !important; border-right: 1px solid #333; }
+        .instructions { position: absolute; bottom: 20px; width: 100%; text-align: center; font-size: 0.9em; opacity: 0.7; }
+    </style>
+</head>
+<body>
+
+    <div id="left-label" class="label">Eje Principal (Estable)</div>
+    <div id="right-label" class="label">Eje No Principal (Tambaleo)</div>
+    
+    <div class="canvas-container" id="container"></div>
+
+    <div class="instructions">La línea amarilla representa el eje de rotación fijo.</div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        const container = document.getElementById('container');
+
+        function createScene(isPrincipal) {
+            const scene = new THREE.Scene();
+            const camera = new THREE.PerspectiveCamera(45, (window.innerWidth / 2) / window.innerHeight, 0.1, 1000);
+            const renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth / 2, window.innerHeight);
+            container.appendChild(renderer.domElement);
+
+            // Luces
+            const light = new THREE.DirectionalLight(0xffffff, 1);
+            light.position.set(5, 5, 5);
+            scene.add(light, new THREE.AmbientLight(0x404040));
+
+            // La Placa
+            const geometry = new THREE.BoxGeometry(4, 2, 0.2);
+            const material = new THREE.MeshPhongMaterial({ color: isPrincipal ? 0x22c55e : 0xef4444, wireframe: false });
+            const plate = new THREE.Mesh(geometry, material);
+            
+            // Grupo para manejar la rotación
+            const pivot = new THREE.Group();
+            scene.add(pivot);
+            pivot.add(plate);
+
+            // Eje visual (Línea amarilla)
+            const axisGeom = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -4, 0), new THREE.Vector3(0, 4, 0)]);
+            const axisMat = new THREE.LineBasicMaterial({ color: 0xffff00 });
+            scene.add(new THREE.Line(axisGeom, axisMat));
+
+            if (!isPrincipal) {
+                // Inclinamos la placa respecto al eje de rotación para crear productos de inercia
+                plate.rotation.z = Math.PI / 4; 
+                plate.rotation.x = Math.PI / 6;
+            }
+
+            camera.position.z = 8;
+
+            return { scene, camera, renderer, pivot };
+        }
+
+        const scene1 = createScene(true);
+        const scene2 = createScene(false);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Rotación constante sobre el eje Y global
+            scene1.pivot.rotation.y += 0.02;
+            scene2.pivot.rotation.y += 0.02;
+
+            scene1.renderer.render(scene1.scene, scene1.camera);
+            scene2.renderer.render(scene2.scene, scene2.camera);
+        }
+
+        window.addEventListener('resize', () => {
+            const w = window.innerWidth / 2;
+            const h = window.innerHeight;
+            [scene1, scene2].forEach(s => {
+                s.camera.aspect = w / h;
+                s.camera.updateProjectionMatrix();
+                s.renderer.setSize(w, h);
+            });
+        });
+
+        animate();
+    </script>
+</body>
+</html>

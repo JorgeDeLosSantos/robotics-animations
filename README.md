@@ -6,6 +6,7 @@ A collection of simple robotics animations for educational purposes.
 
 - [Transformaciones con respecto al sistema móvil](https://jorgedelossantos.github.io/robotics-animations/transformations/transformations-body-frame)
 - [Transformaciones con respecto al sistema fijo](https://jorgedelossantos.github.io/robotics-animations/transformations/transformations-fixed-frame)
+- [Ángulos de Euler](https://jorgedelossantos.github.io/robotics-animations/transformations/euler-angles)
 
 
 ## Dinámica

@@ -41,10 +41,10 @@
     <div class="control-group">
         <label>Convención de Rotación</label>
         <select id="rotation-type">
-            <option value="intrinsic">Intrínseca (Ejes Móviles)</option>
-            <option value="extrinsic">Extrínseca (Ejes Fijos)</option>
+            <option value="Intrínseca">Intrínseca (Ejes Móviles)</option>
+            <option value="Extrínseca">Extrínseca (Ejes Fijos)</option>
         </select>
-        <div id="mode-desc" class="type-indicator intrinsic">MODO: INTRÍNSECO (Post-multiplicación)</div>
+        <div id="mode-desc" class="type-indicator intrinsic">MODO: INTRÍNSECA </div>
     </div>
 
     <div class="control-group">
@@ -58,13 +58,13 @@
     </div>
 
     <div class="control-group">
-        <label>Ángulo 1 (α): <span id="a1-val" class="val">0</span>°</label>
+        <label>Ángulo 1 (𝜙): <span id="a1-val" class="val">0</span>°</label>
         <input type="range" id="a1" min="-180" max="180" value="0">
         
-        <label>Ángulo 2 (β): <span id="a2-val" class="val">0</span>°</label>
+        <label>Ángulo 2 (θ): <span id="a2-val" class="val">0</span>°</label>
         <input type="range" id="a2" min="-180" max="180" value="0">
 
-        <label>Ángulo 3 (γ): <span id="a3-val" class="val">0</span>°</label>
+        <label>Ángulo 3 (ψ): <span id="a3-val" class="val">0</span>°</label>
         <input type="range" id="a3" min="-180" max="180" value="0">
     </div>
 
@@ -89,7 +89,7 @@
 
     // Inicialización de Escena
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0a0a0a);
+    scene.background = new THREE.Color(0xF0F0F0);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(8, 5, 8);
 
@@ -98,7 +98,7 @@
     document.body.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    scene.add(new THREE.GridHelper(10, 10, 0x333333, 0x222222));
+    scene.add(new THREE.GridHelper(10, 10, 0xDADADA, 0xDADADA));
 
     // Ejes del Mundo (Fijos)
     const worldAxes = new THREE.AxesHelper(5);
@@ -124,7 +124,7 @@
 
     // Lógica Matemática
     let angles = { a1: 0, a2: 0, a3: 0 };
-    let type = 'intrinsic';
+    let type = 'Intrínseca';
     let sequence = 'ZYX';
 
     function getRotationMatrix(axis, theta) {
@@ -144,11 +144,11 @@
 
         let R = new THREE.Matrix4();
 
-        if (type === 'intrinsic') {
-            // INTRÍNSECO: R = R1 * R2 * R3 (Post-multiplicación)
+        if (type === 'Intrínseca') {
+            // INTRÍNSECA: R = R1 * R2 * R3 (Post-multiplicación)
             R.multiply(m1).multiply(m2).multiply(m3);
         } else {
-            // EXTRÍNSECO: R = R3 * R2 * R1 (Pre-multiplicación)
+            // EXTRÍNSECA: R = R3 * R2 * R1 (Pre-multiplicación)
             R.copy(m3).multiply(m2).multiply(m1);
         }
 
@@ -176,7 +176,7 @@
     document.getElementById('rotation-type').addEventListener('change', (e) => {
         type = e.target.value;
         const desc = document.getElementById('mode-desc');
-        desc.textContent = `MODO: ${type.toUpperCase()} (${type === 'intrinsic' ? 'Post-multiplicación' : 'Pre-multiplicación'})`;
+        desc.textContent = `MODO: ${type.toUpperCase()} (${type === 'Intrínseca' ? 'Post-multiplicación' : 'Pre-multiplicación'})`;
         desc.className = `type-indicator ${type}`;
         updateRotation();
     });

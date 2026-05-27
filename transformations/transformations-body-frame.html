@@ -85,9 +85,19 @@
 
     // Escena y Cámara
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x111111);
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(10, 10, 10);
+    scene.background = new THREE.Color(0xFFFFFF);
+    const aspect = window.innerWidth / window.innerHeight;
+    const d = 10; // Este valor controla el "zoom" o tamaño del área visible
+    const camera = new THREE.OrthographicCamera(
+    -d * aspect,  // Izquierda
+        d * aspect,  // Derecha
+        d,           // Arriba
+    -d,           // Abajo
+        0.1,         // Cerca (Near)
+        1000         // Lejos (Far)
+    );
+    camera.position.set(10, 10, 10); // Mantener posición para ver los 3 ejes
+    camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
@@ -96,7 +106,7 @@
     const controls = new OrbitControls(camera, renderer.domElement);
 
     // Ayudas visuales
-    scene.add(new THREE.GridHelper(20, 20, 0x444444, 0x222222));
+    scene.add(new THREE.GridHelper(20, 20, 0xDADADA, 0xDADADA)); // Cuadrícula para referencia
     const worldAxes = new THREE.AxesHelper(5);
     scene.add(worldAxes); // Sistema Fijo
 
@@ -160,17 +170,6 @@
         updateMatrixUI(T_actual);
     }
 
-    // function updateMatrixUI(m) {
-    //     const ui = document.getElementById('matrix-ui');
-    //     ui.innerHTML = '';
-    //     // Three.js usa column-major, lo mostramos para que coincida visualmente
-    //     m.elements.forEach(val => {
-    //         const el = document.createElement('div');
-    //         el.textContent = val.toFixed(2);
-    //         ui.appendChild(el);
-    //     });
-    // }
-
     function updateMatrixUI(m) {
         const ui = document.getElementById('matrix-ui');
         ui.innerHTML = '';
@@ -186,7 +185,7 @@
                 // Fórmula: (Columna * 4) + Fila
                 const index = j * 4 + i; 
                 
-                el.textContent = te[index].toFixed(2);
+                el.textContent = te[index].toFixed(4);
                 ui.appendChild(el);
             }
         }
@@ -215,7 +214,17 @@
     };
 
     window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
+        // camera.aspect = window.innerWidth / window.innerHeight;
+        // camera.updateProjectionMatrix();
+        // renderer.setSize(window.innerWidth, window.innerHeight);
+        const aspect = window.innerWidth / window.innerHeight;
+        const d = 10; // Debe coincidir con el valor 'd' de arriba
+
+        camera.left = -d * aspect;
+        camera.right = d * aspect;
+        camera.top = d;
+        camera.bottom = -d;
+
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
