@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador DH - UI Personalizada & Axonometría</title>
+    <!-- Tailwind CSS para la interfaz -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Three.js y OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
+    <!-- Encabezado -->
+    <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md">
+        <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-indigo-400">
+            🤖 Visualizador Cinemático DH 3D
+        </h1>
+        <p class="text-xs text-slate-400 mt-1">
+            Matriz de transformación clásica: $Rot(Z, \theta) \cdot Trans(Z, d) \cdot Trans(X, a) \cdot Rot(X, \alpha)$
+        </p>
+    </header>
+
+    <!-- Contenedor Principal -->
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+        
+        <!-- Panel de Control Izquierdo -->
+        <div class="w-full md:w-5/12 p-4 overflow-y-auto border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-slate-200">Tabla de Parámetros</h2>
+                <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all flex items-center gap-1">
+                    ➕ Añadir Eslabón
+                </button>
+            </div>
+
+            <!-- Tabla UI en orden: a, alpha, d, theta -->
+            <div class="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900/50">
+                <table class="w-full text-left border-collapse min-w-[400px]">
+                    <thead>
+                        <tr class="bg-slate-800 text-slate-400 text-xs font-semibold uppercase border-b border-slate-700">
+                            <th class="p-2.5 text-center w-12">#</th>
+                            <th class="p-2.5">a</th>
+                            <th class="p-2.5">α (deg)</th>
+                            <th class="p-2.5">d</th>
+                            <th class="p-2.5">θ (deg)</th>
+                            <th class="p-2.5 text-center w-12">Acción</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dh-table-body">
+                        <!-- Filas dinámicas -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Leyenda de Sistemas de Referencia -->
+            <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 text-xs">
+                <span class="font-semibold block text-slate-300 mb-2">Código de Colores de Ejes:</span>
+                <div class="grid grid-cols-3 gap-2 text-center font-bold">
+                    <span class="bg-red-950/40 text-red-400 border border-red-800/60 py-1 rounded">Eje X (Rojo)</span>
+                    <span class="bg-green-950/40 text-green-400 border border-green-800/60 py-1 rounded">Eje Y (Verde)</span>
+                    <span class="bg-blue-950/40 text-blue-400 border border-blue-800/60 py-1 rounded">Eje Z (Azul)</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Visor 3D Derecho (Proyección Ortográfica) -->
+        <div class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950">
+            <div id="canvas-container" class="w-full h-full"></div>
+            <div class="absolute bottom-3 left-3 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 text-[10px] text-slate-400 px-2.5 py-1.5 rounded pointer-events-none shadow-md">
+                📐 Proyección Axonométrica (Ortográfica) | 🖱️ Clic Izq: Rotar | Clic Der: Panear | Rueda: Zoom
+            </div>
+            <div class="absolute top-3 right-3 flex flex-wrap gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10">
+                <button onclick="changeView('top')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-colors border border-slate-600/30">
+                    Superior (XY)
+                </button>
+                <button onclick="changeView('front')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-colors border border-slate-600/30">
+                    Frontal (XZ)
+                </button>
+                <button onclick="changeView('side')" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-colors border border-slate-600/30">
+                    Lateral (YZ)
+                </button>
+                <button onclick="changeView('iso')" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded transition-colors shadow">
+                    Isométrica
+                </button>
+            </div>
+        </div>
+
+    </main>
+
+    <script>
+        // --- DATOS INICIALES ---
+        let dhParams = [
+            { theta: 0, d: 1.5, a: 0.0, alpha: 90 },
+            { theta: 30, d: 0.0, a: 2.0, alpha: 0 },
+            { theta: -45, d: 0.0, a: 1.5, alpha: 0 }
+        ];
+
+        const tableBody = document.getElementById('dh-table-body');
+        const addRowBtn = document.getElementById('add-row-btn');
+        const canvasContainer = document.getElementById('canvas-container');
+
+        // --- VARIABLES DE THREE.JS ---
+        let scene, camera, renderer, controls;
+        let robotGroup;
+        const frustumSize = 6; // Dimensión del campo visual ortográfico
+
+        // --- INICIALIZACIÓN DE LA CÁMARA AXONOMETRICA ---
+        function init3D() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f172a);
+
+            const aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+            
+            // Cámara Ortográfica pura
+            camera = new THREE.OrthographicCamera(
+                frustumSize * aspect / -2,
+                frustumSize * aspect / 2,
+                frustumSize / 2,
+                frustumSize / -2,
+                0.1,
+                1000
+            );
+            
+            // Posición axonométrica estándar equidistante
+            // camera.position.set(5, 5, 5); 
+            // camera.lookAt(0, 0, 0);
+            // Nueva posición de la cámara para mantener una perspectiva axonométrica cómoda con el suelo en XY
+            // (Mirando el plano desde el cuadrante positivo de X, Y, Z)
+            camera.position.set(5, -5, 5); 
+            camera.up.set(0, 0, 1); // Definimos explícitamente que el eje Z es la dirección "hacia arriba"
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+            canvasContainer.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            // --- RECONFIGURACIÓN DE LOS BOTONES DEL MOUSE ---
+            // THREE.MOUSE.PAN: Paneo (desplazar la cámara)
+            // THREE.MOUSE.ROTATE: Rotación orbital
+            controls.mouseButtons = {
+                LEFT: THREE.MOUSE.PAN,      // Clic izquierdo ahora panea la escena
+                MIDDLE: THREE.MOUSE.ROTATE, // Presionar el Scroll (rueda) ahora ROTA la escena
+                RIGHT: THREE.MOUSE.PAN      // Clic derecho también panea (opcional)
+            };
+
+            // Iluminación
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(10, 20, 15);
+            scene.add(dirLight);
+
+            // Rejilla de fondo
+            // const gridHelper = new THREE.GridHelper(12, 24, 0x475569, 0x334155);
+            // scene.add(gridHelper);
+            const gridHelper = new THREE.GridHelper(12, 24, 0x475569, 0x334155);
+            gridHelper.rotation.x = Math.PI / 2; // Rotación de 90 grados en X para acostarlo sobre XY
+            scene.add(gridHelper);
+
+            robotGroup = new THREE.Group();
+            scene.add(robotGroup);
+
+            window.addEventListener('resize', onWindowResize);
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            const aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+            camera.left = frustumSize * aspect / -2;
+            camera.right = frustumSize * aspect / 2;
+            camera.top = frustumSize / 2;
+            camera.bottom = frustumSize / -2;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+        }
+
+        // --- INTERFAZ GRÁFICA REORDENADA (a, alpha, d, theta) ---
+        function renderTable() {
+            tableBody.innerHTML = '';
+            dhParams.forEach((param, index) => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-slate-800 hover:bg-slate-800/40 transition-colors text-sm";
+                tr.innerHTML = `
+                    <td class="p-2 text-center text-slate-500 font-bold">${index + 1}</td>
+                    <td class="p-1">
+                        <input type="number" step="0.1" data-index="${index}" data-prop="a" value="${param.a}" 
+                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-amber-300 focus:outline-none">
+                    </td>
+                    <td class="p-1">
+                        <input type="number" step="5" data-index="${index}" data-prop="alpha" value="${param.alpha}" 
+                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-orange-300 focus:outline-none">
+                    </td>
+                    <td class="p-1">
+                        <input type="number" step="0.1" data-index="${index}" data-prop="d" value="${param.d}" 
+                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-emerald-300 focus:outline-none">
+                    </td>
+                    <td class="p-1">
+                        <input type="number" step="5" data-index="${index}" data-prop="theta" value="${param.theta}" 
+                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-indigo-300 focus:outline-none">
+                    </td>
+                    <td class="p-2 text-center">
+                        <button data-index="${index}" class="delete-btn text-slate-500 hover:text-red-400 p-1 transition-colors">🗑️</button>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+
+            tableBody.querySelectorAll('input').forEach(input => input.addEventListener('input', handleInputChange));
+            tableBody.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', handleDeleteRow));
+        }
+
+        function handleInputChange(e) {
+            const index = parseInt(e.target.dataset.index);
+            const prop = e.target.dataset.prop;
+            dhParams[index][prop] = parseFloat(e.target.value) || 0;
+            updateRobotGeometry();
+        }
+
+        function handleDeleteRow(e) {
+            if (dhParams.length <= 1) return;
+            const index = parseInt(e.target.closest('button').dataset.index);
+            dhParams.splice(index, 1);
+            renderTable();
+            updateRobotGeometry();
+        }
+
+        addRowBtn.addEventListener('click', () => {
+            if (dhParams.length >= 6) return;
+            dhParams.push({ theta: 0, d: 1.0, a: 1.0, alpha: 0 });
+            renderTable();
+            updateRobotGeometry();
+        });
+
+        // --- CÁLCULO CINEMÁTICO CLÁSICO CONVENCIÓN DH ---
+        function updateRobotGeometry() {
+            while(robotGroup.children.length > 0){
+                robotGroup.remove(robotGroup.children[0]);
+            }
+
+            let currentMatrix = new THREE.Matrix4();
+            let pStart = new THREE.Vector3(0, 0, 0);
+
+            // Sistema coordenado de base {0}
+            const baseAxes = new THREE.AxesHelper(0.8);
+            robotGroup.add(baseAxes);
+
+            dhParams.forEach((param) => {
+                const thetaRad = THREE.MathUtils.degToRad(param.theta);
+                const alphaRad = THREE.MathUtils.degToRad(param.alpha);
+
+                // Matrices elementales según la regla clásica
+                const rTheta = new THREE.Matrix4().makeRotationZ(thetaRad);
+                const tD = new THREE.Matrix4().makeTranslation(0, 0, param.d);
+                const tA = new THREE.Matrix4().makeTranslation(param.a, 0, 0);
+                const rAlpha = new THREE.Matrix4().makeRotationX(alphaRad);
+
+                // T_i = Rot(Z, theta) * Trans(Z, d) * Trans(X, a) * Rot(X, alpha)
+                const linkTransform = new THREE.Matrix4()
+                    .multiply(rTheta)
+                    .multiply(tD)
+                    .multiply(tA)
+                    .multiply(rAlpha);
+
+                currentMatrix.multiply(linkTransform);
+                
+                let pEnd = new THREE.Vector3();
+                pEnd.setFromMatrixPosition(currentMatrix);
+
+                // Dibujar cuerpo rígido del eslabón
+                const distance = pStart.distanceTo(pEnd);
+                if (distance > 0.01) {
+                    const linkGeom = new THREE.CylinderGeometry(0.06, 0.04, distance, 8);
+                    linkGeom.translate(0, distance / 2, 0);
+                    const linkMat = new THREE.MeshStandardMaterial({ color: 0x4f46e5, roughness: 0.4, metalness: 0.3 });
+                    const linkMesh = new THREE.Mesh(linkGeom, linkMat);
+
+                    linkMesh.position.copy(pStart);
+                    linkMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pEnd.clone().sub(pStart).normalize());
+                    robotGroup.add(linkMesh);
+                }
+
+                // Dibujar terna tridimensional local
+                const axesHelper = new THREE.AxesHelper(0.6);
+                axesHelper.matrixAutoUpdate = false;
+                axesHelper.matrix.copy(currentMatrix);
+                robotGroup.add(axesHelper);
+
+                // Dibujar articulación cinemática
+                const jointGeom = new THREE.SphereGeometry(0.12, 16, 16);
+                const jointMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0369a1, roughness: 0.2 });
+                const jointMesh = new THREE.Mesh(jointGeom, jointMat);
+                jointMesh.position.copy(pEnd);
+                robotGroup.add(jointMesh);
+
+                pStart.copy(pEnd);
+            });
+        }
+
+        function changeView(view) {
+            // Distancia prudente para alejar la cámara ortográfica sin alterar el frustumSize
+            const d = 10; 
+            
+            // Primero, reiniciamos el punto donde mira la cámara al origen del robot
+            controls.target.set(0, 0, 0);
+
+            switch(view) {
+                case 'top': // Plano XY - Mirando desde el eje Z positivo hacia abajo
+                    camera.position.set(0, 0, d);
+                    camera.up.set(0, 1, 0); // En vista superior el eje Y apunta hacia "arriba" de la pantalla
+                    break;
+                    
+                case 'front': // Plano XZ - Mirando desde el eje Y negativo hacia el fondo
+                    camera.position.set(0, -d, 0);
+                    camera.up.set(0, 0, 1); // El eje Z se mantiene como el vector vertical superior
+                    break;
+                    
+                case 'side': // Plano YZ - Mirando desde el eje X positivo de perfil
+                    camera.position.set(d, 0, 0);
+                    camera.up.set(0, 0, 1); // El eje Z se mantiene como el vector vertical superior
+                    break;
+                    
+                case 'iso': // Isométrica real simétrica [1, -1, 1]
+                    // Para una isométrica perfecta, las coordenadas X, Y, Z deben tener la misma magnitud
+                    const isoVal = d / Math.sqrt(3); 
+                    camera.position.set(isoVal, -isoVal, isoVal);
+                    camera.up.set(0, 0, 1); // El eje Z es la vertical
+                    break;
+            }
+
+            // CRUCIAL: Notificar a OrbitControls y recalcular la proyección de la cámara
+            camera.lookAt(0, 0, 0);
+            controls.update();
+        }
+
+        window.onload = () => {
+            init3D();
+            renderTable();
+            updateRobotGeometry();
+        };
+    </script>
+</body>
+</html>
