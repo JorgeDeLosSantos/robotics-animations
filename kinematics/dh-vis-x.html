@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizador DH</title>
+    <title>Visualizador DH con Jacobiano</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
@@ -13,11 +13,8 @@
     <!-- Encabezado -->
     <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md">
         <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-indigo-400">
-            Visualizador DH
+            Visualizador DH + Matriz Jacobiana
         </h1>
-        <!-- <p class="text-xs text-slate-400 mt-1">
-            Matriz de transformación clásica: $Rot(Z, \theta) \cdot Trans(Z, d) \cdot Trans(X, a) \cdot Rot(X, \alpha)$
-        </p> -->
     </header>
 
     <!-- Contenedor Principal -->
@@ -60,21 +57,28 @@
                     <span class="bg-blue-950/40 text-blue-400 border border-blue-800/60 py-1 rounded">Eje Z (Azul)</span>
                 </div>
             </div>
-            <!-- <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 text-xs">
-            </div> -->
+
+            <!-- Matriz de Transformación -->
             <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
                 <h3 class="text-sm font-semibold text-indigo-400">Matriz de Transformación Final (T)</h3>
                 <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400">
+                </div>
+            </div>
+
+            <!-- NUEVO: Contenedor para la Matriz Jacobiana -->
+            <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
+                <h3 class="text-sm font-semibold text-amber-400">Matriz Jacobiana Geométrica ($6 \times N$)</h3>
+                <div class="overflow-x-auto bg-slate-950 p-2.5 rounded border border-slate-800">
+                    <div id="jacobian-container" class="grid gap-1.5 font-mono text-[11px] text-center text-sky-400">
+                        <!-- Se poblará dinámicamente con columnas según el número de eslabones -->
                     </div>
+                </div>
             </div>
         </div>
 
         <!-- Visor 3D Derecho (Proyección Ortográfica) -->
         <div class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950">
             <div id="canvas-container" class="w-full h-full"></div>
-            <!-- <div class="absolute bottom-3 left-3 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 text-[10px] text-slate-400 px-2.5 py-1.5 rounded pointer-events-none shadow-md">
-                📐 Proyección Axonométrica (Ortográfica) | 🖱️ Clic Izq: Rotar | Clic Der: Panear | Rueda: Zoom
-            </div> -->
             <div class="absolute top-3 right-3 flex flex-wrap gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10">
                 <button id="btn-view-top" onclick="changeView('top')" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
                     Superior (XY)
@@ -89,6 +93,7 @@
                     Isométrica
                 </button>
             </div>
+        </div>
     </main>
 
     <script>
@@ -103,20 +108,16 @@
         const addRowBtn = document.getElementById('add-row-btn');
         const canvasContainer = document.getElementById('canvas-container');
 
-        // For three.js scene setup
         let scene, camera, renderer, controls;
         let robotGroup;
         const frustumSize = 1200;
 
-        
         function init3D() {
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x0f172a);
-            // scene.background = new THREE.Color(0xffffff);
 
             const aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
             
-            // OrthographicCamera for axonometric projection
             camera = new THREE.OrthographicCamera(
                 frustumSize * aspect / -2,
                 frustumSize * aspect / 2,
@@ -127,7 +128,7 @@
             );
             
             camera.position.set(1500, -1500, 1500);
-            camera.up.set(0, 0, 1); // Defininig the up direction to Z-axis for better axonometric view
+            camera.up.set(0, 0, 1);
             camera.lookAt(0, 0, 0);
 
             renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -138,15 +139,12 @@
             controls.enableDamping = true;
             controls.dampingFactor = 0.05;
 
-            // Redefining mouse button actions for better user experience in this specific application
-            // The key idea is to make the behavior feel like CAD software
             controls.mouseButtons = {
                 LEFT: THREE.MOUSE.PAN,      
                 MIDDLE: THREE.MOUSE.ROTATE, 
                 RIGHT: THREE.MOUSE.PAN      
             };
 
-            // If the user starts interacting with the controls, we can change the button styles to indicate active interaction
             controls.addEventListener('start', () => {
                 document.querySelectorAll('.view-btn').forEach(btn => {
                     btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-500', 'text-white', 'shadow');
@@ -154,7 +152,6 @@
                 });
             });
 
-            // Lighting
             const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
             scene.add(ambientLight);
 
@@ -162,15 +159,10 @@
             dirLight.position.set(10, 20, 15);
             scene.add(dirLight);
 
-            // Grid helper 
-            // const gridHelper = new THREE.GridHelper(12, 24, 0x475569, 0x334155);
-            // scene.add(gridHelper);
             const gridHelper = new THREE.GridHelper(2000, 40, 0x475569, 0x334155);
-            // const gridHelper = new THREE.GridHelper(2000, 20, 0xdadada, 0xdadada);
-            gridHelper.rotation.x = Math.PI / 2; // Rotación de 90 grados en X para acostarlo sobre XY
+            gridHelper.rotation.x = Math.PI / 2;
             scene.add(gridHelper);
 
-            // Configure camera near and far planes for better depth precision
             camera.near = 1;
             camera.far = 10000;
             camera.updateProjectionMatrix();
@@ -198,7 +190,6 @@
             renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
         }
 
-        // Render the DH parameters table dynamically
         function renderTable() {
             tableBody.innerHTML = '';
             dhParams.forEach((param, index) => {
@@ -238,7 +229,6 @@
             const prop = e.target.dataset.prop;
             let value = parseFloat(e.target.value) || 0;
 
-            // Adjust the value for theta and alpha to be within -360 to 360 degrees
             if (prop === 'theta' || prop === 'alpha') {
                 if (value < -360) value = -360;
                 if (value > 360) value = 360;
@@ -264,8 +254,6 @@
             updateRobotGeometry();
         });
 
-        
-        // Update the robot geometry based on the current DH parameters
         function updateRobotGeometry() {
             while(robotGroup.children.length > 0){
                 robotGroup.remove(robotGroup.children[0]);
@@ -274,21 +262,22 @@
             let currentMatrix = new THREE.Matrix4();
             let pStart = new THREE.Vector3(0, 0, 0);
 
-            // Draw the frame {0}
             const baseAxes = new THREE.AxesHelper(100);
             robotGroup.add(baseAxes);
+
+            // NUEVO: Guardar información histórica de transformaciones intermedias para el Jacobiano
+            // El sistema 0 inicial tiene matriz identidad
+            let intermediateTransforms = [new THREE.Matrix4()]; 
 
             dhParams.forEach((param) => {
                 const thetaRad = THREE.MathUtils.degToRad(param.theta);
                 const alphaRad = THREE.MathUtils.degToRad(param.alpha);
 
-                // 
                 const rTheta = new THREE.Matrix4().makeRotationZ(thetaRad);
                 const tD = new THREE.Matrix4().makeTranslation(0, 0, param.d);
                 const tA = new THREE.Matrix4().makeTranslation(param.a, 0, 0);
                 const rAlpha = new THREE.Matrix4().makeRotationX(alphaRad);
 
-                // T_i = Rot(Z, theta) * Trans(Z, d) * Trans(X, a) * Rot(X, alpha)
                 const linkTransform = new THREE.Matrix4()
                     .multiply(rTheta)
                     .multiply(tD)
@@ -297,15 +286,16 @@
 
                 currentMatrix.multiply(linkTransform);
                 
+                // Almacenamos una copia de la matriz acumulada actual del eslabón i
+                intermediateTransforms.push(currentMatrix.clone());
+
                 let pEnd = new THREE.Vector3();
                 pEnd.setFromMatrixPosition(currentMatrix);
 
-                // Draw the link as a cylinder between pStart and pEnd
                 const distance = pStart.distanceTo(pEnd);
                 if (distance > 0.01) {
                     const linkGeom = new THREE.CylinderGeometry(5, 5, distance, 8);
                     linkGeom.translate(0, distance / 2, 0);
-                    // const linkMat = new THREE.MeshStandardMaterial({ color: 0x4f46e5, roughness: 0.4, metalness: 0.3 });
                     const linkMat = new THREE.MeshStandardMaterial({ color: 0xff8c00, roughness: 0.4, metalness: 0.3, emissive: 0xff8c00, emissiveIntensity: 0.3 });
                     const linkMesh = new THREE.Mesh(linkGeom, linkMat);
 
@@ -314,13 +304,11 @@
                     robotGroup.add(linkMesh);
                 }
 
-                // Draw the coordinate axes at the end of the link
                 const axesHelper = new THREE.AxesHelper(60);
                 axesHelper.matrixAutoUpdate = false;
                 axesHelper.matrix.copy(currentMatrix);
                 robotGroup.add(axesHelper);
 
-                // Draw joint sphere at the end of the link
                 const jointGeom = new THREE.SphereGeometry(10, 16, 16);
                 const jointMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0369a1, roughness: 0.2 });
                 const jointMesh = new THREE.Mesh(jointGeom, jointMat);
@@ -330,38 +318,92 @@
                 pStart.copy(pEnd);
             });
 
-            // Update the transformation matrix display in the UI
+            // Actualizar interfaz de Matriz de Transformación Final
             const matrixContainer = document.getElementById('matrix-container');
             if (matrixContainer) {
-                matrixContainer.innerHTML = ''; // Clear previous matrix values
+                matrixContainer.innerHTML = '';
                 const te = currentMatrix.elements; 
-                
                 for (let i = 0; i < 4; i++) {
                     for (let j = 0; j < 4; j++) {
-                        // Get the value from the column-major order array
                         const val = te[j * 4 + i];
-                        
                         const cell = document.createElement('div');
                         cell.className = "bg-slate-900/80 border border-slate-800/50 py-1 rounded font-bold";
-                        
-                        // Formatting and rounding for better readability
                         cell.innerText = Math.abs(val) < 0.001 ? "0.00" : val.toFixed(3);
-                        
-                        // Highlight the last column (translation vector) in amber color for better visibility
-                        if (j === 3 && i < 3) {
-                            cell.className += " text-amber-400"; 
-                        }
-                        
+                        if (j === 3 && i < 3) cell.className += " text-amber-400"; 
                         matrixContainer.appendChild(cell);
                     }
+                }
+            }
+
+            // NUEVO: Cómputo de la Matriz Jacobiana
+            computeAndRenderJacobian(intermediateTransforms);
+        }
+
+        // NUEVO: Función matemática y de renderizado para el Jacobiano
+        function computeAndRenderJacobian(transforms) {
+            const jacobianContainer = document.getElementById('jacobian-container');
+            if (!jacobianContainer) return;
+
+            const N = dhParams.length; // Número de eslabones
+            
+            // Configurar dinámicamente las columnas de CSS de la cuadrícula según N
+            jacobianContainer.style.gridTemplateColumns = `repeat(${N}, minmax(60px, 1fr))`;
+            jacobianContainer.innerHTML = '';
+
+            // Guardamos la posición del efector final p_N (origen de la última matriz)
+            const p_N = new THREE.Vector3().setFromMatrixPosition(transforms[transforms.length - 1]);
+
+            // Inicializar matriz vacía de 6 filas x N columnas
+            let J = Array.from({ length: 6 }, () => []);
+
+            for (let i = 0; i < N; i++) {
+                // Para la articulación i, tomamos el sistema de referencia previo (i-1)
+                const T_prev = transforms[i]; 
+                
+                // Extraer el vector Z_(i-1) (la tercera columna de la submatriz de rotación)
+                const elements = T_prev.elements;
+                const z_prev = new THREE.Vector3(elements[8], elements[9], elements[10]).normalize();
+
+                // Extraer la posición p_(i-1) (la cuarta columna de traslación)
+                const p_prev = new THREE.Vector3().setFromMatrixPosition(T_prev);
+
+                // Jacobiano Lineal: Jv = z_(i-1) x (p_N - p_(i-1))
+                const r_vector = new THREE.Vector3().subVectors(p_N, p_prev);
+                const Jv = new THREE.Vector3().crossVectors(z_prev, r_vector);
+
+                // Jacobiano Angular: Jw = z_(i-1)
+                const Jw = z_prev;
+
+                // Guardar los 6 componentes en la columna i
+                J[0].push(Jv.x);
+                J[1].push(Jv.y);
+                J[2].push(Jv.z);
+                J[3].push(Jw.x);
+                J[4].push(Jw.y);
+                J[5].push(Jw.z);
+            }
+
+            // Renderizar la matriz Jacobiana fila por fila en la UI
+            for (let f = 0; f < 6; f++) {
+                for (let c = 0; c < N; c++) {
+                    const val = J[f][c];
+                    const cell = document.createElement('div');
+                    
+                    // Dar un estilo visual diferente a la parte Lineal (Jv) vs la Angular (Jw)
+                    if (f < 3) {
+                        cell.className = "bg-slate-900/80 border border-slate-800/60 py-1 rounded font-bold text-sky-400";
+                    } else {
+                        cell.className = "bg-slate-900/50 border border-slate-800/40 py-1 rounded font-bold text-teal-400 opacity-90";
+                    }
+
+                    cell.innerText = Math.abs(val) < 0.001 ? "0.00" : val.toFixed(2);
+                    jacobianContainer.appendChild(cell);
                 }
             }
         }
 
         function changeView(view) {
-            // Fixed distance for the camera from the origin to ensure consistent zoom level across views
             const d = 1800; 
-            
             controls.target.set(0, 0, 0);
 
             switch(view) {
@@ -369,17 +411,14 @@
                     camera.position.set(0, 0, d);
                     camera.up.set(0, 1, 0); 
                     break;
-                    
                 case 'front':
                     camera.position.set(0, -d, 0);
                     camera.up.set(0, 0, 1); 
                     break;
-                    
                 case 'side':
                     camera.position.set(d, 0, 0);
                     camera.up.set(0, 0, 1); 
                     break;
-                    
                 case 'iso':
                     const isoVal = d / Math.sqrt(3); 
                     camera.position.set(isoVal, -isoVal, isoVal);
@@ -387,11 +426,9 @@
                     break;
             }
 
-            // Update the camera's up vector and ensure it looks at the origin
             camera.lookAt(0, 0, 0);
             controls.update();
 
-            // Clear the active state from all buttons and apply the highlight to the selected view button
             document.querySelectorAll('.view-btn').forEach(btn => {
                 btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-500', 'text-white', 'shadow');
                 btn.classList.add('bg-slate-800', 'hover:bg-slate-700', 'text-slate-200');
@@ -403,7 +440,6 @@
                 activeBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-500', 'text-white', 'shadow');
             }
         }
-
 
         window.onload = () => {
             init3D();
