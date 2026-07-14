@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador de Esfuerzos en Placa Plana</title>
+    <!-- Tailwind CSS para diseño rápido y limpio -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <!-- Plotly.js para los gráficos científicos -->
+    <script src="https://cdn.plot.ly/plotly-2.24.1.min.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col justify-between font-sans">
+
+    <!-- Encabezado -->
+    <header class="bg-gray-800 border-b border-gray-700 p-4 text-center shadow-md">
+        <h1 class="text-2xl font-bold text-blue-400">Distribución de Esfuerzos en una Placa Plana</h1>
+        <p class="text-sm text-gray-400 mt-1">Placa infinita con un agujero circular bajo tensión uniaxial ($\sigma_0$)</p>
+    </header>
+
+    <!-- Contenido Principal -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        <!-- Panel de Controles -->
+        <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-lg flex flex-col gap-6 lg:col-span-1">
+            <h2 class="text-lg font-semibold border-b border-gray-700 pb-2 text-gray-300">Parámetros</h2>
+            
+            <!-- Control: Tensión Remota -->
+            <div class="flex flex-col gap-2">
+                <div class="flex justify-between text-sm">
+                    <label for="sigma0" class="font-medium">Tensión Remota ($\sigma_0$):</label>
+                    <span id="sigma0-val" class="text-blue-400 font-bold">100 MPa</span>
+                </div>
+                <input type="range" id="sigma0" min="10" max="500" value="100" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Control: Radio del Agujero -->
+            <div class="flex flex-col gap-2">
+                <div class="flex justify-between text-sm">
+                    <label for="radius" class="font-medium">Radio del Agujero ($a$):</label>
+                    <span id="radius-val" class="text-blue-400 font-bold">2.0 mm</span>
+                </div>
+                <input type="range" id="radius" min="0.5" max="4.5" step="0.1" value="2.0" class="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+            </div>
+
+            <!-- Información Teórica Breve -->
+            <div class="bg-gray-800/50 p-4 rounded-lg border border-gray-700 text-xs text-gray-400 space-y-2">
+                <p class="font-semibold text-gray-300 text-sm">💡 Nota de Ingeniería:</p>
+                <p>Debido al efecto de concentración de esfuerzos, el esfuerzo máximo ocurre en el borde del agujero ($\theta = \pm 90^\circ$) y alcanza teóricamente un valor de $3 \times \sigma_0$.</p>
+                <p class="text-blue-400 font-medium" id="max-stress-calc">Esfuerzo Máximo Teórico: 300 MPa</p>
+            </div>
+        </div>
+
+        <!-- Panel del Gráfico -->
+        <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 shadow-lg lg:col-span-3 flex flex-col justify-center items-center">
+            <div id="plot" class="w-full h-[550px]"></div>
+        </div>
+    </main>
+
+    <!-- Pie de página -->
+    <footer class="bg-gray-800 border-t border-gray-700 p-3 text-center text-xs text-gray-500">
+        Simulador interactivo basado en las Ecuaciones de Kirsch (Teoría de Elasticidad Lineal).
+    </footer>
+
+    <!-- Lógica de la Web-App -->
+    <script>
+        // Selección de elementos del DOM
+        const sigma0Input = document.getElementById('sigma0');
+        const radiusInput = document.getElementById('radius');
+        const sigma0Val = document.getElementById('sigma0-val');
+        const radiusVal = document.getElementById('radius-val');
+        const maxStressCalc = document.getElementById('max-stress-calc');
+
+        // Tamaño del dominio de la placa (fijo para visualización uniforme)
+        const L = 10; 
+        const resolution = 120; // Puntos de la cuadrícula
+
+        // Generar coordenadas X e Y
+        const generateGrid = () => {
+            const arr = [];
+            const step = (2 * L) / (resolution - 1);
+            for (let i = 0; i < resolution; i++) {
+                arr.push(-L + i * step);
+            }
+            return arr;
+        };
+
+        const xArr = generateGrid();
+        const yArr = generateGrid();
+
+        // Calcular la matriz de esfuerzos (Von Mises simplificado para 2D)
+        function calculateStressMatrix(sigma0, a) {
+            const zData = [];
+
+            for (let j = 0; j < yArr.length; j++) {
+                const row = [];
+                const y = yArr[j];
+                
+                for (let i = 0; i < xArr.length; i++) {
+                    const x = xArr[i];
+                    
+                    const r = Math.sqrt(x*x + y*y);
+                    const theta = Math.atan2(y, x);
+
+                    // Si está dentro del agujero, el esfuerzo es 0 (vacío)
+                    if (r < a) {
+                        row.push(null); 
+                        continue;
+                    }
+
+                    // Ecuaciones de Kirsch para una placa bajo tensión en el eje X
+                    // Esfuerzos en coordenadas polares
+                    const sigma_r = (sigma0 / 2) * (1 - (a*a)/(r*r)) + 
+                                    (sigma0 / 2) * (1 - 4*(a*a)/(r*r) + 3*Math.pow(a,4)/Math.pow(r,4)) * Math.cos(2 * theta);
+                    
+                    const sigma_theta = (sigma0 / 2) * (1 + (a*a)/(r*r)) - 
+                                        (sigma0 / 2) * (1 + 3*Math.pow(a,4)/Math.pow(r,4)) * Math.cos(2 * theta);
+                    
+                    const tau_r_theta = -(sigma0 / 2) * (1 + 2*(a*a)/(r*r) - 3*Math.pow(a,4)/Math.pow(r,4)) * Math.sin(2 * theta);
+
+                    // Transformación a coordenadas cartesianas para calcular componentes o Von Mises
+                    const cosT = Math.cos(theta);
+                    const sinT = Math.sin(theta);
+                    
+                    const sigma_x = sigma_r * cosT*cosT + sigma_theta * sinT*sinT - 2 * tau_r_theta * sinT * cosT;
+                    const sigma_y = sigma_r * sinT*sinT + sigma_theta * cosT*cosT + 2 * tau_r_theta * sinT * cosT;
+                    const tau_xy = (sigma_r - sigma_theta) * sinT * cosT + tau_r_theta * (cosT*cosT - sinT*sinT);
+
+                    // Esfuerzo equivalente de Von Mises (Plano de esfuerzos)
+                    const vonMises = Math.sqrt(sigma_x*sigma_x - sigma_x*sigma_y + sigma_y*sigma_y + 3*tau_xy*tau_xy);
+                    
+                    row.push(vonMises);
+                }
+                zData.push(row);
+            }
+            return zData;
+        }
+
+        // Renderizar el gráfico con Plotly
+        function updatePlot() {
+            const sigma0 = parseFloat(sigma0Input.value);
+            const a = parseFloat(radiusInput.value);
+
+            // Actualizar textos de la interfaz
+            sigma0Val.textContent = `${sigma0} MPa`;
+            radiusVal.textContent = `${a.toFixed(1)} mm`;
+            maxStressCalc.textContent = `Esfuerzo Máximo Teórico: ${(sigma0 * 3).toFixed(0)} MPa`;
+
+            const zData = calculateStressMatrix(sigma0, a);
+
+            const data = [{
+                x: xArr,
+                y: yArr,
+                z: zData,
+                type: 'heatmap',
+                colorscale: 'Jet',
+                zsmooth: 'best',
+                colorbar: {
+                    title: 'Esfuerzo Von Mises (MPa)',
+                    titlefont: { color: '#fff' },
+                    tickfont: { color: '#fff' }
+                }
+            }];
+
+            const layout = {
+                title: {
+                    text: 'Mapa de Calor de Esfuerzos',
+                    font: { color: '#fff' }
+                },
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                xaxis: {
+                    title: 'Posición X (mm)',
+                    gridcolor: '#374151',
+                    zerolinecolor: '#4B5563',
+                    tickfont: { color: '#9CA3AF' },
+                    titlefont: { color: '#9CA3AF' },
+                    scaleanchor: 'y', // Mantiene la relación de aspecto cuadrada
+                    scaleratio: 1
+                },
+                yaxis: {
+                    title: 'Posición Y (mm)',
+                    gridcolor: '#374151',
+                    zerolinecolor: '#4B5563',
+                    tickfont: { color: '#9CA3AF' },
+                    titlefont: { color: '#9CA3AF' }
+                },
+                margin: { l: 50, r: 50, b: 50, t: 50 }
+            };
+
+            Plotly.newPlot('plot', data, layout, {responsive: true});
+        }
+
+        // Listeners para actualizar en tiempo real cuando se mueven los sliders
+        sigma0Input.addEventListener('input', updatePlot);
+        radiusInput.addEventListener('input', updatePlot);
+
+        // Inicializar el gráfico al cargar la página
+        window.onload = updatePlot;
+    </script>
+</body>
+</html>
