@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador DH + Cinemática Inversa</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+
+    <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md">
+        <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-indigo-400">
+            Visualizador DH con Cinemática Inversa Numérica
+        </h1>
+    </header>
+
+    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+        
+        <div class="w-full md:w-5/12 p-4 overflow-y-auto border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
+            
+            <div class="bg-slate-800/80 border border-indigo-500/40 rounded-lg p-4 flex flex-col gap-3 shadow-lg">
+                <h3 class="text-sm font-bold text-indigo-300 flex items-center gap-2">🎯 Cinemática Inversa (IK Target)</h3>
+                <div class="grid grid-cols-3 gap-2">
+                    <div>
+                        <label class="text-[11px] text-slate-400 block mb-1">Target X</label>
+                        <input type="number" id="ik-x" value="200" step="10" class="w-full bg-slate-900 border border-slate-700 rounded p-1 text-center font-mono text-amber-400 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[11px] text-slate-400 block mb-1">Target Y</label>
+                        <input type="number" id="ik-y" value="0" step="10" class="w-full bg-slate-900 border border-slate-700 rounded p-1 text-center font-mono text-amber-400 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[11px] text-slate-400 block mb-1">Target Z</label>
+                        <input type="number" id="ik-z" value="400" step="10" class="w-full bg-slate-900 border border-slate-700 rounded p-1 text-center font-mono text-amber-400 focus:outline-none">
+                    </div>
+                </div>
+                <button id="solve-ik-btn" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold py-2 rounded shadow transition-all">
+                    Calcular Cinemática Inversa
+                </button>
+                <div id="ik-status" class="text-[11px] text-slate-400 italic text-center"></div>
+            </div>
+
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-semibold text-slate-200">Tabla de parámetros</h2>
+                <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all flex items-center gap-1">
+                    ➕ Añadir eslabón
+                </button>
+            </div>
+
+            <div class="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900/50">
+                <table class="w-full text-left border-collapse min-w-[400px]">
+                    <thead>
+                        <tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
+                            <th class="p-2.5 text-center w-12">#</th>
+                            <th class="p-2.5">a</th>
+                            <th class="p-2.5">α (deg)</th>
+                            <th class="p-2.5">d</th>
+                            <th class="p-2.5">θ (deg)</th>
+                            <th class="p-2.5 text-center w-12">.</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dh-table-body">
+                        </tbody>
+                </table>
+            </div>
+
+            <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 text-xs">
+                <span class="font-semibold block text-slate-300 mb-2">Código de Colores de Ejes:</span>
+                <div class="grid grid-cols-3 gap-2 text-center font-bold">
+                    <span class="bg-red-950/40 text-red-400 border border-red-800/60 py-1 rounded">Eje X (Rojo)</span>
+                    <span class="bg-green-950/40 text-green-400 border border-green-800/60 py-1 rounded">Eje Y (Verde)</span>
+                    <span class="bg-blue-950/40 text-blue-400 border border-blue-800/60 py-1 rounded">Eje Z (Azul)</span>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
+                <h3 class="text-sm font-semibold text-indigo-400">Matriz de Transformación Final (T)</h3>
+                <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400">
+                </div>
+            </div>
+        </div>
+
+        <div class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950">
+            <div id="canvas-container" class="w-full h-full"></div>
+            <div class="absolute top-3 right-3 flex flex-wrap gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10">
+                <button id="btn-view-top" onclick="changeView('top')" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
+                    Superior (XY)
+                </button>
+                <button id="btn-view-front" onclick="changeView('front')" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
+                    Frontal (XZ)
+                </button>
+                <button id="btn-view-side" onclick="changeView('side')" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
+                    Lateral (YZ)
+                </button>
+                <button id="btn-view-iso" onclick="changeView('iso')" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
+                    Isométrica
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Parámetros iniciales DH
+        let dhParams = [
+            { theta: 0, d: 200, a: 0.0, alpha: 90 },
+            { theta: 0, d: 0.0, a: 200, alpha: 0 },
+            { theta: 0, d: 0.0, a: 200, alpha: 0 }
+        ];
+
+        const tableBody = document.getElementById('dh-table-body');
+        const addRowBtn = document.getElementById('add-row-btn');
+        const canvasContainer = document.getElementById('canvas-container');
+
+        // Three.js setups
+        let scene, camera, renderer, controls;
+        let robotGroup, targetMesh;
+        const frustumSize = 1200;
+
+        function init3D() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x0f172a);
+
+            const aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+            
+            camera = new THREE.OrthographicCamera(
+                frustumSize * aspect / -2, frustumSize * aspect / 2,
+                frustumSize / 2, frustumSize / -2,
+                0.1, 10000
+            );
+            
+            camera.position.set(1500, -1500, 1500);
+            camera.up.set(0, 0, 1);
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+            canvasContainer.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+
+            controls.mouseButtons = {
+                LEFT: THREE.MOUSE.PAN,      
+                MIDDLE: THREE.MOUSE.ROTATE, 
+                RIGHT: THREE.MOUSE.PAN      
+            };
+
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            dirLight.position.set(10, 20, 15);
+            scene.add(dirLight);
+
+            const gridHelper = new THREE.GridHelper(2000, 40, 0x475569, 0x334155);
+            gridHelper.rotation.x = Math.PI / 2;
+            scene.add(gridHelper);
+
+            robotGroup = new THREE.Group();
+            scene.add(robotGroup);
+
+            // Crear el Target visual en el espacio 3D para IK
+            const targetGeom = new THREE.SphereGeometry(12, 16, 16);
+            const targetMat = new THREE.MeshBasicMaterial({ color: 0xff0055, wireframe: true });
+            targetMesh = new THREE.Mesh(targetGeom, targetMat);
+            scene.add(targetMesh);
+
+            window.addEventListener('resize', onWindowResize);
+            
+            // Listeners para inputs de IK
+            document.getElementById('ik-x').addEventListener('input', updateTargetFromUI);
+            document.getElementById('ik-y').addEventListener('input', updateTargetFromUI);
+            document.getElementById('ik-z').addEventListener('input', updateTargetFromUI);
+            document.getElementById('solve-ik-btn').addEventListener('click', solveIK);
+
+            updateTargetFromUI();
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            const aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
+            camera.left = frustumSize * aspect / -2;
+            camera.right = frustumSize * aspect / 2;
+            camera.top = frustumSize / 2;
+            camera.bottom = frustumSize / -2;
+            camera.updateProjectionMatrix();
+            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
+        }
+
+        function updateTargetFromUI() {
+            const x = parseFloat(document.getElementById('ik-x').value) || 0;
+            const y = parseFloat(document.getElementById('ik-y').value) || 0;
+            const z = parseFloat(document.getElementById('ik-z').value) || 0;
+            targetMesh.position.set(x, y, z);
+        }
+
+        // --- ALGORITMO DE CINEMÁTICA INVERSA (CCD) ---
+        function solveIK() {
+            const tx = parseFloat(document.getElementById('ik-x').value) || 0;
+            const ty = parseFloat(document.getElementById('ik-y').value) || 0;
+            const tz = parseFloat(document.getElementById('ik-z').value) || 0;
+            const target = new THREE.Vector3(tx, ty, tz);
+
+            const maxIterations = 100;
+            const tolerance = 0.5; // Tolerancia en mm/unidades de aproximación
+            let solved = false;
+
+            const statusDiv = document.getElementById('ik-status');
+            statusDiv.innerText = "Calculando...";
+
+            // Ejecutamos iteraciones numéricas mediante descenso de coordenadas cíclicas (CCD)
+            for (let iter = 0; iter < maxIterations; iter++) {
+                
+                // Iteramos hacia atrás desde el último eslabón hasta el primero
+                for (let i = dhParams.length - 1; i >= 0; i--) {
+                    
+                    // 1. Obtener la posición actual del End-Effector y de la articulación actual
+                    const eePos = getForwardKinematicsPosition(dhParams.length);
+                    const jointPos = getForwardKinematicsPosition(i);
+
+                    // Si ya estamos lo suficientemente cerca, terminar
+                    if (eePos.distanceTo(target) < tolerance) {
+                        solved = true;
+                        break;
+                    }
+
+                    // 2. Proyectar vectores desde la articulación al End-Effector y al Objetivo (Target)
+                    const jointToEE = new THREE.Vector3().subVectors(eePos, jointPos);
+                    const jointToTarget = new THREE.Vector3().subVectors(target, jointPos);
+
+                    // 3. Obtener el eje Z local de la articulación "i" basado en las matrices previas
+                    const jointAxis = getJointZExis(i);
+
+                    // Proyectar los vectores en el plano perpendicular al eje de rotación de la articulación
+                    jointToEE.projectOnPlane(jointAxis).normalize();
+                    jointToTarget.projectOnPlane(jointAxis).normalize();
+
+                    // 4. Calcular el ángulo entre los dos vectores corregidos
+                    let dot = jointToEE.dot(jointToTarget);
+                    dot = Math.max(-1, Math.min(1, dot)); // Clamping por errores de coma flotante
+                    let deltaTheta = Math.acos(dot);
+
+                    // Determinar el signo de la rotación usando el producto cruz
+                    const cross = new THREE.Vector3().crossVectors(jointToEE, jointToTarget);
+                    if (cross.dot(jointAxis) < 0) {
+                        deltaTheta = -deltaTheta;
+                    }
+
+                    // 5. Aplicar el cambio al parámetro theta correspondiente (en grados)
+                    let deltaDeg = THREE.MathUtils.radToDeg(deltaTheta);
+                    if (!isNaN(deltaDeg)) {
+                        let newTheta = dhParams[i].theta + deltaDeg;
+                        // Mantener el rango entre -360 y 360
+                        if (newTheta > 360) newTheta -= 360;
+                        if (newTheta < -360) newTheta += 360;
+                        dhParams[i].theta = parseFloat(newTheta.toFixed(2));
+                    }
+                }
+
+                if (solved) break;
+            }
+
+            // Validar posición final
+            const finalEE = getForwardKinematicsPosition(dhParams.length);
+            const finalDist = finalEE.distanceTo(target);
+
+            if (finalDist < tolerance * 10) {
+                statusDiv.className = "text-[11px] text-emerald-400 font-bold text-center";
+                statusDiv.innerText = `✔️ Éxito (Error: ${finalDist.toFixed(2)} uds)`;
+            } else {
+                statusDiv.className = "text-[11px] text-amber-400 font-bold text-center";
+                statusDiv.innerText = `⚠️ Inalcanzable o Fuera de Rango (Min Dist: ${finalDist.toFixed(2)} uds)`;
+            }
+
+            // Sincronizar interfaz y renderizar robot movido
+            renderTable();
+            updateRobotGeometry();
+        }
+
+        // Función auxiliar para obtener la posición 3D de cualquier articulación 'k' mediante cinemática directa
+        function getForwardKinematicsPosition(k) {
+            let currentMatrix = new THREE.Matrix4();
+            for (let i = 0; i < k; i++) {
+                const param = dhParams[i];
+                const thetaRad = THREE.MathUtils.degToRad(param.theta);
+                const alphaRad = THREE.MathUtils.degToRad(param.alpha);
+
+                const rTheta = new THREE.Matrix4().makeRotationZ(thetaRad);
+                const tD = new THREE.Matrix4().makeTranslation(0, 0, param.d);
+                const tA = new THREE.Matrix4().makeTranslation(param.a, 0, 0);
+                const rAlpha = new THREE.Matrix4().makeRotationX(alphaRad);
+
+                const linkTransform = new THREE.Matrix4().multiply(rTheta).multiply(tD).multiply(tA).multiply(rAlpha);
+                currentMatrix.multiply(linkTransform);
+            }
+            return new THREE.Vector3().setFromMatrixPosition(currentMatrix);
+        }
+
+        // Función auxiliar para obtener la dirección del eje Z actual de la articulación 'k'
+        function getJointZExis(k) {
+            let currentMatrix = new THREE.Matrix4();
+            for (let i = 0; i < k; i++) {
+                const param = dhParams[i];
+                const rTheta = new THREE.Matrix4().makeRotationZ(THREE.MathUtils.degToRad(param.theta));
+                const tD = new THREE.Matrix4().makeTranslation(0, 0, param.d);
+                const tA = new THREE.Matrix4().makeTranslation(param.a, 0, 0);
+                const rAlpha = new THREE.Matrix4().makeRotationX(THREE.MathUtils.degToRad(param.alpha));
+                currentMatrix.multiply(rTheta).multiply(tD).multiply(tA).multiply(rAlpha);
+            }
+            // El eje Z local es la tercera columna de la submatriz de rotación (m[8], m[9], m[10])
+            const zAxis = new THREE.Vector3(0, 0, 1);
+            zAxis.applyMatrix4(currentMatrix).sub(new THREE.Vector3().setFromMatrixPosition(currentMatrix)).normalize();
+            return zAxis;
+        }
+        // ---------------------------------------------
+
+        function renderTable() {
+            tableBody.innerHTML = '';
+            dhParams.forEach((param, index) => {
+                const tr = document.createElement('tr');
+                tr.className = "border-b border-slate-800 hover:bg-slate-800/40 transition-colors text-sm";
+                tr.innerHTML = `
+                    <td class="p-2 text-center text-slate-500 font-bold">${index + 1}</td>
+                    <td class="p-1">
+                        <input type="number" step="0.1" data-index="${index}" data-prop="a" value="${param.a}" 
+                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-amber-300 focus:outline-none">
+                    </td>
+                    <td class="p-1">
+                        <input type="number" min="-360" max="360" step="5" data-index="${index}" data-prop="alpha" value="${param.alpha}" 
+                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-orange-300 focus:outline-none">
+                    </td>
+                    <td class="p-1">
+                        <input type="number" step="0.1" data-index="${index}" data-prop="d" value="${param.d}" 
+                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-emerald-300 focus:outline-none">
+                    </td>
+                    <td class="p-1">
+                        <input type="number" min="-360" max="360" step="5" data-index="${index}" data-prop="theta" value="${param.theta}" 
+                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-indigo-300 focus:outline-none">
+                    </td>
+                    <td class="p-2 text-center">
+                        <button data-index="${index}" class="delete-btn text-slate-500 hover:text-red-400 p-1 transition-colors">🗑️</button>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+
+            tableBody.querySelectorAll('input').forEach(input => input.addEventListener('input', handleInputChange));
+            tableBody.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', handleDeleteRow));
+        }
+
+        function handleInputChange(e) {
+            const index = parseInt(e.target.dataset.index);
+            const prop = e.target.dataset.prop;
+            let value = parseFloat(e.target.value) || 0;
+
+            if (prop === 'theta' || prop === 'alpha') {
+                if (value < -360) value = -360;
+                if (value > 360) value = 360;
+                e.target.value = value;
+            }
+
+            dhParams[index][prop] = value;
+            updateRobotGeometry();
+        }
+
+        function handleDeleteRow(e) {
+            if (dhParams.length <= 1) return;
+            const index = parseInt(e.target.closest('button').dataset.index);
+            dhParams.splice(index, 1);
+            renderTable();
+            updateRobotGeometry();
+        }
+
+        addRowBtn.addEventListener('click', () => {
+            if (dhParams.length >= 6) return;
+            dhParams.push({ theta: 0, d: 0, a: 200, alpha: 0 });
+            renderTable();
+            updateRobotGeometry();
+        });
+
+        function updateRobotGeometry() {
+            while(robotGroup.children.length > 0){
+                robotGroup.remove(robotGroup.children[0]);
+            }
+
+            let currentMatrix = new THREE.Matrix4();
+            let pStart = new THREE.Vector3(0, 0, 0);
+
+            const baseAxes = new THREE.AxesHelper(100);
+            robotGroup.add(baseAxes);
+
+            dhParams.forEach((param) => {
+                const thetaRad = THREE.MathUtils.degToRad(param.theta);
+                const alphaRad = THREE.MathUtils.degToRad(param.alpha);
+
+                const rTheta = new THREE.Matrix4().makeRotationZ(thetaRad);
+                const tD = new THREE.Matrix4().makeTranslation(0, 0, param.d);
+                const tA = new THREE.Matrix4().makeTranslation(param.a, 0, 0);
+                const rAlpha = new THREE.Matrix4().makeRotationX(alphaRad);
+
+                const linkTransform = new THREE.Matrix4().multiply(rTheta).multiply(tD).multiply(tA).multiply(rAlpha);
+                currentMatrix.multiply(linkTransform);
+                
+                let pEnd = new THREE.Vector3();
+                pEnd.setFromMatrixPosition(currentMatrix);
+
+                const distance = pStart.distanceTo(pEnd);
+                if (distance > 0.01) {
+                    const linkGeom = new THREE.CylinderGeometry(5, 5, distance, 8);
+                    linkGeom.translate(0, distance / 2, 0);
+                    const linkMat = new THREE.MeshStandardMaterial({ color: 0xff8c00, roughness: 0.4, metalness: 0.3, emissive: 0xff8c00, emissiveIntensity: 0.3 });
+                    const linkMesh = new THREE.Mesh(linkGeom, linkMat);
+
+                    linkMesh.position.copy(pStart);
+                    linkMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pEnd.clone().sub(pStart).normalize());
+                    robotGroup.add(linkMesh);
+                }
+
+                const axesHelper = new THREE.AxesHelper(60);
+                axesHelper.matrixAutoUpdate = false;
+                axesHelper.matrix.copy(currentMatrix);
+                robotGroup.add(axesHelper);
+
+                const jointGeom = new THREE.SphereGeometry(10, 16, 16);
+                const jointMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0369a1, roughness: 0.2 });
+                const jointMesh = new THREE.Mesh(jointGeom, jointMat);
+                jointMesh.position.copy(pEnd);
+                robotGroup.add(jointMesh);
+
+                pStart.copy(pEnd);
+            });
+
+            const matrixContainer = document.getElementById('matrix-container');
+            if (matrixContainer) {
+                matrixContainer.innerHTML = '';
+                const te = currentMatrix.elements; 
+                for (let i = 0; i < 4; i++) {
+                    for (let j = 0; j < 4; j++) {
+                        const val = te[j * 4 + i];
+                        const cell = document.createElement('div');
+                        cell.className = "bg-slate-900/80 border border-slate-800/50 py-1 rounded font-bold";
+                        cell.innerText = Math.abs(val) < 0.001 ? "0.00" : val.toFixed(3);
+                        if (j === 3 && i < 3) cell.className += " text-amber-400"; 
+                        matrixContainer.appendChild(cell);
+                    }
+                }
+            }
+        }
+
+        function changeView(view) {
+            const d = 1800; 
+            controls.target.set(0, 0, 0);
+
+            switch(view) {
+                case 'top':
+                    camera.position.set(0, 0, d);
+                    camera.up.set(0, 1, 0); 
+                    break;
+                case 'front':
+                    camera.position.set(0, -d, 0);
+                    camera.up.set(0, 0, 1); 
+                    break;
+                case 'side':
+                    camera.position.set(d, 0, 0);
+                    camera.up.set(0, 0, 1); 
+                    break;
+                case 'iso':
+                    const isoVal = d / Math.sqrt(3); 
+                    camera.position.set(isoVal, -isoVal, isoVal);
+                    camera.up.set(0, 0, 1); 
+                    break;
+            }
+            camera.lookAt(0, 0, 0);
+            controls.update();
+
+            document.querySelectorAll('.view-btn').forEach(btn => {
+                btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-500', 'text-white', 'shadow');
+                btn.classList.add('bg-slate-800', 'hover:bg-slate-700', 'text-slate-200');
+            });
+
+            const activeBtn = document.getElementById(`btn-view-${view}`);
+            if (activeBtn) {
+                activeBtn.classList.remove('bg-slate-800', 'hover:bg-slate-700', 'text-slate-200');
+                activeBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-500', 'text-white', 'shadow');
+            }
+        }
+
+        window.onload = () => {
+            init3D();
+            renderTable();
+            updateRobotGeometry();
+        };
+    </script>
+</body>
+</html>
