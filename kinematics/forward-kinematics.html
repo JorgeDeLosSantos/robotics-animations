@@ -3,17 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizador DH</title>
+    <title>Forward kinematics</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <!-- KaTeX -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <!-- Detect text enclosed in $$ or $ -->
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" 
+            onload="renderMathInElement(document.body);"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
     <!-- Encabezado -->
     <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md">
         <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-indigo-400">
-            Visualizador DH
+            Forward kinematics
         </h1>
         <!-- <p class="text-xs text-slate-400 mt-1">
             Matriz de transformación clásica: $Rot(Z, \theta) \cdot Trans(Z, d) \cdot Trans(X, a) \cdot Rot(X, \alpha)$
@@ -26,22 +33,22 @@
         <!-- Panel de Control Izquierdo -->
         <div class="w-full md:w-5/12 p-4 overflow-y-auto border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
             <div class="flex justify-between items-center">
-                <h2 class="text-lg font-semibold text-slate-200">Tabla de parámetros</h2>
+                <h2 class="text-lg font-semibold text-slate-200">DH Parameters</h2>
                 <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all flex items-center gap-1">
-                    ➕ Añadir eslabón
+                    ➕ Add link
                 </button>
             </div>
 
-            <!-- Tabla UI en orden: a, alpha, d, theta -->
+            <!-- DH table: a, alpha, d, theta -->
             <div class="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900/50">
                 <table class="w-full text-left border-collapse min-w-[400px]">
                     <thead>
                         <tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
                             <th class="p-2.5 text-center w-12">#</th>
-                            <th class="p-2.5">a</th>
-                            <th class="p-2.5">α (deg)</th>
-                            <th class="p-2.5">d</th>
-                            <th class="p-2.5">θ (deg)</th>
+                            <th class="p-2.5"> \(a\) </th>
+                            <th class="p-2.5"> \( \alpha \) (deg)</th>
+                            <th class="p-2.5"> \(d\) </th>
+                            <th class="p-2.5"> \( \theta \) (deg)</th>
                             <th class="p-2.5 text-center w-12">.</th>
                         </tr>
                     </thead>
@@ -51,19 +58,18 @@
                 </table>
             </div>
 
-            <!-- Leyenda de Sistemas de Referencia -->
-            <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 text-xs">
+            <!-- <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 text-xs">
                 <span class="font-semibold block text-slate-300 mb-2">Código de Colores de Ejes:</span>
                 <div class="grid grid-cols-3 gap-2 text-center font-bold">
                     <span class="bg-red-950/40 text-red-400 border border-red-800/60 py-1 rounded">Eje X (Rojo)</span>
                     <span class="bg-green-950/40 text-green-400 border border-green-800/60 py-1 rounded">Eje Y (Verde)</span>
                     <span class="bg-blue-950/40 text-blue-400 border border-blue-800/60 py-1 rounded">Eje Z (Azul)</span>
                 </div>
-            </div>
+            </div> -->
             <!-- <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 text-xs">
             </div> -->
             <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <h3 class="text-sm font-semibold text-indigo-400">Matriz de Transformación Final (T)</h3>
+                <h3 class="text-sm font-semibold text-indigo-400">Final transformation matrix (\(T_n^0\))</h3>
                 <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400">
                     </div>
             </div>
@@ -77,16 +83,16 @@
             </div> -->
             <div class="absolute top-3 right-3 flex flex-wrap gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10">
                 <button id="btn-view-top" onclick="changeView('top')" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Superior (XY)
+                    Top (XY)
                 </button>
                 <button id="btn-view-front" onclick="changeView('front')" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Frontal (XZ)
+                    Front (XZ)
                 </button>
                 <button id="btn-view-side" onclick="changeView('side')" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Lateral (YZ)
+                    Side (YZ)
                 </button>
                 <button id="btn-view-iso" onclick="changeView('iso')" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Isométrica
+                    Isometric
                 </button>
             </div>
     </main>
