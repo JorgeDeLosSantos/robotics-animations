@@ -2,19 +2,19 @@
 
 A collection of simple robotics animations for educational purposes.
 
-## Transformaciones
+## Transformations
 
-- [Transformaciones con respecto al sistema móvil](https://jorgedelossantos.github.io/robotics-animations/transformations/transformations-body-frame)
-- [Transformaciones con respecto al sistema fijo](https://jorgedelossantos.github.io/robotics-animations/transformations/transformations-fixed-frame)
-- [Ángulos de Euler](https://jorgedelossantos.github.io/robotics-animations/transformations/euler-angles)
-
-
-## Cinemática 
-
-- [Cinemática directa](https://jorgedelossantos.github.io/robotics-animations/kinematics/dh-vis)
+- [Body frame transformations](https://jorgedelossantos.github.io/robotics-animations/transformations/transformations-body-frame)
+- [Fixed frame transformations](https://jorgedelossantos.github.io/robotics-animations/transformations/transformations-fixed-frame)
+- [Euler angles](https://jorgedelossantos.github.io/robotics-animations/transformations/euler-angles)
 
 
+## Kinematics
 
-## Dinámica
+- [Forward kinematics](https://jorgedelossantos.github.io/robotics-animations/kinematics/forward-kinematics)
+- [Inverse kinematics (only position)](https://jorgedelossantos.github.io/robotics-animations/kinematics/inverse-kinematics)
+- [Inverse kinematics (6 DOF robots)](https://jorgedelossantos.github.io/robotics-animations/kinematics/inverse-kinematics-6dof)
 
-- [Momentos de inercia de sistemas de partículas](https://jorgedelossantos.github.io/robotics-animations/moment-of-inertia/system-of-particles)
+## Dynamics
+
+- [Moment of inertia](https://jorgedelossantos.github.io/robotics-animations/moment-of-inertia/system-of-particles)
