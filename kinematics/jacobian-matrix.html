@@ -272,93 +272,93 @@
         });
 
 
-function updateRobotGeometry() {
-    while(robotGroup.children.length > 0){
-        robotGroup.remove(robotGroup.children[0]);
-    }
+        function updateRobotGeometry() {
+            while(robotGroup.children.length > 0){
+                robotGroup.remove(robotGroup.children[0]);
+            }
 
-    let currentMatrix = new THREE.Matrix4();
-    let pStart = new THREE.Vector3(0, 0, 0);
+            let currentMatrix = new THREE.Matrix4();
+            let pStart = new THREE.Vector3(0, 0, 0);
 
-    const baseAxes = new THREE.AxesHelper(100);
-    robotGroup.add(baseAxes);
+            const baseAxes = new THREE.AxesHelper(100);
+            robotGroup.add(baseAxes);
 
-    let intermediateTransforms = [new THREE.Matrix4()]; 
+            let intermediateTransforms = [new THREE.Matrix4()]; 
 
-    dhParams.forEach((param) => {
-        // --- 1. DIBUJAR LA JUNTA i EN EL ORIGEN PREVIO (SISTEMA i-1) ---
-        let jointMesh;
-        if (param.type === 'P') {
-            // Un prisma un poco más alargado en el eje Z para denotar dirección de deslizamiento
-            const jointGeom = new THREE.BoxGeometry(16, 16, 24);
-            const jointMat = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x064e3b, roughness: 0.2 });
-            jointMesh = new THREE.Mesh(jointGeom, jointMat);
-        } else {
-            const jointGeom = new THREE.CylinderGeometry(12, 12, 30, 16);
-            jointGeom.rotateX(Math.PI / 2); // Orientar el cilindro nativamente hacia Z
-            const jointMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0369a1, roughness: 0.2 });
-            jointMesh = new THREE.Mesh(jointGeom, jointMat);
+            dhParams.forEach((param) => {
+                // --- 1. DIBUJAR LA JUNTA i EN EL ORIGEN PREVIO (SISTEMA i-1) ---
+                let jointMesh;
+                if (param.type === 'P') {
+                    // Un prisma un poco más alargado en el eje Z para denotar dirección de deslizamiento
+                    const jointGeom = new THREE.BoxGeometry(16, 16, 24);
+                    const jointMat = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x064e3b, roughness: 0.2 });
+                    jointMesh = new THREE.Mesh(jointGeom, jointMat);
+                } else {
+                    const jointGeom = new THREE.CylinderGeometry(12, 12, 30, 16);
+                    jointGeom.rotateX(Math.PI / 2); // Orientar el cilindro nativamente hacia Z
+                    const jointMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0369a1, roughness: 0.2 });
+                    jointMesh = new THREE.Mesh(jointGeom, jointMat);
+                }
+                
+                // Posicionar en el origen del sistema actual (antes del paso DH)
+                jointMesh.position.copy(pStart);
+                
+                // SOLUCIÓN: Extraer la rotación completa (quaternion) de la matriz acumulada actual (sistema i-1)
+                // Esto elimina cualquier distorsión por rotaciones arbitrarias en X, Y o Z.
+                const currentQuaternion = new THREE.Quaternion();
+                const currentScale = new THREE.Vector3();
+                const currentPos = new THREE.Vector3();
+                currentMatrix.decompose(currentPos, currentQuaternion, currentScale);
+                
+                jointMesh.quaternion.copy(currentQuaternion);
+                
+                robotGroup.add(jointMesh);
+
+                // --- 2. CALCULAR LA TRANSFORMACIÓN DH CLÁSICA ---
+                const thetaRad = THREE.MathUtils.degToRad(param.theta);
+                const alphaRad = THREE.MathUtils.degToRad(param.alpha);
+
+                const rTheta = new THREE.Matrix4().makeRotationZ(thetaRad);
+                const tD = new THREE.Matrix4().makeTranslation(0, 0, param.d);
+                const tA = new THREE.Matrix4().makeTranslation(param.a, 0, 0);
+                const rAlpha = new THREE.Matrix4().makeRotationX(alphaRad);
+
+                const linkTransform = new THREE.Matrix4()
+                    .multiply(rTheta)
+                    .multiply(tD)
+                    .multiply(tA)
+                    .multiply(rAlpha);
+
+                currentMatrix.multiply(linkTransform);
+                intermediateTransforms.push(currentMatrix.clone());
+
+                let pEnd = new THREE.Vector3();
+                pEnd.setFromMatrixPosition(currentMatrix);
+
+                // --- 3. DIBUJAR EL ESLABÓN FÍSICO (LINK) ---
+                const distance = pStart.distanceTo(pEnd);
+                if (distance > 0.01) {
+                    const linkGeom = new THREE.CylinderGeometry(5, 5, distance, 8);
+                    linkGeom.translate(0, distance / 2, 0);
+                    const linkMat = new THREE.MeshStandardMaterial({ color: 0xff8c00, roughness: 0.4, metalness: 0.3, emissive: 0xff8c00, emissiveIntensity: 0.3 });
+                    const linkMesh = new THREE.Mesh(linkGeom, linkMat);
+
+                    linkMesh.position.copy(pStart);
+                    linkMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pEnd.clone().sub(pStart).normalize());
+                    robotGroup.add(linkMesh);
+                }
+
+                // --- 4. DIBUJAR EL SISTEMA DE EJES LOCALES ---
+                const axesHelper = new THREE.AxesHelper(60);
+                axesHelper.matrixAutoUpdate = false;
+                axesHelper.matrix.copy(currentMatrix);
+                robotGroup.add(axesHelper);
+
+                pStart.copy(pEnd);
+            });
+
+            computeAndRenderJacobian(intermediateTransforms);
         }
-        
-        // Posicionar en el origen del sistema actual (antes del paso DH)
-        jointMesh.position.copy(pStart);
-        
-        // SOLUCIÓN: Extraer la rotación completa (quaternion) de la matriz acumulada actual (sistema i-1)
-        // Esto elimina cualquier distorsión por rotaciones arbitrarias en X, Y o Z.
-        const currentQuaternion = new THREE.Quaternion();
-        const currentScale = new THREE.Vector3();
-        const currentPos = new THREE.Vector3();
-        currentMatrix.decompose(currentPos, currentQuaternion, currentScale);
-        
-        jointMesh.quaternion.copy(currentQuaternion);
-        
-        robotGroup.add(jointMesh);
-
-        // --- 2. CALCULAR LA TRANSFORMACIÓN DH CLÁSICA ---
-        const thetaRad = THREE.MathUtils.degToRad(param.theta);
-        const alphaRad = THREE.MathUtils.degToRad(param.alpha);
-
-        const rTheta = new THREE.Matrix4().makeRotationZ(thetaRad);
-        const tD = new THREE.Matrix4().makeTranslation(0, 0, param.d);
-        const tA = new THREE.Matrix4().makeTranslation(param.a, 0, 0);
-        const rAlpha = new THREE.Matrix4().makeRotationX(alphaRad);
-
-        const linkTransform = new THREE.Matrix4()
-            .multiply(rTheta)
-            .multiply(tD)
-            .multiply(tA)
-            .multiply(rAlpha);
-
-        currentMatrix.multiply(linkTransform);
-        intermediateTransforms.push(currentMatrix.clone());
-
-        let pEnd = new THREE.Vector3();
-        pEnd.setFromMatrixPosition(currentMatrix);
-
-        // --- 3. DIBUJAR EL ESLABÓN FÍSICO (LINK) ---
-        const distance = pStart.distanceTo(pEnd);
-        if (distance > 0.01) {
-            const linkGeom = new THREE.CylinderGeometry(5, 5, distance, 8);
-            linkGeom.translate(0, distance / 2, 0);
-            const linkMat = new THREE.MeshStandardMaterial({ color: 0xff8c00, roughness: 0.4, metalness: 0.3, emissive: 0xff8c00, emissiveIntensity: 0.3 });
-            const linkMesh = new THREE.Mesh(linkGeom, linkMat);
-
-            linkMesh.position.copy(pStart);
-            linkMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pEnd.clone().sub(pStart).normalize());
-            robotGroup.add(linkMesh);
-        }
-
-        // --- 4. DIBUJAR EL SISTEMA DE EJES LOCALES ---
-        const axesHelper = new THREE.AxesHelper(60);
-        axesHelper.matrixAutoUpdate = false;
-        axesHelper.matrix.copy(currentMatrix);
-        robotGroup.add(axesHelper);
-
-        pStart.copy(pEnd);
-    });
-
-    computeAndRenderJacobian(intermediateTransforms);
-}
 
 
         function computeAndRenderJacobian(transforms) {
