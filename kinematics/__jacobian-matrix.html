@@ -11,6 +11,7 @@
     <!-- KaTeX -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <!-- Detect text enclosed in $$ or $ -->
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" 
             onload="renderMathInElement(document.body);"></script>
 </head>
@@ -35,17 +36,16 @@
                 </button>
             </div>
 
-            <!-- DH table: Type, a, alpha, d, theta -->
+            <!-- DH table: a, alpha, d, theta -->
             <div class="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900/50">
-                <table class="w-full text-left border-collapse min-w-[450px]">
+                <table class="w-full text-left border-collapse min-w-[400px]">
                     <thead>
                         <tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
-                            <th class="p-2.5 text-center w-10">#</th>
-                            <th class="p-2.5 text-center w-16">Type</th>
-                            <th class="p-2.5 text-center">\(a\)</th>
-                            <th class="p-2.5 text-center">\( \alpha \) (deg)</th>
-                            <th class="p-2.5 text-center">\(d\)</th>
-                            <th class="p-2.5 text-center">\( \theta \) (deg)</th>
+                            <th class="p-2.5 text-center w-12">#</th>
+                            <th class="p-2.5">a</th>
+                            <th class="p-2.5">α (deg)</th>
+                            <th class="p-2.5">d</th>
+                            <th class="p-2.5">θ (deg)</th>
                             <th class="p-2.5 text-center w-12">.</th>
                         </tr>
                     </thead>
@@ -65,7 +65,7 @@
             </div>
         </div>
 
-        <!-- Visor 3D Derecho -->
+        <!-- Visor 3D Derecho (Proyección Ortográfica) -->
         <div class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950">
             <div id="canvas-container" class="w-full h-full"></div>
             <div class="absolute top-3 right-3 flex flex-wrap gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10">
@@ -85,27 +85,12 @@
         </div>
     </main>
 
-    <!-- Footer / Developer Credits -->
-    <footer class="bg-slate-900 border-t border-slate-800 py-4 px-6 text-center text-xs text-slate-500 shadow-inner">
-        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-            <p class="flex items-center gap-1.5 justify-center">
-                Developed with 💙 by 
-                <a href="https://github.com/JorgeDeLosSantos" 
-                   target="_blank" 
-                   rel="noopener noreferrer" 
-                   class="font-semibold text-indigo-400 hover:text-indigo-300 hover:underline transition-colors">
-                    P.J. De Los Santos
-                </a>
-            </p>
-        </div>
-    </footer>
-
     <script>
-        // Initial DH parameters. Added 'type' property (R = Revolute, P = Prismatic)
+        // Initial DH parameters for a 3-link robot arm
         let dhParams = [
-            { type: 'R', theta: 0, d: 200, a: 0.0, alpha: 90 },
-            { type: 'R', theta: 0, d: 0.0, a: 200, alpha: 0 },
-            { type: 'R', theta: 0, d: 0.0, a: 200, alpha: 0 }
+            { theta: 0, d: 200, a: 0.0, alpha: 90 },
+            { theta: 0, d: 0.0, a: 200, alpha: 0 },
+            { theta: 0, d: 0.0, a: 200, alpha: 0 }
         ];
 
         const tableBody = document.getElementById('dh-table-body');
@@ -202,14 +187,7 @@
                 tr.innerHTML = `
                     <td class="p-2 text-center text-slate-500 font-bold">${index + 1}</td>
                     <td class="p-1">
-                        <select data-index="${index}" data-prop="type" 
-                            class="w-full bg-slate-800 border border-slate-700 rounded px-1 py-1 text-center font-bold text-indigo-400 focus:outline-none cursor-pointer">
-                            <option value="R" ${param.type === 'R' ? 'selected' : ''}>R</option>
-                            <option value="P" ${param.type === 'P' ? 'selected' : ''}>P</option>
-                        </select>
-                    </td>
-                    <td class="p-1">
-                        <input type="number" step="5" data-index="${index}" data-prop="a" value="${param.a}" 
+                        <input type="number" step="0.1" data-index="${index}" data-prop="a" value="${param.a}" 
                             class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-amber-300 focus:outline-none">
                     </td>
                     <td class="p-1">
@@ -217,39 +195,33 @@
                             class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-orange-300 focus:outline-none">
                     </td>
                     <td class="p-1">
-                        <input type="number" step="5" data-index="${index}" data-prop="d" value="${param.d}" 
-                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-emerald-300 focus:outline-none ${param.type === 'P' ? 'ring-2 ring-emerald-500/50' : ''}">
+                        <input type="number" step="0.1" data-index="${index}" data-prop="d" value="${param.d}" 
+                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-emerald-300 focus:outline-none">
                     </td>
                     <td class="p-1">
                         <input type="number" min="-360" max="360" step="5" data-index="${index}" data-prop="theta" value="${param.theta}" 
-                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-indigo-300 focus:outline-none ${param.type === 'R' ? 'ring-2 ring-indigo-500/50' : ''}">
+                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-indigo-300 focus:outline-none">
                     </td>
                     <td class="p-2 text-center">
-                        <button data-index="${index}" class="delete-btn text-slate-500 hover:text-red-400 p-1 transition-colors">❌</button>
+                        <button data-index="${index}" class="delete-btn text-slate-500 hover:text-red-400 p-1 transition-colors">🗑️</button>
                     </td>
                 `;
                 tableBody.appendChild(tr);
             });
 
-            tableBody.querySelectorAll('input, select').forEach(input => input.addEventListener('input', handleInputChange));
+            tableBody.querySelectorAll('input').forEach(input => input.addEventListener('input', handleInputChange));
             tableBody.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', handleDeleteRow));
         }
 
         function handleInputChange(e) {
             const index = parseInt(e.target.dataset.index);
             const prop = e.target.dataset.prop;
-            let value = e.target.value;
+            let value = parseFloat(e.target.value) || 0;
 
-            if (prop !== 'type') {
-                value = parseFloat(value) || 0;
-                if (prop === 'theta' || prop === 'alpha') {
-                    if (value < -360) value = -360;
-                    if (value > 360) value = 360;
-                    e.target.value = value;
-                }
-            } else {
-                dhParams[index][prop] = value;
-                renderTable();
+            if (prop === 'theta' || prop === 'alpha') {
+                if (value < -360) value = -360;
+                if (value > 360) value = 360;
+                e.target.value = value;
             }
 
             dhParams[index][prop] = value;
@@ -266,133 +238,132 @@
 
         addRowBtn.addEventListener('click', () => {
             if (dhParams.length >= 6) return;
-            dhParams.push({ type: 'R', theta: 0, d: 0, a: 200, alpha: 0 });
+            dhParams.push({ theta: 0, d: 0, a: 200, alpha: 0 });
             renderTable();
             updateRobotGeometry();
         });
 
+        function updateRobotGeometry() {
+            while(robotGroup.children.length > 0){
+                robotGroup.remove(robotGroup.children[0]);
+            }
 
-function updateRobotGeometry() {
-    while(robotGroup.children.length > 0){
-        robotGroup.remove(robotGroup.children[0]);
-    }
+            let currentMatrix = new THREE.Matrix4();
+            let pStart = new THREE.Vector3(0, 0, 0);
 
-    let currentMatrix = new THREE.Matrix4();
-    let pStart = new THREE.Vector3(0, 0, 0);
+            const baseAxes = new THREE.AxesHelper(100);
+            robotGroup.add(baseAxes);
 
-    const baseAxes = new THREE.AxesHelper(100);
-    robotGroup.add(baseAxes);
+            // NUEVO: Guardar información histórica de transformaciones intermedias para el Jacobiano
+            // El sistema 0 inicial tiene matriz identidad
+            let intermediateTransforms = [new THREE.Matrix4()]; 
 
-    let intermediateTransforms = [new THREE.Matrix4()]; 
+            dhParams.forEach((param) => {
+                const thetaRad = THREE.MathUtils.degToRad(param.theta);
+                const alphaRad = THREE.MathUtils.degToRad(param.alpha);
 
-    dhParams.forEach((param) => {
-        // --- 1. DIBUJAR LA JUNTA i EN EL ORIGEN PREVIO (SISTEMA i-1) ---
-        let jointMesh;
-        if (param.type === 'P') {
-            // Un prisma un poco más alargado en el eje Z para denotar dirección de deslizamiento
-            const jointGeom = new THREE.BoxGeometry(16, 16, 24);
-            const jointMat = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x064e3b, roughness: 0.2 });
-            jointMesh = new THREE.Mesh(jointGeom, jointMat);
-        } else {
-            const jointGeom = new THREE.CylinderGeometry(12, 12, 30, 16);
-            jointGeom.rotateX(Math.PI / 2); // Orientar el cilindro nativamente hacia Z
-            const jointMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0369a1, roughness: 0.2 });
-            jointMesh = new THREE.Mesh(jointGeom, jointMat);
+                const rTheta = new THREE.Matrix4().makeRotationZ(thetaRad);
+                const tD = new THREE.Matrix4().makeTranslation(0, 0, param.d);
+                const tA = new THREE.Matrix4().makeTranslation(param.a, 0, 0);
+                const rAlpha = new THREE.Matrix4().makeRotationX(alphaRad);
+
+                const linkTransform = new THREE.Matrix4()
+                    .multiply(rTheta)
+                    .multiply(tD)
+                    .multiply(tA)
+                    .multiply(rAlpha);
+
+                currentMatrix.multiply(linkTransform);
+                
+                // Almacenamos una copia de la matriz acumulada actual del eslabón i
+                intermediateTransforms.push(currentMatrix.clone());
+
+                let pEnd = new THREE.Vector3();
+                pEnd.setFromMatrixPosition(currentMatrix);
+
+                const distance = pStart.distanceTo(pEnd);
+                if (distance > 0.01) {
+                    const linkGeom = new THREE.CylinderGeometry(5, 5, distance, 8);
+                    linkGeom.translate(0, distance / 2, 0);
+                    const linkMat = new THREE.MeshStandardMaterial({ color: 0xff8c00, roughness: 0.4, metalness: 0.3, emissive: 0xff8c00, emissiveIntensity: 0.3 });
+                    const linkMesh = new THREE.Mesh(linkGeom, linkMat);
+
+                    linkMesh.position.copy(pStart);
+                    linkMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pEnd.clone().sub(pStart).normalize());
+                    robotGroup.add(linkMesh);
+                }
+
+                const axesHelper = new THREE.AxesHelper(60);
+                axesHelper.matrixAutoUpdate = false;
+                axesHelper.matrix.copy(currentMatrix);
+                robotGroup.add(axesHelper);
+
+                const jointGeom = new THREE.SphereGeometry(10, 16, 16);
+                const jointMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0369a1, roughness: 0.2 });
+                const jointMesh = new THREE.Mesh(jointGeom, jointMat);
+                jointMesh.position.copy(pEnd);
+                robotGroup.add(jointMesh);
+
+                pStart.copy(pEnd);
+            });
+
+            // Actualizar interfaz de Matriz de Transformación Final
+            // const matrixContainer = document.getElementById('matrix-container');
+            // if (matrixContainer) {
+            //     matrixContainer.innerHTML = '';
+            //     const te = currentMatrix.elements; 
+            //     for (let i = 0; i < 4; i++) {
+            //         for (let j = 0; j < 4; j++) {
+            //             const val = te[j * 4 + i];
+            //             const cell = document.createElement('div');
+            //             cell.className = "bg-slate-900/80 border border-slate-800/50 py-1 rounded font-bold";
+            //             cell.innerText = Math.abs(val) < 0.001 ? "0.00" : val.toFixed(3);
+            //             if (j === 3 && i < 3) cell.className += " text-amber-400"; 
+            //             matrixContainer.appendChild(cell);
+            //         }
+            //     }
+            // }
+
+            // NUEVO: Cómputo de la Matriz Jacobiana
+            computeAndRenderJacobian(intermediateTransforms);
         }
-        
-        // Posicionar en el origen del sistema actual (antes del paso DH)
-        jointMesh.position.copy(pStart);
-        
-        // SOLUCIÓN: Extraer la rotación completa (quaternion) de la matriz acumulada actual (sistema i-1)
-        // Esto elimina cualquier distorsión por rotaciones arbitrarias en X, Y o Z.
-        const currentQuaternion = new THREE.Quaternion();
-        const currentScale = new THREE.Vector3();
-        const currentPos = new THREE.Vector3();
-        currentMatrix.decompose(currentPos, currentQuaternion, currentScale);
-        
-        jointMesh.quaternion.copy(currentQuaternion);
-        
-        robotGroup.add(jointMesh);
 
-        // --- 2. CALCULAR LA TRANSFORMACIÓN DH CLÁSICA ---
-        const thetaRad = THREE.MathUtils.degToRad(param.theta);
-        const alphaRad = THREE.MathUtils.degToRad(param.alpha);
-
-        const rTheta = new THREE.Matrix4().makeRotationZ(thetaRad);
-        const tD = new THREE.Matrix4().makeTranslation(0, 0, param.d);
-        const tA = new THREE.Matrix4().makeTranslation(param.a, 0, 0);
-        const rAlpha = new THREE.Matrix4().makeRotationX(alphaRad);
-
-        const linkTransform = new THREE.Matrix4()
-            .multiply(rTheta)
-            .multiply(tD)
-            .multiply(tA)
-            .multiply(rAlpha);
-
-        currentMatrix.multiply(linkTransform);
-        intermediateTransforms.push(currentMatrix.clone());
-
-        let pEnd = new THREE.Vector3();
-        pEnd.setFromMatrixPosition(currentMatrix);
-
-        // --- 3. DIBUJAR EL ESLABÓN FÍSICO (LINK) ---
-        const distance = pStart.distanceTo(pEnd);
-        if (distance > 0.01) {
-            const linkGeom = new THREE.CylinderGeometry(5, 5, distance, 8);
-            linkGeom.translate(0, distance / 2, 0);
-            const linkMat = new THREE.MeshStandardMaterial({ color: 0xff8c00, roughness: 0.4, metalness: 0.3, emissive: 0xff8c00, emissiveIntensity: 0.3 });
-            const linkMesh = new THREE.Mesh(linkGeom, linkMat);
-
-            linkMesh.position.copy(pStart);
-            linkMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pEnd.clone().sub(pStart).normalize());
-            robotGroup.add(linkMesh);
-        }
-
-        // --- 4. DIBUJAR EL SISTEMA DE EJES LOCALES ---
-        const axesHelper = new THREE.AxesHelper(60);
-        axesHelper.matrixAutoUpdate = false;
-        axesHelper.matrix.copy(currentMatrix);
-        robotGroup.add(axesHelper);
-
-        pStart.copy(pEnd);
-    });
-
-    computeAndRenderJacobian(intermediateTransforms);
-}
-
-
+        // NUEVO: Función matemática y de renderizado para el Jacobiano
         function computeAndRenderJacobian(transforms) {
             const jacobianContainer = document.getElementById('jacobian-container');
             if (!jacobianContainer) return;
 
-            const N = dhParams.length; 
+            const N = dhParams.length; // Número de eslabones
             
+            // Configurar dinámicamente las columnas de CSS de la cuadrícula según N
             jacobianContainer.style.gridTemplateColumns = `repeat(${N}, minmax(60px, 1fr))`;
             jacobianContainer.innerHTML = '';
 
+            // Guardamos la posición del efector final p_N (origen de la última matriz)
             const p_N = new THREE.Vector3().setFromMatrixPosition(transforms[transforms.length - 1]);
+
+            // Inicializar matriz vacía de 6 filas x N columnas
             let J = Array.from({ length: 6 }, () => []);
 
             for (let i = 0; i < N; i++) {
-                const param = dhParams[i];
+                // Para la articulación i, tomamos el sistema de referencia previo (i-1)
                 const T_prev = transforms[i]; 
                 
+                // Extraer el vector Z_(i-1) (la tercera columna de la submatriz de rotación)
                 const elements = T_prev.elements;
                 const z_prev = new THREE.Vector3(elements[8], elements[9], elements[10]).normalize();
+
+                // Extraer la posición p_(i-1) (la cuarta columna de traslación)
                 const p_prev = new THREE.Vector3().setFromMatrixPosition(T_prev);
 
-                let Jv = new THREE.Vector3();
-                let Jw = new THREE.Vector3();
+                // Jacobiano Lineal: Jv = z_(i-1) x (p_N - p_(i-1))
+                const r_vector = new THREE.Vector3().subVectors(p_N, p_prev);
+                const Jv = new THREE.Vector3().crossVectors(z_prev, r_vector);
 
-                if (param.type === 'P') {
-                    Jv.copy(z_prev);
-                    Jw.set(0, 0, 0);
-                } else {
-                    const r_vector = new THREE.Vector3().subVectors(p_N, p_prev);
-                    Jv.crossVectors(z_prev, r_vector);
-                    Jw.copy(z_prev);
-                }
+                // Jacobiano Angular: Jw = z_(i-1)
+                const Jw = z_prev;
 
+                // Guardar los 6 componentes en la columna i
                 J[0].push(Jv.x);
                 J[1].push(Jv.y);
                 J[2].push(Jv.z);
@@ -401,11 +372,13 @@ function updateRobotGeometry() {
                 J[5].push(Jw.z);
             }
 
+            // Renderizar la matriz Jacobiana fila por fila en la UI
             for (let f = 0; f < 6; f++) {
                 for (let c = 0; c < N; c++) {
                     const val = J[f][c];
                     const cell = document.createElement('div');
                     
+                    // Dar un estilo visual diferente a la parte Lineal (Jv) vs la Angular (Jw)
                     if (f < 3) {
                         cell.className = "bg-slate-900/80 border border-slate-800/60 py-1 rounded font-bold text-sky-400";
                     } else {
