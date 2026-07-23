@@ -1,98 +1,115 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jacobian matrix</title>
+    <title>Jacobian Matrix</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <!-- Three.js via import map -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+        }
+    }
+    </script>
 
     <!-- KaTeX -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js" 
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
             onload="renderMathInElement(document.body);"></script>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
-    <!-- Encabezado -->
+    <!-- Header -->
     <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md">
         <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-indigo-400">
-            Jacobian matrix
+            Jacobian Matrix
         </h1>
     </header>
 
-    <!-- Contenedor Principal -->
+    <!-- Main Container -->
     <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
         
-        <!-- Panel de Control Izquierdo -->
+        <!-- Left Control Panel -->
         <div class="w-full md:w-5/12 p-4 overflow-y-auto border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
             <div class="flex justify-between items-center">
                 <h2 class="text-lg font-semibold text-slate-200">DH Parameters</h2>
                 <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all flex items-center gap-1">
-                    ➕ Add link
+                    &#x2795; Add link
                 </button>
             </div>
 
-            <!-- DH table: Type, a, alpha, d, theta -->
+            <!-- DH Table: Type, a, alpha, d, theta -->
             <div class="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900/50">
                 <table class="w-full text-left border-collapse min-w-[450px]">
                     <thead>
                         <tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
                             <th class="p-2.5 text-center w-10">#</th>
-                            <th class="p-2.5 text-center w-16">Type</th>
-                            <th class="p-2.5 text-center">\(a\)</th>
-                            <th class="p-2.5 text-center">\( \alpha \) (deg)</th>
-                            <th class="p-2.5 text-center">\(d\)</th>
-                            <th class="p-2.5 text-center">\( \theta \) (deg)</th>
-                            <th class="p-2.5 text-center w-12">.</th>
+                            <th class="p-2.5 text-center w-10">Type</th>
+                            <th class="p-2.5 text-center w-16">\(a\)</th>
+                            <th class="p-2.5 text-center w-16">\(\alpha\) (deg)</th>
+                            <th class="p-2.5 text-center w-16">\(d\)</th>
+                            <th class="p-2.5 text-center w-16">\(\theta\) (deg)</th>
+                            <th class="p-2.5 text-center w-8">.</th>
                         </tr>
                     </thead>
                     <tbody id="dh-table-body">
-                        <!-- Filas dinámicas -->
+                        <!-- Dynamic rows are inserted here -->
                     </tbody>
                 </table>
             </div>
 
-            <!-- Container for jacobian matrix -->
+            <!-- Jacobian Matrix Display -->
             <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <h3 class="text-sm font-semibold text-amber-400">Jacobian matrix (\(6 \times n\))</h3>
+                <h3 class="text-sm font-semibold text-amber-400">Jacobian Matrix (\(6 \times n\))</h3>
                 <div class="overflow-x-auto bg-slate-950 p-2.5 rounded border border-slate-800">
                     <div id="jacobian-container" class="grid gap-1.5 font-mono text-[11px] text-center text-sky-400">
                     </div>
                 </div>
             </div>
+
+            <!-- Homogeneous Transformation Matrix Display -->
+            <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
+                <h3 class="text-sm font-semibold text-indigo-400">Matrix \(T_n^0\)</h3>
+                <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400">
+                </div>
+            </div>
         </div>
 
-        <!-- Visor 3D Derecho -->
+        <!-- Right 3D Viewport (Orthographic Camera) -->
         <div class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950">
             <div id="canvas-container" class="w-full h-full"></div>
+            
+            <!-- Camera Preset Controls -->
             <div class="absolute top-3 right-3 flex flex-wrap gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10">
-                <button id="btn-view-top" onclick="changeView('top')" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Upper (XY)
+                <button id="btn-view-top" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
+                    Top (XY)
                 </button>
-                <button id="btn-view-front" onclick="changeView('front')" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
+                <button id="btn-view-front" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
                     Front (XZ)
                 </button>
-                <button id="btn-view-side" onclick="changeView('side')" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
+                <button id="btn-view-side" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
                     Side (YZ)
                 </button>
-                <button id="btn-view-iso" onclick="changeView('iso')" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
+                <button id="btn-view-iso" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
                     Isometric
                 </button>
             </div>
         </div>
     </main>
 
-    <!-- Footer / Developer Credits -->
+    <!-- Footer -->
     <footer class="bg-slate-900 border-t border-slate-800 py-4 px-6 text-center text-xs text-slate-500 shadow-inner">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
             <p class="flex items-center gap-1.5 justify-center">
-                Developed with 💙 by 
-                <a href="https://github.com/JorgeDeLosSantos" 
-                   target="_blank" 
-                   rel="noopener noreferrer" 
+                Developed with &#x1F499; by 
+                <a href="https://github.com/JorgeDeLosSantos"
+                   target="_blank"
+                   rel="noopener noreferrer"
                    class="font-semibold text-indigo-400 hover:text-indigo-300 hover:underline transition-colors">
                     P.J. De Los Santos
                 </a>
@@ -100,325 +117,53 @@
         </div>
     </footer>
 
-    <script>
-        // Initial DH parameters. Added 'type' property (R = Revolute, P = Prismatic)
-        let dhParams = [
+    <script type="module">
+        import * as THREE from 'three';
+        import { RobotViewer } from './shared-robot-viewer.js';
+
+        // Initial DH parameters for a 3-link manipulator
+        const initialDHParams = [
             { type: 'R', theta: 0, d: 200, a: 0.0, alpha: 90 },
             { type: 'R', theta: 0, d: 0.0, a: 200, alpha: 0 },
             { type: 'R', theta: 0, d: 0.0, a: 200, alpha: 0 }
         ];
 
-        const tableBody = document.getElementById('dh-table-body');
-        const addRowBtn = document.getElementById('add-row-btn');
-        const canvasContainer = document.getElementById('canvas-container');
-
-        let scene, camera, renderer, controls;
-        let robotGroup;
-        const frustumSize = 1200;
-
-        function init3D() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x0f172a);
-
-            const aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
-            
-            camera = new THREE.OrthographicCamera(
-                frustumSize * aspect / -2,
-                frustumSize * aspect / 2,
-                frustumSize / 2,
-                frustumSize / -2,
-                0.1,
-                10000
-            );
-            
-            camera.position.set(1500, -1500, 1500);
-            camera.up.set(0, 0, 1);
-            camera.lookAt(0, 0, 0);
-
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
-            canvasContainer.appendChild(renderer.domElement);
-
-            controls = new THREE.OrbitControls(camera, renderer.domElement);
-            controls.enableDamping = true;
-            controls.dampingFactor = 0.05;
-
-            controls.mouseButtons = {
-                LEFT: THREE.MOUSE.PAN,      
-                MIDDLE: THREE.MOUSE.ROTATE, 
-                RIGHT: THREE.MOUSE.PAN      
-            };
-
-            controls.addEventListener('start', () => {
-                document.querySelectorAll('.view-btn').forEach(btn => {
-                    btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-500', 'text-white', 'shadow');
-                    btn.classList.add('bg-slate-800', 'hover:bg-slate-700', 'text-slate-200');
-                });
-            });
-
-            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-            scene.add(ambientLight);
-
-            const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-            dirLight.position.set(10, 20, 15);
-            scene.add(dirLight);
-
-            const gridHelper = new THREE.GridHelper(2000, 40, 0x475569, 0x334155);
-            gridHelper.rotation.x = Math.PI / 2;
-            scene.add(gridHelper);
-
-            camera.near = 1;
-            camera.far = 10000;
-            camera.updateProjectionMatrix();
-
-            robotGroup = new THREE.Group();
-            scene.add(robotGroup);
-
-            window.addEventListener('resize', onWindowResize);
-            animate();
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            controls.update();
-            renderer.render(scene, camera);
-        }
-
-        function onWindowResize() {
-            const aspect = canvasContainer.clientWidth / canvasContainer.clientHeight;
-            camera.left = frustumSize * aspect / -2;
-            camera.right = frustumSize * aspect / 2;
-            camera.top = frustumSize / 2;
-            camera.bottom = frustumSize / -2;
-            camera.updateProjectionMatrix();
-            renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
-        }
-
-        function renderTable() {
-            tableBody.innerHTML = '';
-            dhParams.forEach((param, index) => {
-                const tr = document.createElement('tr');
-                tr.className = "border-b border-slate-800 hover:bg-slate-800/40 transition-colors text-sm";
-                tr.innerHTML = `
-                    <td class="p-2 text-center text-slate-500 font-bold">${index + 1}</td>
-                    <td class="p-1">
-                        <select data-index="${index}" data-prop="type" 
-                            class="w-full bg-slate-800 border border-slate-700 rounded px-1 py-1 text-center font-bold text-indigo-400 focus:outline-none cursor-pointer">
-                            <option value="R" ${param.type === 'R' ? 'selected' : ''}>R</option>
-                            <option value="P" ${param.type === 'P' ? 'selected' : ''}>P</option>
-                        </select>
-                    </td>
-                    <td class="p-1">
-                        <input type="number" step="5" data-index="${index}" data-prop="a" value="${param.a}" 
-                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-amber-300 focus:outline-none">
-                    </td>
-                    <td class="p-1">
-                        <input type="number" min="-360" max="360" step="5" data-index="${index}" data-prop="alpha" value="${param.alpha}" 
-                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-orange-300 focus:outline-none">
-                    </td>
-                    <td class="p-1">
-                        <input type="number" step="5" data-index="${index}" data-prop="d" value="${param.d}" 
-                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-emerald-300 focus:outline-none ${param.type === 'P' ? 'ring-2 ring-emerald-500/50' : ''}">
-                    </td>
-                    <td class="p-1">
-                        <input type="number" min="-360" max="360" step="5" data-index="${index}" data-prop="theta" value="${param.theta}" 
-                            class="w-full bg-slate-800 border border-slate-700 rounded px-1.5 py-1 text-center text-indigo-300 focus:outline-none ${param.type === 'R' ? 'ring-2 ring-indigo-500/50' : ''}">
-                    </td>
-                    <td class="p-2 text-center">
-                        <button data-index="${index}" class="delete-btn text-slate-500 hover:text-red-400 p-1 transition-colors">❌</button>
-                    </td>
-                `;
-                tableBody.appendChild(tr);
-            });
-
-            tableBody.querySelectorAll('input, select').forEach(input => input.addEventListener('input', handleInputChange));
-            tableBody.querySelectorAll('.delete-btn').forEach(btn => btn.addEventListener('click', handleDeleteRow));
-        }
-
-        function handleInputChange(e) {
-            const index = parseInt(e.target.dataset.index);
-            const prop = e.target.dataset.prop;
-            let value = e.target.value;
-
-            if (prop !== 'type') {
-                value = parseFloat(value) || 0;
-                if (prop === 'theta' || prop === 'alpha') {
-                    if (value < -360) value = -360;
-                    if (value > 360) value = 360;
-                    e.target.value = value;
-                }
-            } else {
-                dhParams[index][prop] = value;
-                renderTable();
-            }
-
-            dhParams[index][prop] = value;
-            updateRobotGeometry();
-        }
-
-        function handleDeleteRow(e) {
-            if (dhParams.length <= 1) return;
-            const index = parseInt(e.target.closest('button').dataset.index);
-            dhParams.splice(index, 1);
-            renderTable();
-            updateRobotGeometry();
-        }
-
-        addRowBtn.addEventListener('click', () => {
-            if (dhParams.length >= 6) return;
-            dhParams.push({ type: 'R', theta: 0, d: 0, a: 200, alpha: 0 });
-            renderTable();
-            updateRobotGeometry();
+        // Create the robot viewer with shared components
+        const viewer = new RobotViewer({
+            canvasContainerId: 'canvas-container',
+            tableBodyId: 'dh-table-body',
+            addRowBtnId: 'add-row-btn',
+            matrixContainerId: 'matrix-container',
+            initialDHParams: initialDHParams,
+            frustumSize: 1200,
+            maxLinks: 6
         });
 
+        // Override updateRobotGeometry to add Jacobian computation after rendering
+        const originalUpdate = viewer.updateRobotGeometry.bind(viewer);
+        viewer.updateRobotGeometry = function() {
+            // Call the original FK-style rendering from shared module
+            originalUpdate();
 
-        function updateRobotGeometry() {
-            while(robotGroup.children.length > 0){
-                robotGroup.remove(robotGroup.children[0]);
-            }
+            // Compute forward kinematics matrices for Jacobian
+            const { matrices } = this.computeForwardKinematics();
 
-            let currentMatrix = new THREE.Matrix4();
-            let pStart = new THREE.Vector3(0, 0, 0);
+            // Compute and render the Jacobian matrix
+            const J = this.computeJacobian(matrices);
+            renderJacobian(J);
+        };
 
-            const baseAxes = new THREE.AxesHelper(100);
-            robotGroup.add(baseAxes);
+        /**
+         * Renders the 6xN Jacobian matrix into the UI container.
+         * @param {Array} J - 6 rows x N columns Jacobian matrix
+         */
+        function renderJacobian(J) {
+            const container = document.getElementById('jacobian-container');
+            if (!container) return;
 
-            let intermediateTransforms = [new THREE.Matrix4()]; 
-
-            dhParams.forEach((param) => {
-                // --- 1. DRAW JOINT i AT THE PREVIOUS ORIGIN (FRAME i-1) ---
-                let jointMesh;
-                if (param.type === 'P') {
-                    const jointGeom = new THREE.BoxGeometry(16, 16, 24);
-                    const jointMat = new THREE.MeshStandardMaterial({ color: 0x10b981, emissive: 0x064e3b, roughness: 0.2 });
-                    jointMesh = new THREE.Mesh(jointGeom, jointMat);
-                } else {
-                    const jointGeom = new THREE.CylinderGeometry(12, 12, 30, 16);
-                    jointGeom.rotateX(Math.PI / 2); 
-                    const jointMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, emissive: 0x0369a1, roughness: 0.2 });
-                    jointMesh = new THREE.Mesh(jointGeom, jointMat);
-                }
-                
-                jointMesh.position.copy(pStart);
-                
-                const currentQuaternion = new THREE.Quaternion();
-                const currentScale = new THREE.Vector3();
-                const currentPos = new THREE.Vector3();
-                currentMatrix.decompose(currentPos, currentQuaternion, currentScale);
-                
-                jointMesh.quaternion.copy(currentQuaternion);
-                robotGroup.add(jointMesh);
-
-                // --- 2. CALCULATE INTERMEDIATE TRANSFORMS & ORTHOGONAL PATHS ---
-                const thetaRad = THREE.MathUtils.degToRad(param.theta);
-                const alphaRad = THREE.MathUtils.degToRad(param.alpha);
-
-                const rTheta = new THREE.Matrix4().makeRotationZ(thetaRad);
-                const tD = new THREE.Matrix4().makeTranslation(0, 0, param.d);
-                const tA = new THREE.Matrix4().makeTranslation(param.a, 0, 0);
-                const rAlpha = new THREE.Matrix4().makeRotationX(alphaRad);
-
-                // Calculate intermediate position after translating along Z (d displacement)
-                const intermediateMatrix = currentMatrix.clone().multiply(rTheta).multiply(tD);
-                let pMid = new THREE.Vector3();
-                pMid.setFromMatrixPosition(intermediateMatrix);
-
-                // Calculate total transformation for this link frame
-                const linkTransform = new THREE.Matrix4()
-                    .multiply(rTheta)
-                    .multiply(tD)
-                    .multiply(tA)
-                    .multiply(rAlpha);
-
-                currentMatrix.multiply(linkTransform);
-                intermediateTransforms.push(currentMatrix.clone());
-
-                let pEnd = new THREE.Vector3();
-                pEnd.setFromMatrixPosition(currentMatrix);
-
-                // --- 3. DRAW ORTHOGONAL SEPARATED LINKS (d and a) ---
-                const linkMaterial = new THREE.MeshStandardMaterial({ 
-                    color: 0xff8c00, 
-                    roughness: 0.4, 
-                    metalness: 0.3, 
-                    emissive: 0xff8c00, 
-                    emissiveIntensity: 0.3 
-                });
-
-                // Link Segment for joint displacement 'd'
-                const distD = pStart.distanceTo(pMid);
-                if (distD > 0.01) {
-                    const dGeom = new THREE.CylinderGeometry(5, 5, distD, 8);
-                    dGeom.translate(0, distD / 2, 0);
-                    const dMesh = new THREE.Mesh(dGeom, linkMaterial);
-                    dMesh.position.copy(pStart);
-                    dMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pMid.clone().sub(pStart).normalize());
-                    robotGroup.add(dMesh);
-                }
-
-                // Link Segment for link length 'a'
-                const distA = pMid.distanceTo(pEnd);
-                if (distA > 0.01) {
-                    const aGeom = new THREE.CylinderGeometry(5, 5, distA, 8);
-                    aGeom.translate(0, distA / 2, 0);
-                    const aMesh = new THREE.Mesh(aGeom, linkMaterial);
-                    aMesh.position.copy(pMid);
-                    aMesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), pEnd.clone().sub(pMid).normalize());
-                    robotGroup.add(aMesh);
-                }
-
-                // --- 4. DRAW LOCAL FRAME AXES ---
-                const axesHelper = new THREE.AxesHelper(60);
-                axesHelper.matrixAutoUpdate = false;
-                axesHelper.matrix.copy(currentMatrix);
-                robotGroup.add(axesHelper);
-
-                pStart.copy(pEnd);
-            });
-
-            computeAndRenderJacobian(intermediateTransforms);
-        }
-
-
-        function computeAndRenderJacobian(transforms) {
-            const jacobianContainer = document.getElementById('jacobian-container');
-            if (!jacobianContainer) return;
-
-            const N = dhParams.length; 
-            
-            jacobianContainer.style.gridTemplateColumns = `repeat(${N}, minmax(60px, 1fr))`;
-            jacobianContainer.innerHTML = '';
-
-            const p_N = new THREE.Vector3().setFromMatrixPosition(transforms[transforms.length - 1]);
-            let J = Array.from({ length: 6 }, () => []);
-
-            for (let i = 0; i < N; i++) {
-                const param = dhParams[i];
-                const T_prev = transforms[i]; 
-                
-                const elements = T_prev.elements;
-                const z_prev = new THREE.Vector3(elements[8], elements[9], elements[10]).normalize();
-                const p_prev = new THREE.Vector3().setFromMatrixPosition(T_prev);
-
-                let Jv = new THREE.Vector3();
-                let Jw = new THREE.Vector3();
-
-                if (param.type === 'P') {
-                    Jv.copy(z_prev);
-                    Jw.set(0, 0, 0);
-                } else {
-                    const r_vector = new THREE.Vector3().subVectors(p_N, p_prev);
-                    Jv.crossVectors(z_prev, r_vector);
-                    Jw.copy(z_prev);
-                }
-
-                J[0].push(Jv.x);
-                J[1].push(Jv.y);
-                J[2].push(Jv.z);
-                J[3].push(Jw.x);
-                J[4].push(Jw.y);
-                J[5].push(Jw.z);
-            }
+            const N = viewer.dhParams.length;
+            container.style.gridTemplateColumns = `repeat(${N}, minmax(60px, 1fr))`;
+            container.innerHTML = '';
 
             for (let f = 0; f < 6; f++) {
                 for (let c = 0; c < N; c++) {
@@ -426,60 +171,21 @@
                     const cell = document.createElement('div');
                     
                     if (f < 3) {
-                        cell.className = "bg-slate-900/80 border border-slate-800/60 py-1 rounded font-bold text-sky-400";
+                        cell.className = 'bg-slate-900/80 border border-slate-800/60 py-1 rounded font-bold text-sky-400';
                     } else {
-                        cell.className = "bg-slate-900/50 border border-slate-800/40 py-1 rounded font-bold text-teal-400 opacity-90";
+                        cell.className = 'bg-slate-900/50 border border-slate-800/40 py-1 rounded font-bold text-teal-400 opacity-90';
                     }
 
-                    cell.innerText = Math.abs(val) < 0.001 ? "0.00" : val.toFixed(4);
-                    jacobianContainer.appendChild(cell);
+                    cell.innerText = Math.abs(val) < 0.001 ? '0.00' : val.toFixed(4);
+                    container.appendChild(cell);
                 }
             }
         }
 
-        function changeView(view) {
-            const d = 1800; 
-            controls.target.set(0, 0, 0);
-
-            switch(view) {
-                case 'top':
-                    camera.position.set(0, 0, d);
-                    camera.up.set(0, 1, 0); 
-                    break;
-                case 'front':
-                    camera.position.set(0, -d, 0);
-                    camera.up.set(0, 0, 1); 
-                    break;
-                case 'side':
-                    camera.position.set(d, 0, 0);
-                    camera.up.set(0, 0, 1); 
-                    break;
-                case 'iso':
-                    const isoVal = d / Math.sqrt(3); 
-                    camera.position.set(isoVal, -isoVal, isoVal);
-                    camera.up.set(0, 0, 1); 
-                    break;
-            }
-
-            camera.lookAt(0, 0, 0);
-            controls.update();
-
-            document.querySelectorAll('.view-btn').forEach(btn => {
-                btn.classList.remove('bg-indigo-600', 'hover:bg-indigo-500', 'text-white', 'shadow');
-                btn.classList.add('bg-slate-800', 'hover:bg-slate-700', 'text-slate-200');
-            });
-
-            const activeBtn = document.getElementById(`btn-view-${view}`);
-            if (activeBtn) {
-                activeBtn.classList.remove('bg-slate-800', 'hover:bg-slate-700', 'text-slate-200');
-                activeBtn.classList.add('bg-indigo-600', 'hover:bg-indigo-500', 'text-white', 'shadow');
-            }
-        }
-
         window.onload = () => {
-            init3D();
-            renderTable();
-            updateRobotGeometry();
+            viewer.init3D();
+            viewer.renderTable();
+            viewer.updateRobotGeometry();
         };
     </script>
 </body>
