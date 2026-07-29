@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Visualizador de Ángulos de Euler - Intrínseco vs Extrínseco</title>
+    <title>Euler Angles Visualizer - Intrinsic Sequences</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; display: flex; background: #0a0a0a; }
         #ui-panel {
@@ -36,41 +36,32 @@
 <body>
 
 <div id="ui-panel">
-    <h2>Ángulos de Euler</h2>
-    
-    <div class="control-group">
-        <label>Convención de Rotación</label>
-        <select id="rotation-type">
-            <option value="Intrínseca">Intrínseca (Ejes Móviles)</option>
-            <option value="Extrínseca">Extrínseca (Ejes Fijos)</option>
-        </select>
-        <div id="mode-desc" class="type-indicator intrinsic">MODO: INTRÍNSECA </div>
-    </div>
+    <h2>Euler Angles (Intrinsic Sequences)</h2>
 
     <div class="control-group">
-        <label>Secuencia</label>
+        <label>Sequence</label>
         <select id="sequence">
-            <option value="ZYX">ZYX (Aeronáutica / Yaw-Pitch-Roll)</option>
+            <option value="ZYX">ZYX (Aerospace / Yaw-Pitch-Roll)</option>
             <option value="XYZ">XYZ</option>
-            <option value="ZYZ">ZYZ (Robótica Industrial)</option>
-            <option value="ZXZ">ZXZ (Mecánica Clásica)</option>
+            <option value="ZYZ">ZYZ (Industrial Robotics)</option>
+            <option value="ZXZ">ZXZ (Classical Mechanics)</option>
         </select>
     </div>
 
     <div class="control-group">
-        <label>Ángulo 1 (𝜙): <span id="a1-val" class="val">0</span>°</label>
+        <label>Angle 1 (𝜙): <span id="a1-val" class="val">0</span>°</label>
         <input type="range" id="a1" min="-180" max="180" value="0">
         
-        <label>Ángulo 2 (θ): <span id="a2-val" class="val">0</span>°</label>
+        <label>Angle 2 (θ): <span id="a2-val" class="val">0</span>°</label>
         <input type="range" id="a2" min="-180" max="180" value="0">
 
-        <label>Ángulo 3 (ψ): <span id="a3-val" class="val">0</span>°</label>
+        <label>Angle 3 (ψ): <span id="a3-val" class="val">0</span>°</label>
         <input type="range" id="a3" min="-180" max="180" value="0">
     </div>
 
-    <button id="reset">Resetear Ángulos</button>
+    <button id="reset">Reset Angles</button>
 
-    <label style="margin-top:20px">Matriz de Rotación $R \in SO(3)$</label>
+    <label style="margin-top:20px">Rotation Matrix $R \in SO(3)$</label>
     <div class="matrix-display" id="matrix-ui"></div>
 </div>
 
@@ -87,29 +78,48 @@
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-    // Inicialización de Escena
+    // Scene Initialization
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xF0F0F0);
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    
+    const aspect = window.innerWidth / window.innerHeight;
+    const d = 8; // Controls the zoom / visible area
+    const camera = new THREE.OrthographicCamera(
+        -d * aspect,  // Left
+        d * aspect,   // Right
+        d,            // Top
+        -d,           // Bottom
+        0.1,          // Near
+        1000          // Far
+    );
     camera.position.set(8, 5, 8);
+    camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
+    // Configure CAD-style mouse controls:
+    // Left: Pan, Scroll wheel press: Rotate, Right: Pan
+    controls.mouseButtons = {
+        LEFT: THREE.MOUSE.PAN,
+        MIDDLE: THREE.MOUSE.ROTATE,
+        RIGHT: THREE.MOUSE.PAN
+    };
+
     scene.add(new THREE.GridHelper(10, 10, 0xDADADA, 0xDADADA));
 
-    // Ejes del Mundo (Fijos)
+    // World Axes (Fixed)
     const worldAxes = new THREE.AxesHelper(5);
     scene.add(worldAxes);
 
-    // Sistema Móvil (Cuerpo)
+    // Mobile System (Body)
     const bodyGroup = new THREE.Group();
     const bodyAxes = new THREE.AxesHelper(3);
     bodyGroup.add(bodyAxes);
     
-    // Geometría para referencia visual de orientación
+    // Geometry for visual reference of orientation
     const mesh = new THREE.Mesh(
         new THREE.BoxGeometry(2, 0.5, 1),
         new THREE.MeshPhongMaterial({ color: 0x00ffcc, transparent: true, opacity: 0.7 })
@@ -122,9 +132,8 @@
     light.position.set(5, 5, 5);
     scene.add(light);
 
-    // Lógica Matemática
+    // Mathematical Logic
     let angles = { a1: 0, a2: 0, a3: 0 };
-    let type = 'Intrínseca';
     let sequence = 'ZYX';
 
     function getRotationMatrix(axis, theta) {
@@ -144,13 +153,8 @@
 
         let R = new THREE.Matrix4();
 
-        if (type === 'Intrínseca') {
-            // INTRÍNSECA: R = R1 * R2 * R3 (Post-multiplicación)
-            R.multiply(m1).multiply(m2).multiply(m3);
-        } else {
-            // EXTRÍNSECA: R = R3 * R2 * R1 (Pre-multiplicación)
-            R.copy(m3).multiply(m2).multiply(m1);
-        }
+        // INTRINSIC: R = R1 * R2 * R3 (Post-multiplication)
+        R.multiply(m1).multiply(m2).multiply(m3);
 
         bodyGroup.matrix.copy(R);
         bodyGroup.matrixAutoUpdate = false;
@@ -163,7 +167,7 @@
         const ui = document.getElementById('matrix-ui');
         ui.innerHTML = '';
         const e = matrix.elements;
-        // Solo mostramos la submatriz de rotación 3x3
+        // We only show the 3x3 rotation submatrix
         const indices = [0, 4, 8, 1, 5, 9, 2, 6, 10];
         indices.forEach(idx => {
             const cell = document.createElement('div');
@@ -172,15 +176,7 @@
         });
     }
 
-    // Eventos
-    document.getElementById('rotation-type').addEventListener('change', (e) => {
-        type = e.target.value;
-        const desc = document.getElementById('mode-desc');
-        desc.textContent = `MODO: ${type.toUpperCase()} (${type === 'Intrínseca' ? 'Post-multiplicación' : 'Pre-multiplicación'})`;
-        desc.className = `type-indicator ${type}`;
-        updateRotation();
-    });
-
+    // Events
     document.getElementById('sequence').addEventListener('change', (e) => {
         sequence = e.target.value;
         updateRotation();
@@ -204,7 +200,12 @@
     };
 
     window.addEventListener('resize', () => {
-        camera.aspect = window.innerWidth / window.innerHeight;
+        const aspect = window.innerWidth / window.innerHeight;
+        const d = 8;
+        camera.left = -d * aspect;
+        camera.right = d * aspect;
+        camera.top = d;
+        camera.bottom = -d;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
