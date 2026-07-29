@@ -12,9 +12,6 @@ A collection of simple robotics animations for educational purposes.
 ## Kinematics
 
 - [Forward kinematics](https://jorgedelossantos.github.io/robotics-animations/kinematics/forward-kinematics)
-- [Inverse kinematics (only position)](https://jorgedelossantos.github.io/robotics-animations/kinematics/inverse-kinematics)
+- [Inverse kinematics (only position)](https://jorgedelossantos.github.io/robotics-animations/kinematics/inverse-kinematics-position)
 - [Inverse kinematics (6 DOF robots)](https://jorgedelossantos.github.io/robotics-animations/kinematics/inverse-kinematics-6dof)
-
-## Dynamics
-
-- [Moment of inertia](https://jorgedelossantos.github.io/robotics-animations/moment-of-inertia/system-of-particles)
+- [Jacobian matrix](https://jorgedelossantos.github.io/robotics-animations/kinematics/jacobian-matrix)
