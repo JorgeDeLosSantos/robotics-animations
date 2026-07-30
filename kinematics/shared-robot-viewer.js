@@ -511,7 +511,7 @@ export class RobotViewer {
 
         for (let i = 0; i < N; i++) {
             const param = this.dhParams[i];
-            const T_prev = matrices[i]; // transformation up to frame i-1 (or identity for i=0)
+            const T_prev = i === 0 ? new THREE.Matrix4() : matrices[i - 1]; // transformation up to frame i-1 (or identity for i=0)
             const elements = T_prev.elements;
             const z_prev = new THREE.Vector3(elements[8], elements[9], elements[10]).normalize();
             const p_prev = new THREE.Vector3().setFromMatrixPosition(T_prev);
