@@ -41,6 +41,9 @@
         }
         #transform-equation { overflow-x: auto; }
         #transform-equation .katex { font-size: .95em; }
+        .system-nav button:disabled { opacity: .35; cursor: not-allowed; }
+        .system-nav button:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
+        #canvas-container canvas { touch-action: none; }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
@@ -112,12 +115,18 @@
             </details>
 
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <label for="frame-select" class="text-sm text-indigo-400 font-semibold">Sistema de referencia</label>
-                <select id="frame-select" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2"></select>
+                <h3 class="text-sm text-indigo-400 font-semibold">Sistema de referencia</h3>
+                <div class="system-nav flex items-center gap-2">
+                    <button id="previous-system" type="button" aria-label="Sistema anterior" title="Sistema anterior"
+                        class="shrink-0 bg-slate-700 hover:bg-slate-600 rounded px-3 py-2">‹</button>
+                    <div id="selected-system-label" class="flex-1 text-center font-semibold text-sm bg-slate-900 rounded px-2 py-2" aria-live="polite">Sistema {3}</div>
+                    <button id="next-system" type="button" aria-label="Sistema siguiente" title="Sistema siguiente"
+                        class="shrink-0 bg-slate-700 hover:bg-slate-600 rounded px-3 py-2">›</button>
+                </div>
                 <p id="frame-description" class="text-xs text-slate-400"></p>
                 <p id="system-position" class="text-xs font-mono text-slate-300"></p>
                 <button id="show-dh-row" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Ver parámetros DH de este sistema</button>
-                <p class="text-xs text-slate-400">El sistema seleccionado se distingue mediante un marcador amarillo y ejes XYZ ampliados en el modelo 3D.</p>
+                <p class="text-xs text-slate-400">Haz clic cerca del origen de un sistema en el visor 3D para seleccionarlo. Los botones ‹ › permiten recorrer la cadena y distinguir sistemas con orígenes coincidentes.</p>
             </section>
 
             <!-- Homogeneous Transformation Matrix Display -->
@@ -230,7 +239,9 @@
         // No override needed.
 
         const jointControls = document.getElementById('joint-controls');
-        const frameSelect = document.getElementById('frame-select');
+        const systemLabel = document.getElementById('selected-system-label');
+        const previousSystemButton = document.getElementById('previous-system');
+        const nextSystemButton = document.getElementById('next-system');
         const frameDescription = document.getElementById('frame-description');
         const presetSelect = document.getElementById('robot-preset');
         const presetDescription = document.getElementById('preset-description');
@@ -284,6 +295,155 @@
         originRing.renderOrder = 101;
         selectedSystem.add(originRing);
 
+        // FK-only hit targets: invisible spheres at each DH system origin.
+        // Keep them OUTSIDE robotGroup, which is redrawn on joint changes.
+        const pickRoot = new THREE.Group();
+        const pickGeometry = new THREE.SphereGeometry(24, 12, 10);
+        const pickMaterial = new THREE.MeshBasicMaterial({
+            transparent: true, opacity: 0, depthWrite: false, colorWrite: false
+        });
+        const pickMeshes = [];
+        const pickRaycaster = new THREE.Raycaster();
+        const pickPointer = new THREE.Vector2();
+        let hoveredSystem = null;
+        let pointerStart = null;
+
+        // Hover feedback appears only during interaction, not permanently.
+        const hoverIndicator = new THREE.Mesh(
+            new THREE.TorusGeometry(30, 2.5, 8, 32),
+            new THREE.MeshBasicMaterial({ color: 0x93c5fd, depthTest: false })
+        );
+        hoverIndicator.renderOrder = 104;
+        hoverIndicator.visible = false;
+
+        function selectedSystemIndex() {
+            if (selectedFrame === 'base') return 0;
+            if (selectedFrame === 'end') return viewer.dhParams.length;
+            return Math.max(1, Math.min(viewer.dhParams.length, Number(selectedFrame) + 1));
+        }
+
+        function selectSystem(index) {
+            const count = viewer.dhParams.length;
+            if (!Number.isInteger(index) || index < 0 || index > count) return;
+            selectedFrame = index === 0 ? 'base' : String(index - 1);
+            updateFrameDisplay();
+        }
+
+        function syncPickTargets(matrices) {
+            const count = matrices.length + 1;
+            if (pickMeshes.length !== count) {
+                pickRoot.clear();
+                pickMeshes.length = 0;
+                for (let index = 0; index < count; index++) {
+                    const mesh = new THREE.Mesh(pickGeometry, pickMaterial);
+                    mesh.userData.systemIndex = index;
+                    pickRoot.add(mesh);
+                    pickMeshes.push(mesh);
+                }
+                hoveredSystem = null;
+                hoverIndicator.visible = false;
+                if (viewer.renderer) viewer.renderer.domElement.style.cursor = '';
+            }
+
+            pickMeshes[0].position.set(0, 0, 0);
+            matrices.forEach((matrix, index) => {
+                pickMeshes[index + 1].position.setFromMatrixPosition(matrix);
+            });
+            pickRoot.updateMatrixWorld(true);
+            if (hoveredSystem !== null && pickMeshes[hoveredSystem]) {
+                hoverIndicator.position.copy(pickMeshes[hoveredSystem].position);
+            }
+        }
+
+        function systemCandidates(event) {
+            if (!viewer.renderer || !viewer.camera) return [];
+            const canvas = viewer.renderer.domElement;
+            const rect = canvas.getBoundingClientRect();
+            if (!rect.width || !rect.height) return [];
+            pickPointer.set(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+            pickRaycaster.setFromCamera(pickPointer, viewer.camera);
+            const hits = pickRaycaster.intersectObjects(pickMeshes, false);
+            if (!hits.length) return [];
+
+            // Prefer the system whose projected ORIGIN is nearest the pointer,
+            // rather than the front surface of its invisible picking sphere.
+            const distance2 = mesh => {
+                const p = mesh.position.clone().project(viewer.camera);
+                const dx = (p.x - pickPointer.x) * rect.width / 2;
+                const dy = (p.y - pickPointer.y) * rect.height / 2;
+                return dx * dx + dy * dy;
+            };
+            const ranked = hits.map(hit => ({
+                index: hit.object.userData.systemIndex,
+                distance: distance2(hit.object)
+            })).sort((a, b) => a.distance - b.distance || a.index - b.index);
+            // Coincident origins are ambiguous. Allow repeated clicks to cycle
+            // their system indices; sequential buttons remain an alternative.
+            const closest = ranked[0].distance;
+            return ranked.filter(candidate => candidate.distance <= closest + 36)
+                .map(candidate => candidate.index).sort((a, b) => a - b);
+        }
+
+        function setHoveredSystem(index) {
+            hoveredSystem = index;
+            hoverIndicator.visible = index !== null;
+            if (index !== null && pickMeshes[index]) {
+                hoverIndicator.position.copy(pickMeshes[index].position);
+                hoverIndicator.quaternion.copy(viewer.camera.quaternion);
+            }
+            viewer.renderer.domElement.style.cursor = index === null ? '' : 'pointer';
+        }
+
+        function attachSystemPicking() {
+            const canvas = viewer.renderer.domElement;
+            canvas.addEventListener('pointerdown', event => {
+                if (event.button !== 0) return;
+                pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
+            });
+            canvas.addEventListener('pointermove', event => {
+                if (pointerStart || event.pointerType === 'touch') return;
+                const candidates = systemCandidates(event);
+                const selected = selectedSystemIndex();
+                setHoveredSystem(candidates.includes(selected) ? selected : (candidates[0] ?? null));
+            });
+            canvas.addEventListener('pointerup', event => {
+                if (!pointerStart || event.pointerId !== pointerStart.id) return;
+                const moved = Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y);
+                pointerStart = null;
+                if (moved > 6) {
+                    setHoveredSystem(null);
+                    return; // OrbitControls handled a drag, not a selection.
+                }
+                const candidates = systemCandidates(event);
+                if (!candidates.length) {
+                    setHoveredSystem(null);
+                    return;
+                }
+                const current = selectedSystemIndex();
+                const position = candidates.indexOf(current);
+                const choice = position >= 0
+                    ? candidates[(position + 1) % candidates.length]
+                    : candidates[0];
+                selectSystem(choice);
+                setHoveredSystem(choice);
+            });
+            canvas.addEventListener('pointercancel', () => {
+                pointerStart = null;
+                setHoveredSystem(null);
+            });
+            canvas.addEventListener('pointerleave', () => {
+                if (!pointerStart) setHoveredSystem(null);
+            });
+            viewer.controls.addEventListener('change', () => {
+                if (hoverIndicator.visible) {
+                    hoverIndicator.quaternion.copy(viewer.camera.quaternion);
+                }
+            });
+        }
+
         // Keep the viewer shared with IK/Jacobian pages. FK-specific teaching
         // controls live here, without extending the shared module's public API.
         function highlightSelectedDHRow(systemIndex) {
@@ -295,6 +455,7 @@
 
         function updateFrameDisplay() {
             const { matrices } = viewer.computeForwardKinematics();
+            syncPickTargets(matrices);
             const index = selectedFrame === 'base' ? -1
                 : selectedFrame === 'end' ? matrices.length - 1
                 : Math.min(Number(selectedFrame), matrices.length - 1);
@@ -350,28 +511,23 @@
             \end{bmatrix}`;
             katex.render(latex, document.getElementById('matrix-container'),
                 { displayMode: true, throwOnError: false });
+            systemLabel.textContent = systemIndex === 0
+                ? 'Sistema {0} · base'
+                : systemIndex === viewer.dhParams.length
+                    ? `Sistema {${systemIndex}} · efector final`
+                    : `Sistema {${systemIndex}}`;
+            previousSystemButton.disabled = systemIndex === 0;
+            nextSystemButton.disabled = systemIndex === viewer.dhParams.length;
             frameDescription.textContent = `Sistema seleccionado: {${systemIndex}}.`;
             document.getElementById('system-position').textContent =
                 `Posición en {0}: (${fmt(cumulative.elements[12])}, ${fmt(cumulative.elements[13])}, ${fmt(cumulative.elements[14])})`;
             document.getElementById('transform-description').textContent = description;
         }
-        function refreshFrameSelect() {
-            const currentOptions = [
-                { value: 'end', label: 'Efector final' },
-                { value: 'base', label: 'Sistema {0} · base' },
-                ...viewer.dhParams.map((_, index) => ({
-                    value: String(index), label: `Sistema {${index + 1}}`
-                }))
-            ];
-            frameSelect.replaceChildren();
-            for (const option of currentOptions) {
-                frameSelect.add(new Option(option.label, option.value));
-            }
+        function refreshSystemNavigation() {
             if (selectedFrame !== 'end' && selectedFrame !== 'base'
                 && Number(selectedFrame) >= viewer.dhParams.length) {
                 selectedFrame = 'end';
             }
-            frameSelect.value = selectedFrame;
             updateFrameDisplay();
         }
 
@@ -422,7 +578,7 @@
         viewer.renderTable = () => {
             originalRenderTable();
             refreshJointControls();
-            refreshFrameSelect();
+            refreshSystemNavigation();
             refreshPresetIdentity();
             [...viewer.tableBody.rows].forEach((row, index) => {
                 row.cells[0].title = `Seleccionar sistema {${index + 1}}`;
@@ -437,13 +593,13 @@
         viewer.tableBody.addEventListener('click', event => {
             const cell = event.target.closest('td');
             if (!cell || cell.cellIndex !== 0) return;
-            selectedFrame = String(cell.parentElement.sectionRowIndex);
-            frameSelect.value = selectedFrame;
-            updateFrameDisplay();
+            selectSystem(cell.parentElement.sectionRowIndex + 1);
         });
-        frameSelect.addEventListener('change', () => {
-            selectedFrame = frameSelect.value;
-            updateFrameDisplay();
+        previousSystemButton.addEventListener('click', () => {
+            selectSystem(selectedSystemIndex() - 1);
+        });
+        nextSystemButton.addEventListener('click', () => {
+            selectSystem(selectedSystemIndex() + 1);
         });
         document.querySelectorAll('[data-matrix-mode]').forEach(button => {
             button.addEventListener('click', () => {
@@ -530,6 +686,9 @@
         window.onload = () => {
             viewer.init3D();
             viewer.scene.add(selectedSystem);
+            viewer.scene.add(pickRoot);
+            viewer.scene.add(hoverIndicator);
+            attachSystemPicking();
             viewer.renderTable();
             viewer.updateRobotGeometry();
         };
