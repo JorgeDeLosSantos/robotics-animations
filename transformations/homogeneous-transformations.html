@@ -23,6 +23,11 @@
     #frame-mode:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
     #mode-help { margin: 8px 0 0; }
     .hint { font-size: 11px; line-height: 1.45; color: #475569; margin: 5px 0 12px; }
+    .experiment { margin: 12px 0; padding: 12px; border: 1px solid #bfdbfe; border-radius: 7px; background: #eff6ff; color: #1e3a8a; }
+    .experiment p { font-size: 12px; line-height: 1.45; margin: 5px 0 9px; }
+    .experiment button { background: #1d4ed8; width: 100%; }
+    .experiment button:hover { background: #1e40af; }
+    .experiment-output { font: 12px Consolas, monospace; font-weight: bold; }
     .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 11px 0; }
     button { padding: 10px 8px; border: 0; border-radius: 6px; cursor: pointer; color: white; font-weight: 700; }
     #apply { grid-column: 1 / -1; background: #2563eb; } #apply:hover { background: #1d4ed8; }
@@ -64,6 +69,14 @@
       <div id="composition-equation" class="formula"></div>
       <p class="hint">Cambiar el marco no altera la pose actual: solo cambia cómo se aplica el siguiente incremento.</p>
     </div>
+
+    <section class="experiment" aria-label="Experimento guiado">
+      <strong>Experimento: ¿fijo o móvil?</strong>
+      <p>Prepara una pose girada 90° alrededor de Z. Luego cambia el marco de referencia y aplica una traslación de +1 en X. Repite la prueba desde la misma pose inicial con el otro marco.</p>
+      <button type="button" id="prepare-experiment">Preparar pose inicial: Rz(90°)</button>
+      <p>Resultado esperado: fijo → (1, 0, 0); móvil → (0, 1, 0).</p>
+      <div id="experiment-output" class="experiment-output" aria-live="polite"></div>
+    </section>
 
     <section class="control-group">
       <h2>Incremento de traslación</h2>
@@ -163,6 +176,7 @@
     const frameMode = document.getElementById('frame-mode');
     const ids = ['tx','ty','tz','rx','ry','rz']; const params = Object.fromEntries(ids.map(id => [id, 0]));
     let T = new THREE.Matrix4(); const history = [];
+    let experimentReady = false;
     const fmt = n => (Math.abs(n) < 1e-10 ? 0 : n).toFixed(3);
     const renderMath = (latex, element, displayMode = true) => katex.render(latex, element, { displayMode, throwOnError: false });
     function updateModeUI() {
@@ -188,6 +202,8 @@
       const list = document.getElementById('history'); list.innerHTML = history.length ? '' : '<li class="empty">Aún no se han aplicado transformaciones.</li>';
       history.forEach((item, index) => { const li = document.createElement('li'); li.textContent = `${index + 1}. ${item.label}`; list.appendChild(li); });
       document.getElementById('undo').disabled = !history.length;
+      const positionText = `p = (${fmt(e[12])}, ${fmt(e[13])}, ${fmt(e[14])})`;
+      document.getElementById('experiment-output').textContent = experimentReady ? positionText : '';
     }
     function labelFor(p) { const pieces = []; [['tx','Tₓ'],['ty','Tᵧ'],['tz','T_z']].forEach(([id,name]) => p[id] && pieces.push(`${name}(${p[id].toFixed(1)})`)); [['rx','Rₓ'],['ry','Rᵧ'],['rz','R_z']].forEach(([id,name]) => p[id] && pieces.push(`${name}(${p[id]}°)`)); return pieces.join(' · '); }
     function applyTransform() {
@@ -205,9 +221,16 @@
     }
     ids.forEach(id => document.getElementById(id).addEventListener('input', event => { params[id] = Number(event.target.value); refreshInputs(); }));
     document.querySelectorAll('[data-delta]').forEach(button => button.addEventListener('click', () => { const [id, amount] = button.dataset.delta.split(':'); params[id] = Math.max(Number(document.getElementById(id).min), Math.min(Number(document.getElementById(id).max), params[id] + Number(amount))); refreshInputs(); }));
+    document.getElementById('prepare-experiment').onclick = () => {
+      T.makeRotationZ(Math.PI / 2);
+      history.length = 0;
+      experimentReady = true;
+      ids.forEach(id => { params[id] = 0; });
+      refreshInputs(); updateUI();
+    };
     document.getElementById('apply').onclick = applyTransform;
     document.getElementById('undo').onclick = () => { const last = history.pop(); if (!last) return; T.copy(last.matrix); updateUI(); };
-    document.getElementById('reset').onclick = () => { T.identity(); history.length = 0; ids.forEach(id => params[id] = 0); refreshInputs(); updateUI(); };
+    document.getElementById('reset').onclick = () => { T.identity(); history.length = 0; experimentReady = false; ids.forEach(id => params[id] = 0); refreshInputs(); updateUI(); };
     addEventListener('resize', () => { const a = innerWidth / innerHeight, d = 8; camera.left = -d * a; camera.right = d * a; camera.top = d; camera.bottom = -d; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
     updateModeUI();
     refreshInputs(); updateUI();
