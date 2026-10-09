@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Ángulos de Euler — secuencias intrínsecas</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; display: flex; background: #0a0a0a; }
         #ui-panel {
@@ -16,15 +17,29 @@
         label { display: block; font-weight: bold; margin-bottom: 8px; font-size: 13px; color: #333; }
         select, input[type="range"] { width: 100%; margin-bottom: 10px; }
         .matrix-display {
-            background: #1a1a1a; color: #00ffcc; font-family: 'Consolas', monospace;
-            padding: 15px; border-radius: 8px; font-size: 12px;
-            display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-            border: 1px solid #333; margin-top: 10px;
+            background: #1a1a1a; color: #86efac;
+            padding: 14px 9px; border-radius: 8px; text-align: center;
+            overflow-x: auto; border: 1px solid #333; margin-top: 10px;
         }
+        .matrix-display .katex { font-size: .95em; }
+        .step-formula .katex { font-size: 1.02em; }
+        #view-controls {
+            position: fixed; top: 16px; right: 16px; z-index: 11;
+            display: flex; gap: 6px; padding: 6px;
+            border: 1px solid rgba(148,163,184,.55); border-radius: 9px;
+            background: rgba(255,255,255,.94);
+            box-shadow: 0 4px 16px rgba(15,23,42,.16);
+        }
+        #view-controls button {
+            width: auto; min-width: 70px; padding: 8px 10px;
+            background: #e2e8f0; color: #1e3a8a; font-size: 12px;
+        }
+        #view-controls button:hover { background: #cbd5e1; }
+        #view-controls button.active { background: #2563eb; color: #fff; }
         .step-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 10px; }
         .step-controls button { padding: 9px 4px; font-size: 12px; background: #e2e8f0; color: #1e293b; border: 1px solid #cbd5e1; }
         .step-controls button.active { background: #2563eb; color: white; border-color: #2563eb; }
-        .step-controls button:focus-visible, #reset:focus-visible, select:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+        .step-controls button:focus-visible, #reset:focus-visible, select:focus-visible, #view-controls button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
         .info-box { padding: 10px 12px; border-left: 3px solid #2563eb; background: #eff6ff; color: #1e3a8a; line-height: 1.5; font-size: 12px; margin: 0 0 12px; }
         .step-formula { font: 13px Consolas, monospace; margin: 6px 0; overflow-wrap: anywhere; }
         .note { color: #475569; font-size: 12px; line-height: 1.5; margin: 8px 0; }
@@ -32,6 +47,8 @@
         .legend { font-size: 12px; margin: 8px 0 0; color: #475569; }
         @media (max-width: 720px) {
             #ui-panel { width: min(380px, 100%); max-height: 55vh; height: auto; }
+            #view-controls { top: auto; right: 8px; bottom: 8px; left: 8px; }
+            #view-controls button { flex: 1; min-width: 0; padding: 8px 3px; }
         }
         .val { float: right; color: #2563eb; font-weight: bold; }
         button { 
@@ -88,6 +105,13 @@
     <p class="legend">Ejes: X rojo · Y verde · Z azul. Los ejes largos permanecen fijos; los cortos acompañan al cuerpo.</p>
 </div>
 
+<nav id="view-controls" aria-label="Vistas de cámara">
+    <button type="button" data-view="top">Superior</button>
+    <button type="button" data-view="front">Frontal</button>
+    <button type="button" data-view="side">Lateral</button>
+    <button type="button" data-view="isometric" class="active">Isométrica</button>
+</nav>
+
 <script type="importmap">
     {
         "imports": {
@@ -96,6 +120,7 @@
         }
     }
 </script>
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
 
 <script type="module">
     import * as THREE from 'three';
@@ -130,6 +155,37 @@
         MIDDLE: THREE.MOUSE.ROTATE,
         RIGHT: THREE.MOUSE.PAN
     };
+
+    // Match the camera presets used by the homogeneous-transformations lab.
+    // Y is the vertical world axis in both viewers.
+    const viewDirections = {
+        top: { direction: new THREE.Vector3(0, 1, 0), up: new THREE.Vector3(0, 0, -1) },
+        front: { direction: new THREE.Vector3(0, 0, 1), up: new THREE.Vector3(0, 1, 0) },
+        side: { direction: new THREE.Vector3(1, 0, 0), up: new THREE.Vector3(0, 1, 0) },
+        isometric: { direction: new THREE.Vector3(1, 1, 1), up: new THREE.Vector3(0, 1, 0) }
+    };
+
+    function setCameraView(viewName) {
+        const view = viewDirections[viewName];
+        if (!view) return;
+        const distance = Math.max(camera.position.distanceTo(controls.target), 1);
+        camera.up.copy(view.up);
+        camera.position.copy(controls.target)
+            .add(view.direction.clone().normalize().multiplyScalar(distance));
+        camera.lookAt(controls.target);
+        camera.updateProjectionMatrix();
+        controls.update();
+
+        document.querySelectorAll('#view-controls [data-view]').forEach(button => {
+            const selected = button.dataset.view === viewName;
+            button.classList.toggle('active', selected);
+            button.setAttribute('aria-pressed', String(selected));
+        });
+    }
+
+    document.querySelectorAll('#view-controls [data-view]').forEach(button => {
+        button.addEventListener('click', () => setCameraView(button.dataset.view));
+    });
 
     scene.add(new THREE.GridHelper(10, 10, 0xDADADA, 0xDADADA));
 
@@ -259,9 +315,12 @@
             updateRotationIndicator(axes[activeStep - 1], values[activeStep - 1], preceding);
         }
 
-        const factors = axes.map((axis, index) => `R${axis}(${values[index]}°)`);
-        const formula = activeStep === 0 ? 'R = I' : `R = ${factors.slice(0, activeStep).join(' · ')}`;
-        document.getElementById('step-formula').textContent = formula;
+        const factors = axes.map((axis, index) =>
+            String.raw`R_{${axis.toLowerCase()}}(${values[index]}^\circ)`);
+        const formula = activeStep === 0 ? String.raw`\mathbf{R}=I`
+            : String.raw`\mathbf{R}=${factors.slice(0, activeStep).join(String.raw`\,`)}`;
+        katex.render(formula, document.getElementById('step-formula'),
+            { displayMode: false, throwOnError: false });
         document.getElementById('step-title').textContent =
             activeStep === 0 ? 'Configuración inicial' : activeStep === 3 ? 'Orientación final' : `Después del paso ${activeStep}`;
         document.getElementById('step-description').textContent = activeStep === 0
@@ -278,16 +337,17 @@
     }
 
     function updateMatrixUI(matrix) {
-        const ui = document.getElementById('matrix-ui');
-        ui.replaceChildren();
         const e = matrix.elements;
-        // Three.js stores matrices in column-major order; display by rows.
-        [0, 4, 8, 1, 5, 9, 2, 6, 10].forEach(idx => {
-            const cell = document.createElement('div');
-            const value = Math.abs(e[idx]) < 1e-10 ? 0 : e[idx];
-            cell.textContent = value.toFixed(3);
-            ui.appendChild(cell);
-        });
+        // Three.js stores Matrix4 elements by columns: index = 4 * column + row.
+        // A row-major KaTeX display must use indices 0,4,8 / 1,5,9 / 2,6,10.
+        const fmt = value => (Math.abs(value) < 1e-10 ? 0 : value).toFixed(3);
+        const latex = String.raw`\mathbf{R}=\begin{bmatrix}
+            ${fmt(e[0])} & ${fmt(e[4])} & ${fmt(e[8])} \\
+            ${fmt(e[1])} & ${fmt(e[5])} & ${fmt(e[9])} \\
+            ${fmt(e[2])} & ${fmt(e[6])} & ${fmt(e[10])}
+        \end{bmatrix}`;
+        katex.render(latex, document.getElementById('matrix-ui'),
+            { displayMode: true, throwOnError: false });
     }
 
     function updateAxisLabels() {
@@ -347,6 +407,7 @@
         renderer.render(scene, camera);
     }
 
+    setCameraView('isometric');
     updateRotation();
     animate();
 </script>
