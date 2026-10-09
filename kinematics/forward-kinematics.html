@@ -21,6 +21,10 @@
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
             onload="renderMathInElement(document.body);"></script>
+    <style>
+        #matrix-container { overflow-x: auto; }
+        #matrix-container .katex { font-size: 1em; }
+    </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
 
@@ -74,15 +78,15 @@
             </section>
 
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <label for="frame-select" class="text-sm text-indigo-400 font-semibold">Marco de referencia</label>
+                <label for="frame-select" class="text-sm text-indigo-400 font-semibold">Sistema de referencia</label>
                 <select id="frame-select" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2"></select>
                 <p id="frame-description" class="text-xs text-slate-400"></p>
             </section>
 
             <!-- Homogeneous Transformation Matrix Display -->
             <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <h3 class="text-sm font-semibold text-indigo-400">Transformación acumulada \({}^0T_i\)</h3>
-                <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400">
+                <h3 class="text-sm font-semibold text-indigo-400">Transformación acumulada \(T_i^0\)</h3>
+                <div id="matrix-container" class="bg-slate-950 p-3 rounded border border-slate-800 text-center text-emerald-400">
                 </div>
             </div>
         </div>
@@ -164,17 +168,28 @@
             const index = selectedFrame === 'end'
                 ? matrices.length - 1
                 : Math.min(Number(selectedFrame), matrices.length - 1);
-            viewer.updateMatrixDisplay(index >= 0 ? matrices[index] : eeMatrix);
-            const label = index >= 0 ? index + 1 : 0;
+            const matrix = index >= 0 ? matrices[index] : eeMatrix;
+            const systemIndex = index >= 0 ? index + 1 : 0;
+            const e = matrix.elements;
+            // Three.js stores its 4x4 matrices by columns.
+            const fmt = value => (Math.abs(value) < 1e-10 ? 0 : value).toFixed(3);
+            const latex = String.raw`\mathbf{T}_{${systemIndex}}^{0}=\begin{bmatrix}
+                ${fmt(e[0])} & ${fmt(e[4])} & ${fmt(e[8])} & ${fmt(e[12])}\\
+                ${fmt(e[1])} & ${fmt(e[5])} & ${fmt(e[9])} & ${fmt(e[13])}\\
+                ${fmt(e[2])} & ${fmt(e[6])} & ${fmt(e[10])} & ${fmt(e[14])}\\
+                0 & 0 & 0 & 1
+            \end{bmatrix}`;
+            katex.render(latex, document.getElementById('matrix-container'),
+                { displayMode: true, throwOnError: false });
             frameDescription.textContent =
-                `Matriz acumulada desde el marco {0} hasta el marco {${label}}.`;
+                `Transformación del sistema {${systemIndex}} expresada respecto al sistema {0}.`;
         }
 
         function refreshFrameSelect() {
             const currentOptions = [
                 { value: 'end', label: 'Efector final' },
                 ...viewer.dhParams.map((_, index) => ({
-                    value: String(index), label: `Marco {${index + 1}}`
+                    value: String(index), label: `Sistema {${index + 1}}`
                 }))
             ];
             frameSelect.replaceChildren();
@@ -220,20 +235,17 @@
                     );
                     if (field) field.value = slider.value;
                     viewer.updateRobotGeometry();
-                    updateFrameDisplay();
                 });
                 row.append(title, slider);
                 jointControls.append(row);
             });
         }
 
-        // Wrap only the updates triggered by the original DH table. Controls
-        // are refreshed when a DH parameter changes or rows are added/removed.
-        const originalUpdate = viewer.updateRobotGeometry.bind(viewer);
-        viewer.updateRobotGeometry = () => {
-            originalUpdate();
-            updateFrameDisplay();
-        };
+        // Only this FK page overrides matrix presentation. Other pages using
+        // RobotViewer keep their own matrix renderer.
+        // updateRobotGeometry() already invokes updateMatrixDisplay(), so this
+        // also refreshes the selected transformation when the robot moves.
+        viewer.updateMatrixDisplay = () => updateFrameDisplay();
         const originalRenderTable = viewer.renderTable.bind(viewer);
         viewer.renderTable = () => {
             originalRenderTable();
