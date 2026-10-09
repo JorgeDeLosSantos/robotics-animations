@@ -1,8 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Euler Angles Visualizer - Intrinsic Sequences</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ángulos de Euler — secuencias intrínsecas</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; display: flex; background: #0a0a0a; }
         #ui-panel {
@@ -20,12 +21,18 @@
             display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
             border: 1px solid #333; margin-top: 10px;
         }
-        .type-indicator {
-            padding: 8px; border-radius: 4px; text-align: center; font-weight: bold;
-            margin-bottom: 15px; font-size: 12px;
+        .step-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 10px; }
+        .step-controls button { padding: 9px 4px; font-size: 12px; background: #e2e8f0; color: #1e293b; border: 1px solid #cbd5e1; }
+        .step-controls button.active { background: #2563eb; color: white; border-color: #2563eb; }
+        .step-controls button:focus-visible, #reset:focus-visible, select:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+        .info-box { padding: 10px 12px; border-left: 3px solid #2563eb; background: #eff6ff; color: #1e3a8a; line-height: 1.5; font-size: 12px; margin: 0 0 12px; }
+        .step-formula { font: 13px Consolas, monospace; margin: 6px 0; overflow-wrap: anywhere; }
+        .note { color: #475569; font-size: 12px; line-height: 1.5; margin: 8px 0; }
+        .axis-label { font-weight: 700; }
+        .legend { font-size: 12px; margin: 8px 0 0; color: #475569; }
+        @media (max-width: 720px) {
+            #ui-panel { width: min(380px, 100%); max-height: 55vh; height: auto; }
         }
-        .intrinsic { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
-        .extrinsic { background: #fef9c3; color: #854d0e; border: 1px solid #fef08a; }
         .val { float: right; color: #2563eb; font-weight: bold; }
         button { 
             width: 100%; padding: 12px; background: #1e293b; color: white; 
@@ -36,33 +43,49 @@
 <body>
 
 <div id="ui-panel">
-    <h2>Euler Angles (Intrinsic Sequences)</h2>
+    <h2>Ángulos de Euler — secuencias intrínsecas</h2>
+    <p class="note">Las rotaciones se aplican sucesivamente sobre los ejes móviles. Cambia los ángulos y selecciona un paso para observar cómo se compone la orientación.</p>
 
     <div class="control-group">
-        <label>Sequence</label>
+        <label for="sequence">Secuencia</label>
         <select id="sequence">
-            <option value="ZYX">ZYX (Aerospace / Yaw-Pitch-Roll)</option>
+            <option value="ZYX">ZYX (guiñada, cabeceo, alabeo)</option>
             <option value="XYZ">XYZ</option>
-            <option value="ZYZ">ZYZ (Industrial Robotics)</option>
-            <option value="ZXZ">ZXZ (Classical Mechanics)</option>
+            <option value="ZYZ">ZYZ (robótica industrial)</option>
+            <option value="ZXZ">ZXZ (mecánica clásica)</option>
         </select>
     </div>
 
     <div class="control-group">
-        <label>Angle 1 (𝜙): <span id="a1-val" class="val">0</span>°</label>
-        <input type="range" id="a1" min="-180" max="180" value="0">
-        
-        <label>Angle 2 (θ): <span id="a2-val" class="val">0</span>°</label>
-        <input type="range" id="a2" min="-180" max="180" value="0">
-
-        <label>Angle 3 (ψ): <span id="a3-val" class="val">0</span>°</label>
-        <input type="range" id="a3" min="-180" max="180" value="0">
+        <label for="a1">Ángulo 1 · eje <span class="axis-label" id="axis1">Z</span>: <span id="a1-val" class="val">0</span>°</label>
+        <input type="range" id="a1" min="-180" max="180" step="1" value="0">
+        <label for="a2">Ángulo 2 · eje <span class="axis-label" id="axis2">Y</span>: <span id="a2-val" class="val">0</span>°</label>
+        <input type="range" id="a2" min="-180" max="180" step="1" value="0">
+        <label for="a3">Ángulo 3 · eje <span class="axis-label" id="axis3">X</span>: <span id="a3-val" class="val">0</span>°</label>
+        <input type="range" id="a3" min="-180" max="180" step="1" value="0">
     </div>
 
-    <button id="reset">Reset Angles</button>
+    <div class="control-group">
+        <label>Construcción paso a paso</label>
+        <div class="step-controls" aria-label="Pasos de la secuencia">
+            <button type="button" data-step="0">Inicio</button>
+            <button type="button" data-step="1">Paso 1</button>
+            <button type="button" data-step="2">Paso 2</button>
+            <button type="button" data-step="3" class="active">Final</button>
+        </div>
+        <div class="info-box">
+            <strong id="step-title">Orientación final</strong>
+            <div id="step-formula" class="step-formula"></div>
+            <div id="step-description"></div>
+        </div>
+        <p class="note">La flecha naranja señala el eje de giro del paso seleccionado, expresado en coordenadas del mundo.</p>
+    </div>
 
-    <label style="margin-top:20px">Rotation Matrix $R \in SO(3)$</label>
-    <div class="matrix-display" id="matrix-ui"></div>
+    <button id="reset">Restablecer ángulos</button>
+
+    <label style="margin-top:20px">Matriz de rotación · R ∈ SO(3)</label>
+    <div class="matrix-display" id="matrix-ui" aria-label="Matriz de rotación de la etapa seleccionada"></div>
+    <p class="legend">Ejes: X rojo · Y verde · Z azul. Los ejes largos permanecen fijos; los cortos acompañan al cuerpo.</p>
 </div>
 
 <script type="importmap">
@@ -127,65 +150,113 @@
     bodyGroup.add(mesh);
     scene.add(bodyGroup);
 
+    // Show the intrinsic rotation axis at the selected stage in world coordinates.
+    const rotationAxisArrow = new THREE.ArrowHelper(
+        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), 4, 0xf59e0b, 0.45, 0.25
+    );
+    scene.add(rotationAxisArrow);
+
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const light = new THREE.PointLight(0xffffff, 100);
     light.position.set(5, 5, 5);
     scene.add(light);
 
-    // Mathematical Logic
-    let angles = { a1: 0, a2: 0, a3: 0 };
+    // Intrinsic rotations: R = R_axis1(angle1) * R_axis2(angle2) * R_axis3(angle3).
+    // Each factor rotates around the corresponding axis of the current (moving) frame.
+    const angles = { a1: 0, a2: 0, a3: 0 };
     let sequence = 'ZYX';
+    let activeStep = 3;
 
-    function getRotationMatrix(axis, theta) {
-        const rad = THREE.MathUtils.degToRad(theta);
-        const m = new THREE.Matrix4();
-        if (axis === 'X') m.makeRotationX(rad);
-        if (axis === 'Y') m.makeRotationY(rad);
-        if (axis === 'Z') m.makeRotationZ(rad);
-        return m;
+    function getRotationMatrix(axis, degrees) {
+        const rad = THREE.MathUtils.degToRad(degrees);
+        if (axis === 'X') return new THREE.Matrix4().makeRotationX(rad);
+        if (axis === 'Y') return new THREE.Matrix4().makeRotationY(rad);
+        return new THREE.Matrix4().makeRotationZ(rad);
+    }
+
+    function localAxis(axis) {
+        if (axis === 'X') return new THREE.Vector3(1, 0, 0);
+        if (axis === 'Y') return new THREE.Vector3(0, 1, 0);
+        return new THREE.Vector3(0, 0, 1);
     }
 
     function updateRotation() {
-        const seqArray = sequence.split('');
-        const m1 = getRotationMatrix(seqArray[0], angles.a1);
-        const m2 = getRotationMatrix(seqArray[1], angles.a2);
-        const m3 = getRotationMatrix(seqArray[2], angles.a3);
+        const axes = sequence.split('');
+        const values = [angles.a1, angles.a2, angles.a3];
+        const R = new THREE.Matrix4();
+        const preceding = new THREE.Matrix4();
 
-        let R = new THREE.Matrix4();
-
-        // INTRINSIC: R = R1 * R2 * R3 (Post-multiplication)
-        R.multiply(m1).multiply(m2).multiply(m3);
+        for (let i = 0; i < activeStep; i++) {
+            // The current axis is defined by the orientation preceding this step.
+            if (i === activeStep - 1) preceding.copy(R);
+            R.multiply(getRotationMatrix(axes[i], values[i]));
+        }
 
         bodyGroup.matrix.copy(R);
         bodyGroup.matrixAutoUpdate = false;
         bodyGroup.matrixWorldNeedsUpdate = true;
 
-        updateUI(R);
+        rotationAxisArrow.visible = activeStep !== 0;
+        if (activeStep !== 0) {
+            rotationAxisArrow.setDirection(
+                localAxis(axes[activeStep - 1]).transformDirection(preceding)
+            );
+        }
+
+        const factors = axes.map((axis, index) => `R${axis}(${values[index]}°)`);
+        const formula = activeStep === 0 ? 'R = I' : `R = ${factors.slice(0, activeStep).join(' · ')}`;
+        document.getElementById('step-formula').textContent = formula;
+        document.getElementById('step-title').textContent =
+            activeStep === 0 ? 'Configuración inicial' : activeStep === 3 ? 'Orientación final' : `Después del paso ${activeStep}`;
+        document.getElementById('step-description').textContent = activeStep === 0
+            ? 'El cuerpo coincide con el marco fijo; todavía no se ha aplicado ninguna rotación.'
+            : `Paso ${activeStep}: girar ${values[activeStep - 1]}° alrededor del eje ${axes[activeStep - 1]} del marco móvil correspondiente al paso anterior.`;
+
+        document.querySelectorAll('[data-step]').forEach(button => {
+            const selected = Number(button.dataset.step) === activeStep;
+            button.classList.toggle('active', selected);
+            button.setAttribute('aria-pressed', String(selected));
+        });
+
+        updateMatrixUI(R);
     }
 
-    function updateUI(matrix) {
+    function updateMatrixUI(matrix) {
         const ui = document.getElementById('matrix-ui');
-        ui.innerHTML = '';
+        ui.replaceChildren();
         const e = matrix.elements;
-        // We only show the 3x3 rotation submatrix
-        const indices = [0, 4, 8, 1, 5, 9, 2, 6, 10];
-        indices.forEach(idx => {
+        // Three.js stores matrices in column-major order; display by rows.
+        [0, 4, 8, 1, 5, 9, 2, 6, 10].forEach(idx => {
             const cell = document.createElement('div');
-            cell.textContent = e[idx].toFixed(3);
+            const value = Math.abs(e[idx]) < 1e-10 ? 0 : e[idx];
+            cell.textContent = value.toFixed(3);
             ui.appendChild(cell);
         });
     }
 
-    // Events
-    document.getElementById('sequence').addEventListener('change', (e) => {
-        sequence = e.target.value;
+    function updateAxisLabels() {
+        sequence.split('').forEach((axis, index) => {
+            document.getElementById(`axis${index + 1}`).textContent = axis;
+        });
+    }
+
+    document.getElementById('sequence').addEventListener('change', event => {
+        sequence = event.target.value;
+        updateAxisLabels();
         updateRotation();
     });
 
     ['a1', 'a2', 'a3'].forEach(id => {
-        document.getElementById(id).addEventListener('input', (e) => {
-            angles[id] = parseFloat(e.target.value);
+        document.getElementById(id).addEventListener('input', event => {
+            angles[id] = Number(event.target.value);
             document.getElementById(id + '-val').textContent = angles[id];
+            updateRotation();
+        });
+    });
+
+    document.querySelectorAll('[data-step]').forEach(button => {
+        button.addEventListener('click', () => {
+            activeStep = Number(button.dataset.step);
             updateRotation();
         });
     });
@@ -196,6 +267,7 @@
             document.getElementById(id).value = 0;
             document.getElementById(id + '-val').textContent = 0;
         });
+        activeStep = 3;
         updateRotation();
     };
 
