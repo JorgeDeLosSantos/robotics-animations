@@ -207,7 +207,8 @@
             }
         };
         const copyDH = params => params.map(param => ({ ...param }));
-        let presetBaseline = copyDH(examples.spatial3r.params);
+        let activePreset = 'spatial3r';
+        let presetBaseline = copyDH(examples[activePreset].params);
         const initialDHParams = copyDH(presetBaseline);
 
         // Create the robot viewer with shared components
@@ -245,7 +246,10 @@
                         && param.alpha === base.alpha
                         && (param.type === 'P' ? param.theta === base.theta : param.d === base.d);
                 });
-            if (!sameGeometry) {
+            if (sameGeometry) {
+                presetSelect.value = activePreset;
+                presetDescription.textContent = examples[activePreset].description;
+            } else {
                 presetSelect.value = 'custom';
                 presetDescription.textContent =
                     'Modelo editado. Seleccionar otro ejemplo reemplazará los parámetros DH actuales.';
@@ -471,7 +475,8 @@
         });
 
         presetSelect.addEventListener('change', () => {
-            const example = examples[presetSelect.value];
+            activePreset = presetSelect.value;
+            const example = examples[activePreset];
             presetBaseline = copyDH(example.params);
             viewer.dhParams = copyDH(example.params);
             presetDescription.textContent = example.description;
