@@ -28,6 +28,8 @@
             background: rgba(250, 204, 21, 0.12);
             box-shadow: inset 3px 0 #facc15;
         }
+        #dh-table-body td:first-child { cursor: pointer; }
+        #dh-table-body td:first-child:hover { color: #fef08a; }
         .matrix-mode-btn.active {
             background: #4f46e5;
             border-color: #818cf8;
@@ -61,6 +63,7 @@
                     <option value="spatial3r">3R espacial</option>
                     <option value="planar2r">2R plano</option>
                     <option value="mixedRRP">RRP mixto</option>
+                    <option value="custom" disabled>Configuración personalizada</option>
                 </select>
                 <p id="preset-description" class="text-xs text-slate-400"></p>
             </section>
@@ -112,6 +115,7 @@
                 <label for="frame-select" class="text-sm text-indigo-400 font-semibold">Sistema de referencia</label>
                 <select id="frame-select" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2"></select>
                 <p id="frame-description" class="text-xs text-slate-400"></p>
+                <p id="system-position" class="text-xs font-mono text-slate-300"></p>
                 <button id="show-dh-row" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Ver parámetros DH de este sistema</button>
                 <p class="text-xs text-slate-400">El sistema seleccionado se distingue mediante un marcador amarillo y ejes XYZ ampliados en el modelo 3D.</p>
             </section>
@@ -230,6 +234,23 @@
         const presetSelect = document.getElementById('robot-preset');
         const presetDescription = document.getElementById('preset-description');
         presetDescription.textContent = examples[presetSelect.value].description;
+
+        // Treat a preset as a geometric model, not an immutable pose. Moving
+        // a joint does not make it "custom"; changing DH geometry/topology does.
+        function refreshPresetIdentity() {
+            const sameGeometry = viewer.dhParams.length === presetBaseline.length
+                && viewer.dhParams.every((param, i) => {
+                    const base = presetBaseline[i];
+                    return param.type === base.type && param.a === base.a
+                        && param.alpha === base.alpha
+                        && (param.type === 'P' ? param.theta === base.theta : param.d === base.d);
+                });
+            if (!sameGeometry) {
+                presetSelect.value = 'custom';
+                presetDescription.textContent =
+                    'Modelo editado. Seleccionar otro ejemplo reemplazará los parámetros DH actuales.';
+            }
+        }
         let selectedFrame = 'end';
         let matrixMode = 'cumulative';
 
@@ -326,6 +347,8 @@
             katex.render(latex, document.getElementById('matrix-container'),
                 { displayMode: true, throwOnError: false });
             frameDescription.textContent = `Sistema seleccionado: {${systemIndex}}.`;
+            document.getElementById('system-position').textContent =
+                `Posición en {0}: (${fmt(cumulative.elements[12])}, ${fmt(cumulative.elements[13])}, ${fmt(cumulative.elements[14])})`;
             document.getElementById('transform-description').textContent = description;
         }
         function refreshFrameSelect() {
@@ -396,12 +419,23 @@
             originalRenderTable();
             refreshJointControls();
             refreshFrameSelect();
+            refreshPresetIdentity();
+            [...viewer.tableBody.rows].forEach((row, index) => {
+                row.cells[0].title = `Seleccionar sistema {${index + 1}}`;
+            });
         };
         viewer.tableBody.addEventListener('input', event => {
             if (event.target.matches('[data-prop]')) {
                 refreshJointControls();
-                updateFrameDisplay();
+                refreshPresetIdentity();
             }
+        });
+        viewer.tableBody.addEventListener('click', event => {
+            const cell = event.target.closest('td');
+            if (!cell || cell.cellIndex !== 0) return;
+            selectedFrame = String(cell.parentElement.sectionRowIndex);
+            frameSelect.value = selectedFrame;
+            updateFrameDisplay();
         });
         frameSelect.addEventListener('change', () => {
             selectedFrame = frameSelect.value;
