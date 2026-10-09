@@ -40,6 +40,16 @@
         
         <!-- Left Control Panel -->
         <div class="w-full md:w-5/12 p-4 overflow-y-auto border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
+                <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Manipulador de ejemplo</label>
+                <select id="robot-preset" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2">
+                    <option value="spatial3r">3R espacial</option>
+                    <option value="planar2r">2R plano</option>
+                    <option value="mixedRRP">RRP mixto</option>
+                </select>
+                <p id="preset-description" class="text-xs text-slate-400"></p>
+            </section>
+
             <!-- Joint variables are separate from the editable DH model. -->
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Variables articulares">
                 <div class="flex justify-between items-center gap-2">
@@ -79,6 +89,7 @@
                         </tbody>
                     </table>
                 </div>
+                <p class="text-xs text-slate-400">Parámetros DH estándar: longitudes en unidades del modelo y ángulos en grados.</p>
                 </div>
             </details>
 
@@ -142,12 +153,36 @@
         import * as THREE from 'three';
         import { RobotViewer } from './shared-robot-viewer.js';
 
-        // Initial DH parameters for a 3-link manipulator (Revolute joints)
-        const initialDHParams = [
-            { type: 'R', theta: 0, d: 200, a: 0.0, alpha: 90 },
-            { type: 'R', theta: 0, d: 0.0, a: 200, alpha: 0 },
-            { type: 'R', theta: 0, d: 0.0, a: 200, alpha: 0 }
-        ];
+        // Lightweight teaching presets (standard DH: Rz(theta) Tz(d) Tx(a) Rx(alpha)).
+        // They illustrate different joint structures rather than physical CAD models.
+        const examples = {
+            spatial3r: {
+                description: 'Tres juntas revolutas; permite estudiar orientación y posición en el espacio.',
+                params: [
+                    { type: 'R', theta: 0, d: 200, a: 0, alpha: 90 },
+                    { type: 'R', theta: 0, d: 0, a: 200, alpha: 0 },
+                    { type: 'R', theta: 0, d: 0, a: 200, alpha: 0 }
+                ]
+            },
+            planar2r: {
+                description: 'Dos juntas revolutas coplanares: observa cómo se determina la posición del extremo.',
+                params: [
+                    { type: 'R', theta: 30, d: 0, a: 220, alpha: 0 },
+                    { type: 'R', theta: -45, d: 0, a: 160, alpha: 0 }
+                ]
+            },
+            mixedRRP: {
+                description: 'Dos juntas revolutas y una prismática; compara el efecto de θ y d.',
+                params: [
+                    { type: 'R', theta: 0, d: 140, a: 0, alpha: 90 },
+                    { type: 'R', theta: 30, d: 0, a: 170, alpha: 0 },
+                    { type: 'P', theta: 0, d: 130, a: 0, alpha: 0 }
+                ]
+            }
+        };
+        const copyDH = params => params.map(param => ({ ...param }));
+        let presetBaseline = copyDH(examples.spatial3r.params);
+        const initialDHParams = copyDH(presetBaseline);
 
         // Create the robot viewer with shared components
         const viewer = new RobotViewer({
@@ -170,8 +205,9 @@
         const jointControls = document.getElementById('joint-controls');
         const frameSelect = document.getElementById('frame-select');
         const frameDescription = document.getElementById('frame-description');
-        const initialJointStates = initialDHParams.map(param =>
-            param.type === 'P' ? param.d : param.theta);
+        const presetSelect = document.getElementById('robot-preset');
+        const presetDescription = document.getElementById('preset-description');
+        presetDescription.textContent = examples[presetSelect.value].description;
         let selectedFrame = 'end';
 
         // FK-only visual highlight. It lives in the scene instead of robotGroup
@@ -313,13 +349,24 @@
             viewer.dhParams.forEach((param, index) => {
                 // Restore the initial configuration where known; newly added
                 // joints start at zero. Preserve DH geometry and joint types.
-                const baseline = initialDHParams[index];
+                const baseline = presetBaseline[index];
                 const prop = param.type === 'P' ? 'd' : 'theta';
                 param[prop] = baseline && baseline.type === param.type
-                    ? initialJointStates[index] : 0;
+                    ? baseline[prop] : 0;
             });
             viewer.renderTable();
             viewer.updateRobotGeometry();
+        });
+
+        presetSelect.addEventListener('change', () => {
+            const example = examples[presetSelect.value];
+            presetBaseline = copyDH(example.params);
+            viewer.dhParams = copyDH(example.params);
+            presetDescription.textContent = example.description;
+            selectedFrame = 'end';
+            viewer.renderTable();
+            viewer.updateRobotGeometry();
+            fitRobot();
         });
 
         function fitRobot() {
