@@ -189,38 +189,6 @@
         originRing.renderOrder = 101;
         selectedSystem.add(originRing);
 
-        // A small billboard identifies the selected system directly in 3D.
-        const systemLabel = new THREE.Sprite(new THREE.SpriteMaterial({
-            depthTest: false, transparent: true
-        }));
-        systemLabel.position.set(0, 0, 62);
-        systemLabel.scale.set(156, 39, 1);
-        systemLabel.renderOrder = 103;
-        selectedSystem.add(systemLabel);
-        let labeledSystem = null;
-
-        function setSystemLabel(index) {
-            if (labeledSystem === index) return;
-            labeledSystem = index;
-            const canvas = document.createElement('canvas');
-            canvas.width = 512;
-            canvas.height = 128;
-            const ctx = canvas.getContext('2d');
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(0, 12, 512, 104);
-            ctx.strokeStyle = '#facc15';
-            ctx.lineWidth = 6;
-            ctx.strokeRect(4, 16, 504, 96);
-            ctx.fillStyle = '#fef08a';
-            ctx.font = 'bold 54px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            ctx.fillText(`Sistema {${index}}`, 256, 64);
-            systemLabel.material.map?.dispose();
-            systemLabel.material.map = new THREE.CanvasTexture(canvas);
-            systemLabel.material.needsUpdate = true;
-        }
-
         // Keep the viewer shared with IK/Jacobian pages. FK-specific teaching
         // controls live here, without extending the shared module's public API.
         function updateFrameDisplay() {
@@ -235,7 +203,6 @@
             // same cumulative DH transformation.
             selectedSystem.matrix.copy(matrix);
             selectedSystem.matrixWorldNeedsUpdate = true;
-            setSystemLabel(systemIndex);
 
             const e = matrix.elements;
             // Three.js stores its 4x4 matrices by columns.
