@@ -151,8 +151,9 @@
     scene.add(bodyGroup);
 
     // Show the intrinsic rotation axis at the selected stage in world coordinates.
+    // Offset the rotation indicator so it never covers the RGB frame axes.
     const rotationAxisArrow = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 0, 0), 4, 0xf59e0b, 0.45, 0.25
+        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0.45, 0, 3.35), 1.0, 0xf59e0b, 0.25, 0.14
     );
     scene.add(rotationAxisArrow);
 
@@ -198,9 +199,15 @@
 
         rotationAxisArrow.visible = activeStep !== 0;
         if (activeStep !== 0) {
-            rotationAxisArrow.setDirection(
-                localAxis(axes[activeStep - 1]).transformDirection(preceding)
-            );
+            const direction = localAxis(axes[activeStep - 1]).transformDirection(preceding);
+            // Place the indicator beyond the body axes (length 3), with a
+            // perpendicular offset to keep the RGB axes unobstructed.
+            const lateral = new THREE.Vector3(0, 1, 0);
+            if (Math.abs(direction.dot(lateral)) > 0.9) lateral.set(1, 0, 0);
+            lateral.addScaledVector(direction, -lateral.dot(direction)).normalize();
+            rotationAxisArrow.position.copy(direction).multiplyScalar(3.35)
+                .addScaledVector(lateral, 0.45);
+            rotationAxisArrow.setDirection(direction);
         }
 
         const factors = axes.map((axis, index) => `R${axis}(${values[index]}°)`);
