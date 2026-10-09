@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Transformaciones homogéneas — marcos fijo y móvil</title>
+  <title>Transformaciones homogéneas — sistemas fijo y móvil</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
   <style>
     :root { color-scheme: light; font-family: "Segoe UI", sans-serif; }
@@ -60,19 +60,19 @@
   <aside id="ui-panel">
     <h1>Transformaciones homogéneas</h1>
     <div class="info-box">
-      <label for="frame-mode">Marco de referencia del incremento</label>
+      <label for="frame-mode">Sistema de referencia del incremento</label>
       <select id="frame-mode">
         <option value="world">Fijo · mundo {W}</option>
         <option value="body" selected>Móvil · cuerpo {B}</option>
       </select>
       <p id="mode-help"></p>
       <div id="composition-equation" class="formula"></div>
-      <p class="hint">Cambiar el marco no altera la pose actual: solo cambia cómo se aplica el siguiente incremento.</p>
+      <p class="hint">Cambiar el sistema de referencia no altera la pose actual: solo cambia cómo se aplica el siguiente incremento.</p>
     </div>
 
     <section class="experiment" aria-label="Experimento guiado">
       <strong>Experimento: ¿fijo o móvil?</strong>
-      <p>Prepara una pose girada 90° alrededor de Z. Luego cambia el marco de referencia y aplica una traslación de +1 en X. Repite la prueba desde la misma pose inicial con el otro marco.</p>
+      <p>Prepara una pose girada 90° alrededor de Z. Luego cambia el sistema de referencia y aplica una traslación de +1 en X. Repite la prueba desde la misma pose inicial con el otro marco.</p>
       <button type="button" id="prepare-experiment">Preparar pose inicial: Rz(90°)</button>
       <p>Resultado esperado: fijo → (1, 0, 0); móvil → (0, 1, 0).</p>
       <div id="experiment-output" class="experiment-output" aria-live="polite"></div>
@@ -98,7 +98,7 @@
     <h2>Pose actual</h2>
     <div id="pose" class="pose"></div>
     <div id="matrix-ui" class="matrix-display"></div>
-    <p class="legend"><span class="axis-x">X rojo</span> · <span class="axis-y">Y verde</span> · <span class="axis-z">Z azul</span>. El marco {W} permanece fijo; el marco {B} acompaña al cuerpo.</p>
+    <p class="legend"><span class="axis-x">X rojo</span> · <span class="axis-y">Y verde</span> · <span class="axis-z">Z azul</span>. El sistema {W} permanece fijo; el sistema {B} acompaña al cuerpo.</p>
     <div class="info-box"><strong>Controles de cámara</strong><br>Botón central: orbitar · Arrastre izquierdo/derecho: desplazar · Rueda: zoom</div>
     <h2>Historial de transformaciones</h2><ol id="history"></ol>
   </aside>
@@ -186,8 +186,8 @@
         : 'El incremento se expresa en los ejes actuales del cuerpo y se multiplica por la derecha.';
       document.querySelectorAll('.frame-symbol').forEach(el => { el.textContent = world ? 'W' : 'B'; });
       renderMath(world
-        ? String.raw`{}^{W}\mathbf{T}_{B,k+1}={}^{W}\mathbf{T}_{\Delta}\,{}^{W}\mathbf{T}_{B,k}`
-        : String.raw`{}^{W}\mathbf{T}_{B,k+1}={}^{W}\mathbf{T}_{B,k}\,{}^{B}\mathbf{T}_{\Delta}`,
+        ? String.raw`\mathbf{T}_{B,k+1}^{W}=\mathbf{T}_{\Delta}^{W}\,\mathbf{T}_{B,k}^{W}`
+        : String.raw`\mathbf{T}_{B,k+1}^{W}=\mathbf{T}_{B,k}^{W}\,\mathbf{T}_{\Delta}^{B}`,
         document.getElementById('composition-equation'));
     }
     frameMode.addEventListener('change', updateModeUI);
@@ -198,7 +198,7 @@
       const rotation = String.raw`\begin{bmatrix}${fmt(e[0])}&${fmt(e[4])}&${fmt(e[8])}\\${fmt(e[1])}&${fmt(e[5])}&${fmt(e[9])}\\${fmt(e[2])}&${fmt(e[6])}&${fmt(e[10])}\end{bmatrix}`;
       const position = String.raw`\begin{bmatrix}${fmt(e[12])}\\${fmt(e[13])}\\${fmt(e[14])}\end{bmatrix}`;
       renderMath(String.raw`\mathbf{p}=${position}\qquad \mathbf{R}=${rotation}`, document.getElementById('pose'));
-      renderMath(String.raw`{}^{W}\mathbf{T}_{B}=\begin{bmatrix}${fmt(e[0])}&${fmt(e[4])}&${fmt(e[8])}&${fmt(e[12])}\\${fmt(e[1])}&${fmt(e[5])}&${fmt(e[9])}&${fmt(e[13])}\\${fmt(e[2])}&${fmt(e[6])}&${fmt(e[10])}&${fmt(e[14])}\\0&0&0&1\end{bmatrix}`, document.getElementById('matrix-ui'));
+      renderMath(String.raw`\mathbf{T}_{B}^{W}=\begin{bmatrix}${fmt(e[0])}&${fmt(e[4])}&${fmt(e[8])}&${fmt(e[12])}\\${fmt(e[1])}&${fmt(e[5])}&${fmt(e[9])}&${fmt(e[13])}\\${fmt(e[2])}&${fmt(e[6])}&${fmt(e[10])}&${fmt(e[14])}\\0&0&0&1\end{bmatrix}`, document.getElementById('matrix-ui'));
       const list = document.getElementById('history'); list.innerHTML = history.length ? '' : '<li class="empty">Aún no se han aplicado transformaciones.</li>';
       history.forEach((item, index) => { const li = document.createElement('li'); li.textContent = `${index + 1}. ${item.label}`; list.appendChild(li); });
       document.getElementById('undo').disabled = !history.length;
@@ -214,7 +214,7 @@
         .multiply(new THREE.Matrix4().makeRotationZ(THREE.MathUtils.degToRad(params.rz)));
       const world = frameMode.value === 'world';
       history.push({ matrix: T.clone(), label: (world ? 'Fijo {W}' : 'Móvil {B}') + ' · ' + labelFor(params) });
-      // Marco fijo: premultiplicar; marco móvil: posmultiplicar.
+      // Sistema fijo: premultiplicar; sistema móvil: posmultiplicar.
       if (world) T.premultiply(delta);
       else T.multiply(delta);
       ids.forEach(id => params[id] = 0); refreshInputs(); updateUI();
