@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forward Kinematics</title>
+    <title>Cinemática directa — Denavit–Hartenberg</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 
     <!-- Three.js via import map -->
@@ -27,7 +27,7 @@
     <!-- Header -->
     <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md">
         <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-indigo-400">
-            Forward Kinematics
+            Cinemática directa
         </h1>
     </header>
 
@@ -37,9 +37,9 @@
         <!-- Left Control Panel -->
         <div class="w-full md:w-5/12 p-4 overflow-y-auto border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
             <div class="flex justify-between items-center">
-                <h2 class="text-lg font-semibold text-slate-200">DH Parameters</h2>
+                <h2 class="text-lg font-semibold text-slate-200">Parámetros DH</h2>
                 <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all flex items-center gap-1">
-                    &#x2795; Add link
+                    &#x2795; Agregar eslabón
                 </button>
             </div>
 
@@ -49,7 +49,7 @@
                     <thead>
                         <tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
                             <th class="p-2.5 text-center w-10">#</th>
-                            <th class="p-2.5 text-center w-10">Type</th>
+                            <th class="p-2.5 text-center w-10">Tipo</th>
                             <th class="p-2.5 text-center w-16">\(a\)</th>
                             <th class="p-2.5 text-center w-16">\(\alpha\) (deg)</th>
                             <th class="p-2.5 text-center w-16">\(d\)</th>
@@ -63,9 +63,25 @@
                 </table>
             </div>
 
+            <!-- Joint variables are separate from the editable DH model. -->
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Variables articulares">
+                <div class="flex justify-between items-center gap-2">
+                    <h3 class="text-sm font-semibold text-indigo-400">Variables articulares</h3>
+                    <button id="reset-joints" class="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1">Restablecer</button>
+                </div>
+                <div id="joint-controls" class="flex flex-col gap-3"></div>
+                <p class="text-xs text-slate-400">Para juntas R se modifica θ; para juntas P se modifica d. Los parámetros también se actualizan en la tabla DH.</p>
+            </section>
+
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
+                <label for="frame-select" class="text-sm text-indigo-400 font-semibold">Marco de referencia</label>
+                <select id="frame-select" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2"></select>
+                <p id="frame-description" class="text-xs text-slate-400"></p>
+            </section>
+
             <!-- Homogeneous Transformation Matrix Display -->
             <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <h3 class="text-sm font-semibold text-indigo-400">Matrix \(T_n^0\)</h3>
+                <h3 class="text-sm font-semibold text-indigo-400">Transformación acumulada \({}^0T_i\)</h3>
                 <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400">
                 </div>
             </div>
@@ -78,16 +94,16 @@
             <!-- Camera Preset Controls -->
             <div class="absolute top-3 right-3 flex flex-wrap gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10">
                 <button id="btn-view-top" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Top (XY)
+                    Superior (XY)
                 </button>
                 <button id="btn-view-front" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Front (XZ)
+                    Frontal (XZ)
                 </button>
                 <button id="btn-view-side" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Side (YZ)
+                    Lateral (YZ)
                 </button>
                 <button id="btn-view-iso" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Isometric
+                    Isométrica
                 </button>
             </div>
         </div>
@@ -135,6 +151,113 @@
         //   - Joint meshes (cylinder for R, box for P)
         //   - AxesHelpers at each frame
         // No override needed.
+
+        const jointControls = document.getElementById('joint-controls');
+        const frameSelect = document.getElementById('frame-select');
+        const frameDescription = document.getElementById('frame-description');
+        let selectedFrame = 'end';
+
+        // Keep the viewer shared with IK/Jacobian pages. FK-specific teaching
+        // controls live here, without extending the shared module's public API.
+        function updateFrameDisplay() {
+            const { matrices, eeMatrix } = viewer.computeForwardKinematics();
+            const index = selectedFrame === 'end'
+                ? matrices.length - 1
+                : Math.min(Number(selectedFrame), matrices.length - 1);
+            viewer.updateMatrixDisplay(index >= 0 ? matrices[index] : eeMatrix);
+            const label = index >= 0 ? index + 1 : 0;
+            frameDescription.textContent =
+                `Matriz acumulada desde el marco {0} hasta el marco {${label}}.`;
+        }
+
+        function refreshFrameSelect() {
+            const currentOptions = [
+                { value: 'end', label: 'Efector final' },
+                ...viewer.dhParams.map((_, index) => ({
+                    value: String(index), label: `Marco {${index + 1}}`
+                }))
+            ];
+            frameSelect.replaceChildren();
+            for (const option of currentOptions) {
+                frameSelect.add(new Option(option.label, option.value));
+            }
+            if (selectedFrame !== 'end' && Number(selectedFrame) >= viewer.dhParams.length) {
+                selectedFrame = 'end';
+            }
+            frameSelect.value = selectedFrame;
+            updateFrameDisplay();
+        }
+
+        function refreshJointControls() {
+            jointControls.replaceChildren();
+            viewer.dhParams.forEach((param, index) => {
+                const isRevolute = param.type !== 'P';
+                const property = isRevolute ? 'theta' : 'd';
+                const value = Number(param[property]) || 0;
+                const row = document.createElement('div');
+                const title = document.createElement('div');
+                title.className = 'flex justify-between gap-2 text-xs';
+                const name = document.createElement('span');
+                name.textContent = `Articulación ${index + 1} · ${isRevolute ? 'R (θ)' : 'P (d)'}`;
+                const amount = document.createElement('output');
+                amount.className = 'text-indigo-300 font-mono';
+                amount.textContent = `${value}${isRevolute ? '°' : ''}`;
+                title.append(name, amount);
+
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.className = 'w-full accent-indigo-500';
+                slider.min = isRevolute ? '-180' : String(Math.min(-400, value));
+                slider.max = isRevolute ? '180' : String(Math.max(400, value));
+                slider.step = isRevolute ? '1' : '5';
+                slider.value = String(Math.max(Number(slider.min), Math.min(Number(slider.max), value)));
+                slider.setAttribute('aria-label', name.textContent);
+                slider.addEventListener('input', () => {
+                    viewer.dhParams[index][property] = Number(slider.value);
+                    amount.textContent = `${slider.value}${isRevolute ? '°' : ''}`;
+                    const field = viewer.tableBody.querySelector(
+                        `[data-index="${index}"][data-prop="${property}"]`
+                    );
+                    if (field) field.value = slider.value;
+                    viewer.updateRobotGeometry();
+                    updateFrameDisplay();
+                });
+                row.append(title, slider);
+                jointControls.append(row);
+            });
+        }
+
+        // Wrap only the updates triggered by the original DH table. Controls
+        // are refreshed when a DH parameter changes or rows are added/removed.
+        const originalUpdate = viewer.updateRobotGeometry.bind(viewer);
+        viewer.updateRobotGeometry = () => {
+            originalUpdate();
+            updateFrameDisplay();
+        };
+        const originalRenderTable = viewer.renderTable.bind(viewer);
+        viewer.renderTable = () => {
+            originalRenderTable();
+            refreshJointControls();
+            refreshFrameSelect();
+        };
+        viewer.tableBody.addEventListener('input', event => {
+            if (event.target.matches('[data-prop]')) {
+                refreshJointControls();
+                updateFrameDisplay();
+            }
+        });
+        frameSelect.addEventListener('change', () => {
+            selectedFrame = frameSelect.value;
+            updateFrameDisplay();
+        });
+        document.getElementById('reset-joints').addEventListener('click', () => {
+            viewer.dhParams.forEach(param => {
+                if (param.type === 'P') param.d = 0;
+                else param.theta = 0;
+            });
+            viewer.renderTable();
+            viewer.updateRobotGeometry();
+        });
 
         window.onload = () => {
             viewer.init3D();
