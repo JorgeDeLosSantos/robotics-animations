@@ -81,6 +81,7 @@
                 <label for="frame-select" class="text-sm text-indigo-400 font-semibold">Sistema de referencia</label>
                 <select id="frame-select" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2"></select>
                 <p id="frame-description" class="text-xs text-slate-400"></p>
+                <p class="text-xs text-slate-400">El sistema seleccionado se distingue mediante un marcador amarillo y ejes XYZ ampliados en el modelo 3D.</p>
             </section>
 
             <!-- Homogeneous Transformation Matrix Display -->
@@ -129,6 +130,7 @@
     </footer>
 
     <script type="module">
+        import * as THREE from 'three';
         import { RobotViewer } from './shared-robot-viewer.js';
 
         // Initial DH parameters for a 3-link manipulator (Revolute joints)
@@ -161,15 +163,80 @@
         const frameDescription = document.getElementById('frame-description');
         let selectedFrame = 'end';
 
+        // FK-only visual highlight. It lives in the scene instead of robotGroup
+        // so redraws of the robot do not destroy it.
+        const selectedSystem = new THREE.Group();
+        selectedSystem.matrixAutoUpdate = false;
+        selectedSystem.renderOrder = 100;
+        const selectedAxes = new THREE.AxesHelper(125);
+        selectedAxes.material.depthTest = false;
+        selectedAxes.renderOrder = 101;
+        selectedSystem.add(selectedAxes);
+
+        const originMaterial = new THREE.MeshBasicMaterial({
+            color: 0xfacc15, depthTest: false
+        });
+        const originMarker = new THREE.Mesh(
+            new THREE.SphereGeometry(12, 16, 12), originMaterial
+        );
+        originMarker.renderOrder = 102;
+        selectedSystem.add(originMarker);
+
+        const originRing = new THREE.Mesh(
+            new THREE.TorusGeometry(26, 2.5, 8, 32),
+            new THREE.MeshBasicMaterial({ color: 0xfacc15, depthTest: false })
+        );
+        originRing.renderOrder = 101;
+        selectedSystem.add(originRing);
+
+        // A small billboard identifies the selected system directly in 3D.
+        const systemLabel = new THREE.Sprite(new THREE.SpriteMaterial({
+            depthTest: false, transparent: true
+        }));
+        systemLabel.position.set(0, 0, 62);
+        systemLabel.scale.set(156, 39, 1);
+        systemLabel.renderOrder = 103;
+        selectedSystem.add(systemLabel);
+        let labeledSystem = null;
+
+        function setSystemLabel(index) {
+            if (labeledSystem === index) return;
+            labeledSystem = index;
+            const canvas = document.createElement('canvas');
+            canvas.width = 512;
+            canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(0, 12, 512, 104);
+            ctx.strokeStyle = '#facc15';
+            ctx.lineWidth = 6;
+            ctx.strokeRect(4, 16, 504, 96);
+            ctx.fillStyle = '#fef08a';
+            ctx.font = 'bold 54px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(`Sistema {${index}}`, 256, 64);
+            systemLabel.material.map?.dispose();
+            systemLabel.material.map = new THREE.CanvasTexture(canvas);
+            systemLabel.material.needsUpdate = true;
+        }
+
         // Keep the viewer shared with IK/Jacobian pages. FK-specific teaching
         // controls live here, without extending the shared module's public API.
         function updateFrameDisplay() {
-            const { matrices, eeMatrix } = viewer.computeForwardKinematics();
-            const index = selectedFrame === 'end'
-                ? matrices.length - 1
+            const { matrices } = viewer.computeForwardKinematics();
+            const index = selectedFrame === 'base' ? -1
+                : selectedFrame === 'end' ? matrices.length - 1
                 : Math.min(Number(selectedFrame), matrices.length - 1);
-            const matrix = index >= 0 ? matrices[index] : eeMatrix;
-            const systemIndex = index >= 0 ? index + 1 : 0;
+            const matrix = index >= 0 ? matrices[index] : new THREE.Matrix4();
+            const systemIndex = index + 1;
+
+            // The highlighted axes and the displayed matrix use the exact
+            // same cumulative DH transformation.
+            selectedSystem.matrix.copy(matrix);
+            selectedSystem.matrixWorldNeedsUpdate = true;
+            setSystemLabel(systemIndex);
+
             const e = matrix.elements;
             // Three.js stores its 4x4 matrices by columns.
             const fmt = value => (Math.abs(value) < 1e-10 ? 0 : value).toFixed(3);
@@ -188,6 +255,7 @@
         function refreshFrameSelect() {
             const currentOptions = [
                 { value: 'end', label: 'Efector final' },
+                { value: 'base', label: 'Sistema {0} · base' },
                 ...viewer.dhParams.map((_, index) => ({
                     value: String(index), label: `Sistema {${index + 1}}`
                 }))
@@ -196,7 +264,8 @@
             for (const option of currentOptions) {
                 frameSelect.add(new Option(option.label, option.value));
             }
-            if (selectedFrame !== 'end' && Number(selectedFrame) >= viewer.dhParams.length) {
+            if (selectedFrame !== 'end' && selectedFrame !== 'base'
+                && Number(selectedFrame) >= viewer.dhParams.length) {
                 selectedFrame = 'end';
             }
             frameSelect.value = selectedFrame;
@@ -273,6 +342,7 @@
 
         window.onload = () => {
             viewer.init3D();
+            viewer.scene.add(selectedSystem);
             viewer.renderTable();
             viewer.updateRobotGeometry();
         };
