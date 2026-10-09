@@ -39,7 +39,12 @@
         .step-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 10px; }
         .step-controls button { padding: 9px 4px; font-size: 12px; background: #e2e8f0; color: #1e293b; border: 1px solid #cbd5e1; }
         .step-controls button.active { background: #2563eb; color: white; border-color: #2563eb; }
-        .step-controls button:focus-visible, #reset:focus-visible, select:focus-visible, #view-controls button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+        #play-sequence { margin: 0 0 8px; padding: 10px; background: #2563eb; }
+        #play-sequence:hover { background: #1d4ed8; }
+        #play-sequence.is-playing { background: #475569; }
+        #play-sequence.is-playing:hover { background: #334155; }
+        #playback-status { min-height: 18px; margin: 0 0 8px; }
+        .step-controls button:focus-visible, #reset:focus-visible, #play-sequence:focus-visible, select:focus-visible, #view-controls button:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
         .info-box { padding: 10px 12px; border-left: 3px solid #2563eb; background: #eff6ff; color: #1e3a8a; line-height: 1.5; font-size: 12px; margin: 0 0 12px; }
         .step-formula { font: 13px Consolas, monospace; margin: 6px 0; overflow-wrap: anywhere; }
         .note { color: #475569; font-size: 12px; line-height: 1.5; margin: 8px 0; }
@@ -90,12 +95,14 @@
             <button type="button" data-step="2">Paso 2</button>
             <button type="button" data-step="3" class="active">Final</button>
         </div>
+        <button type="button" id="play-sequence" aria-pressed="false">▶ Reproducir secuencia</button>
+        <p id="playback-status" class="note" role="status" aria-live="polite"></p>
         <div class="info-box">
             <strong id="step-title">Orientación final</strong>
             <div id="step-formula" class="step-formula"></div>
             <div id="step-description"></div>
         </div>
-        <p class="note">Al modificar un ángulo se muestra automáticamente su paso. El arco naranja indica el eje móvil, la magnitud y el sentido de ese giro. Usa «Final» para ver la composición completa.</p>
+        <p class="note">Al modificar un ángulo se muestra automáticamente su paso. «Reproducir secuencia» anima los tres giros y el arco naranja. Los controles manuales interrumpen la reproducción.</p>
     </div>
 
     <button id="reset">Restablecer ángulos</button>
@@ -285,6 +292,55 @@
     const angles = { a1: 0, a2: 0, a3: 0 };
     let sequence = 'ZYX';
     let activeStep = 3;
+    const STEP_DURATION_MS = 900;
+    const STEP_PAUSE_MS = 240;
+    const playButton = document.getElementById('play-sequence');
+    const playbackStatus = document.getElementById('playback-status');
+    let playback = null;
+
+    function stopPlayback() {
+        if (!playback) return;
+        playback = null;
+        playButton.textContent = '▶ Reproducir secuencia';
+        playButton.classList.remove('is-playing');
+        playButton.setAttribute('aria-pressed', 'false');
+        playbackStatus.textContent = '';
+    }
+
+    function startPlayback() {
+        playback = { startedAt: null, lastStage: 0 };
+        playButton.textContent = '■ Detener secuencia';
+        playButton.classList.add('is-playing');
+        playButton.setAttribute('aria-pressed', 'true');
+        activeStep = 1;
+        updateRotation(0);
+        playbackStatus.textContent = 'Reproduciendo giro 1 de 3';
+    }
+
+    // Reuse the existing rendering loop instead of introducing another RAF loop.
+    function advancePlayback(timestamp) {
+        if (!playback) return;
+        if (playback.startedAt === null) playback.startedAt = timestamp;
+
+        const elapsed = Math.max(0, timestamp - playback.startedAt);
+        const cycle = STEP_DURATION_MS + STEP_PAUSE_MS;
+        const endTime = STEP_DURATION_MS * 3 + STEP_PAUSE_MS * 2;
+        if (elapsed >= endTime) {
+            stopPlayback();
+            activeStep = 3;
+            updateRotation();
+            return;
+        }
+
+        const index = Math.min(2, Math.floor(elapsed / cycle));
+        const progress = Math.min(1, (elapsed - index * cycle) / STEP_DURATION_MS);
+        activeStep = index + 1;
+        if (playback.lastStage !== activeStep) {
+            playback.lastStage = activeStep;
+            playbackStatus.textContent = `Reproduciendo giro ${activeStep} de 3`;
+        }
+        updateRotation(progress);
+    }
 
     function getRotationMatrix(axis, degrees) {
         const rad = THREE.MathUtils.degToRad(degrees);
@@ -293,16 +349,21 @@
         return new THREE.Matrix4().makeRotationZ(rad);
     }
 
-    function updateRotation() {
+    function updateRotation(progress = 1) {
         const axes = sequence.split('');
         const values = [angles.a1, angles.a2, angles.a3];
         const R = new THREE.Matrix4();
         const preceding = new THREE.Matrix4();
+        const currentValues = values.slice();
 
         for (let i = 0; i < activeStep; i++) {
-            // The current axis is defined by the orientation preceding this step.
-            if (i === activeStep - 1) preceding.copy(R);
-            R.multiply(getRotationMatrix(axes[i], values[i]));
+            // Animate ONLY the current intrinsic rotation. Earlier rotations
+            // remain completed and determine the axis of this step.
+            if (i === activeStep - 1) {
+                preceding.copy(R);
+                currentValues[i] *= progress;
+            }
+            R.multiply(getRotationMatrix(axes[i], currentValues[i]));
         }
 
         bodyGroup.matrix.copy(R);
@@ -312,11 +373,13 @@
         if (activeStep === 0) {
             rotationIndicator.visible = false;
         } else {
-            updateRotationIndicator(axes[activeStep - 1], values[activeStep - 1], preceding);
+            updateRotationIndicator(axes[activeStep - 1], currentValues[activeStep - 1], preceding);
         }
 
-        const factors = axes.map((axis, index) =>
-            String.raw`R_{${axis.toLowerCase()}}(${values[index]}^\circ)`);
+        const factors = axes.map((axis, index) => {
+            const degrees = Number(currentValues[index].toFixed(1));
+            return String.raw`R_{${axis.toLowerCase()}}(${degrees}^\circ)`;
+        });
         const formula = activeStep === 0 ? String.raw`\mathbf{R}=I`
             : String.raw`\mathbf{R}=${factors.slice(0, activeStep).join(String.raw`\,`)}`;
         katex.render(formula, document.getElementById('step-formula'),
@@ -325,7 +388,7 @@
             activeStep === 0 ? 'Configuración inicial' : activeStep === 3 ? 'Orientación final' : `Después del paso ${activeStep}`;
         document.getElementById('step-description').textContent = activeStep === 0
             ? 'El cuerpo coincide con el marco fijo; todavía no se ha aplicado ninguna rotación.'
-            : `Paso ${activeStep}: girar ${values[activeStep - 1]}° alrededor del eje ${axes[activeStep - 1]} del marco móvil correspondiente al paso anterior.`;
+            : `Paso ${activeStep}: girar ${Number(currentValues[activeStep - 1].toFixed(1))}° alrededor del eje ${axes[activeStep - 1]} del marco móvil correspondiente al paso anterior.`;
 
         document.querySelectorAll('[data-step]').forEach(button => {
             const selected = Number(button.dataset.step) === activeStep;
@@ -357,6 +420,7 @@
     }
 
     document.getElementById('sequence').addEventListener('change', event => {
+        stopPlayback();
         sequence = event.target.value;
         updateAxisLabels();
         updateRotation();
@@ -364,6 +428,7 @@
 
     ['a1', 'a2', 'a3'].forEach((id, index) => {
         document.getElementById(id).addEventListener('input', event => {
+            stopPlayback();
             angles[id] = Number(event.target.value);
             document.getElementById(id + '-val').textContent = angles[id];
             // Show the rotation currently being edited, rather than keeping
@@ -375,12 +440,23 @@
 
     document.querySelectorAll('[data-step]').forEach(button => {
         button.addEventListener('click', () => {
+            stopPlayback();
             activeStep = Number(button.dataset.step);
             updateRotation();
         });
     });
 
+    playButton.addEventListener('click', () => {
+        if (playback) {
+            stopPlayback();
+            updateRotation();
+        } else {
+            startPlayback();
+        }
+    });
+
     document.getElementById('reset').onclick = () => {
+        stopPlayback();
         ['a1', 'a2', 'a3'].forEach(id => {
             angles[id] = 0;
             document.getElementById(id).value = 0;
@@ -401,8 +477,9 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    function animate() {
+    function animate(timestamp) {
         requestAnimationFrame(animate);
+        advancePlayback(timestamp);
         controls.update();
         renderer.render(scene, camera);
     }
