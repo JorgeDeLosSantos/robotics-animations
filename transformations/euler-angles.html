@@ -78,7 +78,7 @@
             <div id="step-formula" class="step-formula"></div>
             <div id="step-description"></div>
         </div>
-        <p class="note">La flecha naranja señala el eje de giro del paso seleccionado, expresado en coordenadas del mundo.</p>
+        <p class="note">El arco naranja rodea el eje móvil del paso seleccionado: su recorrido y flecha indican el ángulo y el sentido de giro.</p>
     </div>
 
     <button id="reset">Restablecer ángulos</button>
@@ -150,12 +150,74 @@
     bodyGroup.add(mesh);
     scene.add(bodyGroup);
 
-    // Show the intrinsic rotation axis at the selected stage in world coordinates.
-    // Offset the rotation indicator so it never covers the RGB frame axes.
-    const rotationAxisArrow = new THREE.ArrowHelper(
-        new THREE.Vector3(0, 0, 1), new THREE.Vector3(0.45, 0, 3.35), 1.0, 0xf59e0b, 0.25, 0.14
+    // Curved rotation indicator: the arc stays around the axis of the selected
+    // intrinsic rotation, expressed in the frame BEFORE that step.
+    const rotationIndicator = new THREE.Group();
+    rotationIndicator.matrixAutoUpdate = false;
+    const indicatorMaterial = new THREE.MeshBasicMaterial({ color: 0xf59e0b });
+    const arrowhead = new THREE.Mesh(
+        new THREE.ConeGeometry(0.12, 0.3, 12), indicatorMaterial
     );
-    scene.add(rotationAxisArrow);
+    rotationIndicator.add(arrowhead);
+    scene.add(rotationIndicator);
+    let arcMesh = null;
+
+    // For each positive axis, the basis u, v obeys u x v = axis.
+    // Positive angles sweep from u toward v following the right-hand rule.
+    function rotationPlane(axis) {
+        switch (axis) {
+            case 'X':
+                return [new THREE.Vector3(0, 1, 0), new THREE.Vector3(0, 0, 1)];
+            case 'Y':
+                return [new THREE.Vector3(0, 0, 1), new THREE.Vector3(1, 0, 0)];
+            default:
+                return [new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0)];
+        }
+    }
+
+    function updateRotationIndicator(axis, degrees, preceding) {
+        rotationIndicator.visible = degrees !== 0;
+        if (degrees === 0) return;
+
+        // Rotating the whole arc by the previous steps makes the indicator
+        // follow moving (intrinsic) axes, including repeated-axis sequences.
+        rotationIndicator.matrix.copy(preceding);
+        rotationIndicator.matrixWorldNeedsUpdate = true;
+
+        const [u, v] = rotationPlane(axis);
+        const angle = THREE.MathUtils.degToRad(degrees);
+        const radius = 1.85;
+        const segments = Math.max(12, Math.ceil(Math.abs(degrees) / 3));
+        const points = [];
+
+        for (let i = 0; i <= segments; i++) {
+            const theta = angle * (i / segments);
+            points.push(
+                u.clone().multiplyScalar(radius * Math.cos(theta))
+                    .addScaledVector(v, radius * Math.sin(theta))
+            );
+        }
+
+        if (arcMesh) {
+            rotationIndicator.remove(arcMesh);
+            arcMesh.geometry.dispose();
+        }
+        const curve = new THREE.CatmullRomCurve3(points);
+        arcMesh = new THREE.Mesh(
+            new THREE.TubeGeometry(curve, Math.max(24, segments * 2), 0.035, 8, false),
+            indicatorMaterial
+        );
+        rotationIndicator.add(arcMesh);
+
+        // ConeGeometry points along +Y by default. Align it with the tangent
+        // at the end of the arc, reversing it for negative rotations.
+        const sign = Math.sign(angle);
+        const tangent = u.clone().multiplyScalar(-Math.sin(angle) * sign)
+            .addScaledVector(v, Math.cos(angle) * sign).normalize();
+        arrowhead.position.copy(points[points.length - 1])
+            .addScaledVector(tangent, 0.15);
+        arrowhead.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), tangent);
+    }
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const light = new THREE.PointLight(0xffffff, 100);
@@ -175,12 +237,6 @@
         return new THREE.Matrix4().makeRotationZ(rad);
     }
 
-    function localAxis(axis) {
-        if (axis === 'X') return new THREE.Vector3(1, 0, 0);
-        if (axis === 'Y') return new THREE.Vector3(0, 1, 0);
-        return new THREE.Vector3(0, 0, 1);
-    }
-
     function updateRotation() {
         const axes = sequence.split('');
         const values = [angles.a1, angles.a2, angles.a3];
@@ -197,17 +253,10 @@
         bodyGroup.matrixAutoUpdate = false;
         bodyGroup.matrixWorldNeedsUpdate = true;
 
-        rotationAxisArrow.visible = activeStep !== 0;
-        if (activeStep !== 0) {
-            const direction = localAxis(axes[activeStep - 1]).transformDirection(preceding);
-            // Place the indicator beyond the body axes (length 3), with a
-            // perpendicular offset to keep the RGB axes unobstructed.
-            const lateral = new THREE.Vector3(0, 1, 0);
-            if (Math.abs(direction.dot(lateral)) > 0.9) lateral.set(1, 0, 0);
-            lateral.addScaledVector(direction, -lateral.dot(direction)).normalize();
-            rotationAxisArrow.position.copy(direction).multiplyScalar(3.35)
-                .addScaledVector(lateral, 0.45);
-            rotationAxisArrow.setDirection(direction);
+        if (activeStep === 0) {
+            rotationIndicator.visible = false;
+        } else {
+            updateRotationIndicator(axes[activeStep - 1], values[activeStep - 1], preceding);
         }
 
         const factors = axes.map((axis, index) => `R${axis}(${values[index]}°)`);
