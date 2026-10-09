@@ -24,6 +24,21 @@
     <style>
         #matrix-container { overflow-x: auto; }
         #matrix-container .katex { font-size: 1em; }
+        #dh-table-body tr.dh-selected {
+            background: rgba(250, 204, 21, 0.12);
+            box-shadow: inset 3px 0 #facc15;
+        }
+        .matrix-mode-btn.active {
+            background: #4f46e5;
+            border-color: #818cf8;
+            color: white;
+        }
+        .matrix-mode-btn:focus-visible, #show-dh-row:focus-visible {
+            outline: 2px solid #a5b4fc;
+            outline-offset: 2px;
+        }
+        #transform-equation { overflow-x: auto; }
+        #transform-equation .katex { font-size: .95em; }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
@@ -97,12 +112,19 @@
                 <label for="frame-select" class="text-sm text-indigo-400 font-semibold">Sistema de referencia</label>
                 <select id="frame-select" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2"></select>
                 <p id="frame-description" class="text-xs text-slate-400"></p>
+                <button id="show-dh-row" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Ver parámetros DH de este sistema</button>
                 <p class="text-xs text-slate-400">El sistema seleccionado se distingue mediante un marcador amarillo y ejes XYZ ampliados en el modelo 3D.</p>
             </section>
 
             <!-- Homogeneous Transformation Matrix Display -->
             <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <h3 class="text-sm font-semibold text-indigo-400">Transformación acumulada \(T_i^0\)</h3>
+                <h3 class="text-sm font-semibold text-indigo-400">Transformación del sistema</h3>
+                <div class="grid grid-cols-2 gap-2" role="group" aria-label="Tipo de transformación">
+                    <button type="button" data-matrix-mode="cumulative" aria-pressed="true" class="matrix-mode-btn active text-xs rounded border border-slate-600 bg-slate-700 px-2 py-2">Acumulada</button>
+                    <button type="button" data-matrix-mode="local" aria-pressed="false" class="matrix-mode-btn text-xs rounded border border-slate-600 bg-slate-700 px-2 py-2">Local</button>
+                </div>
+                <div id="transform-equation" class="text-center text-xs text-slate-200 px-1 py-2"></div>
+                <p id="transform-description" class="text-xs text-slate-400"></p>
                 <div id="matrix-container" class="bg-slate-950 p-3 rounded border border-slate-800 text-center text-emerald-400">
                 </div>
             </div>
@@ -209,6 +231,7 @@
         const presetDescription = document.getElementById('preset-description');
         presetDescription.textContent = examples[presetSelect.value].description;
         let selectedFrame = 'end';
+        let matrixMode = 'cumulative';
 
         // FK-only visual highlight. It lives in the scene instead of robotGroup
         // so redraws of the robot do not destroy it.
@@ -238,23 +261,63 @@
 
         // Keep the viewer shared with IK/Jacobian pages. FK-specific teaching
         // controls live here, without extending the shared module's public API.
+        function highlightSelectedDHRow(systemIndex) {
+            [...viewer.tableBody.rows].forEach((row, index) => {
+                row.classList.toggle('dh-selected', index === systemIndex - 1);
+            });
+            document.getElementById('show-dh-row').hidden = systemIndex === 0;
+        }
+
         function updateFrameDisplay() {
             const { matrices } = viewer.computeForwardKinematics();
             const index = selectedFrame === 'base' ? -1
                 : selectedFrame === 'end' ? matrices.length - 1
                 : Math.min(Number(selectedFrame), matrices.length - 1);
-            const matrix = index >= 0 ? matrices[index] : new THREE.Matrix4();
+            const cumulative = index >= 0 ? matrices[index] : new THREE.Matrix4();
             const systemIndex = index + 1;
 
-            // The highlighted axes and the displayed matrix use the exact
-            // same cumulative DH transformation.
-            selectedSystem.matrix.copy(matrix);
+            // The 3D marker always represents the selected system with
+            // respect to {0}; the matrix panel may use a different reference.
+            selectedSystem.matrix.copy(cumulative);
             selectedSystem.matrixWorldNeedsUpdate = true;
+            highlightSelectedDHRow(systemIndex);
 
+            // {0} has no preceding system, so only the identity is meaningful.
+            if (systemIndex === 0) matrixMode = 'cumulative';
+            const localButton = document.querySelector('[data-matrix-mode="local"]');
+            localButton.disabled = systemIndex === 0;
+            localButton.classList.toggle('opacity-40', systemIndex === 0);
+            document.querySelectorAll('[data-matrix-mode]').forEach(button => {
+                const active = button.dataset.matrixMode === matrixMode;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-pressed', String(active));
+            });
+
+            let matrix = cumulative;
+            let formula = String.raw`\mathbf{T}_{0}^{0}=\mathbf{I}`;
+            let description = 'Sistema base: transformación identidad.';
+            if (systemIndex > 0 && matrixMode === 'local') {
+                const previous = systemIndex === 1
+                    ? new THREE.Matrix4() : matrices[systemIndex - 2];
+                matrix = previous.clone().invert().multiply(cumulative);
+                formula = String.raw`\mathbf{T}_{${systemIndex}}^{${systemIndex - 1}}`
+                    + String.raw`=R_z(\theta_{${systemIndex}})\,T_z(d_{${systemIndex}})`
+                    + String.raw`\,T_x(a_{${systemIndex}})\,R_x(\alpha_{${systemIndex}})`;
+                description = `Transformación del sistema {${systemIndex}} respecto al sistema {${systemIndex - 1}}.`;
+            } else if (systemIndex > 0) {
+                const factors = Array.from({ length: systemIndex }, (_, i) =>
+                    String.raw`\mathbf{T}_{${i + 1}}^{${i}}`);
+                formula = systemIndex === 1
+                    ? factors[0]
+                    : String.raw`\mathbf{T}_{${systemIndex}}^{0}=` + factors.join(String.raw`\,`);
+                description = `Transformación del sistema {${systemIndex}} respecto al sistema base {0}.`;
+            }
+
+            katex.render(formula, document.getElementById('transform-equation'),
+                { displayMode: true, throwOnError: false });
             const e = matrix.elements;
-            // Three.js stores its 4x4 matrices by columns.
             const fmt = value => (Math.abs(value) < 1e-10 ? 0 : value).toFixed(3);
-            const latex = String.raw`\mathbf{T}_{${systemIndex}}^{0}=\begin{bmatrix}
+            const latex = String.raw`\mathbf{T}_{${systemIndex}}^{${matrixMode === 'local' ? systemIndex - 1 : 0}}=\begin{bmatrix}
                 ${fmt(e[0])} & ${fmt(e[4])} & ${fmt(e[8])} & ${fmt(e[12])}\\
                 ${fmt(e[1])} & ${fmt(e[5])} & ${fmt(e[9])} & ${fmt(e[13])}\\
                 ${fmt(e[2])} & ${fmt(e[6])} & ${fmt(e[10])} & ${fmt(e[14])}\\
@@ -262,10 +325,9 @@
             \end{bmatrix}`;
             katex.render(latex, document.getElementById('matrix-container'),
                 { displayMode: true, throwOnError: false });
-            frameDescription.textContent =
-                `Transformación del sistema {${systemIndex}} expresada respecto al sistema {0}.`;
+            frameDescription.textContent = `Sistema seleccionado: {${systemIndex}}.`;
+            document.getElementById('transform-description').textContent = description;
         }
-
         function refreshFrameSelect() {
             const currentOptions = [
                 { value: 'end', label: 'Efector final' },
@@ -345,6 +407,22 @@
             selectedFrame = frameSelect.value;
             updateFrameDisplay();
         });
+        document.querySelectorAll('[data-matrix-mode]').forEach(button => {
+            button.addEventListener('click', () => {
+                if (button.disabled) return;
+                matrixMode = button.dataset.matrixMode;
+                updateFrameDisplay();
+            });
+        });
+        document.getElementById('show-dh-row').addEventListener('click', () => {
+            const selectedIndex = selectedFrame === 'end'
+                ? viewer.dhParams.length - 1 : Number(selectedFrame);
+            if (selectedFrame === 'base' || selectedIndex < 0) return;
+            const editor = document.getElementById('dh-details');
+            editor.open = true;
+            const row = viewer.tableBody.rows[selectedIndex];
+            row?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        });
         document.getElementById('reset-joints').addEventListener('click', () => {
             viewer.dhParams.forEach((param, index) => {
                 // Restore the initial configuration where known; newly added
@@ -364,6 +442,7 @@
             viewer.dhParams = copyDH(example.params);
             presetDescription.textContent = example.description;
             selectedFrame = 'end';
+            matrixMode = 'cumulative';
             viewer.renderTable();
             viewer.updateRobotGeometry();
             fitRobot();
