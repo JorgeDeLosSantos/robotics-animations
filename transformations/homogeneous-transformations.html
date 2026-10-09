@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Transformaciones homogéneas — marcos fijo y móvil</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
+  <style>
+    :root { color-scheme: light; font-family: "Segoe UI", sans-serif; }
+    body { margin: 0; overflow: hidden; background: #111827; }
+    canvas { display: block; }
+    #ui-panel { width: 365px; height: 100vh; position: fixed; z-index: 2; box-sizing: border-box; padding: 18px; overflow-y: auto; background: rgba(255,255,255,.97); box-shadow: 2px 0 18px rgba(0,0,0,.28); }
+    h1 { margin: 0 0 8px; color: #172554; font-size: 21px; }
+    h2 { margin: 0 0 10px; color: #1e3a8a; font-size: 15px; }
+    .info-box { margin-bottom: 15px; padding: 10px; border-left: 4px solid #0284c7; background: #e0f2fe; color: #075985; font-size: 12px; line-height: 1.4; }
+    .formula { margin: 9px 0 2px; overflow-x: auto; color: #0c4a6e; }
+    .formula .katex { font-size: 1.05em; }
+    .control-group { margin-bottom: 14px; padding-bottom: 11px; border-bottom: 1px solid #d1d5db; }
+    label { display: block; margin: 9px 0 4px; color: #374151; font-size: 12px; font-weight: 700; }
+    input[type="range"] { width: 100%; accent-color: #2563eb; cursor: pointer; }
+    .val { float: right; color: #2563eb; font-family: Consolas, monospace; }
+    #frame-mode { display: block; width: 100%; margin: 7px 0 10px; padding: 9px; border: 1px solid #94a3b8; border-radius: 6px; background: #fff; color: #0f172a; font: inherit; }
+    #frame-mode:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid #2563eb; outline-offset: 2px; }
+    #mode-help { margin: 8px 0 0; }
+    .hint { font-size: 11px; line-height: 1.45; color: #475569; margin: 5px 0 12px; }
+    .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 11px 0; }
+    button { padding: 10px 8px; border: 0; border-radius: 6px; cursor: pointer; color: white; font-weight: 700; }
+    #apply { grid-column: 1 / -1; background: #2563eb; } #apply:hover { background: #1d4ed8; }
+    #undo { background: #475569; } #undo:hover { background: #334155; }
+    #reset { background: #dc2626; } #reset:hover { background: #b91c1c; }
+    button:disabled { cursor: not-allowed; opacity: .45; }
+    .quick { display: flex; gap: 5px; margin-top: 7px; }
+    .quick button { flex: 1; padding: 6px 2px; background: #e2e8f0; color: #1e3a8a; font-size: 11px; }
+    .quick button:hover { background: #cbd5e1; }
+    .matrix-display { overflow-x: auto; padding: 12px 8px; border: 1px solid #374151; border-radius: 7px; background: #111827; color: #86efac; text-align: center; }
+    .matrix-display .katex { font-size: .88em; }
+    .pose { overflow-x: auto; margin: 10px 0; padding: 10px 8px; border-radius: 6px; background: #f1f5f9; color: #334155; text-align: center; }
+    .pose .katex { font-size: .92em; }
+    #history { max-height: 156px; overflow-y: auto; margin: 0; padding: 0; list-style: none; font: 11px Consolas, monospace; }
+    #history li { margin: 4px 0; padding: 6px 7px; border-radius: 4px; background: #f1f5f9; color: #334155; }
+    #history .empty { color: #64748b; font-family: "Segoe UI", sans-serif; }
+    .legend { margin: 8px 0 0; font-size: 11px; color: #475569; }
+    .axis-x { color: #dc2626; } .axis-y { color: #16a34a; } .axis-z { color: #2563eb; }
+    #view-controls { position: fixed; top: 16px; right: 16px; z-index: 2; display: flex; gap: 6px; padding: 6px; border: 1px solid rgba(148,163,184,.55); border-radius: 9px; background: rgba(255,255,255,.94); box-shadow: 0 4px 16px rgba(15,23,42,.16); }
+    #view-controls button { min-width: 70px; padding: 8px 10px; background: #e2e8f0; color: #1e3a8a; font-size: 12px; }
+    #view-controls button:hover { background: #cbd5e1; }
+    #view-controls button.active { background: #2563eb; color: #fff; }
+    @media (max-width: 720px) {
+      #view-controls { top: auto; right: 8px; bottom: 8px; left: 8px; }
+      #view-controls button { flex: 1; min-width: 0; padding: 8px 3px; }
+    }
+  </style>
+</head>
+<body>
+  <aside id="ui-panel">
+    <h1>Transformaciones homogéneas</h1>
+    <div class="info-box">
+      <label for="frame-mode">Marco de referencia del incremento</label>
+      <select id="frame-mode">
+        <option value="world">Fijo · mundo {W}</option>
+        <option value="body" selected>Móvil · cuerpo {B}</option>
+      </select>
+      <p id="mode-help"></p>
+      <div id="composition-equation" class="formula"></div>
+      <p class="hint">Cambiar el marco no altera la pose actual: solo cambia cómo se aplica el siguiente incremento.</p>
+    </div>
+
+    <section class="control-group">
+      <h2>Incremento de traslación</h2>
+      <label>Δx<sub class="frame-symbol">B</sub> <span id="tx-val" class="val">0.0</span></label><input type="range" id="tx" min="-10" max="10" step="0.1" value="0">
+      <label>Δy<sub class="frame-symbol">B</sub> <span id="ty-val" class="val">0.0</span></label><input type="range" id="ty" min="-10" max="10" step="0.1" value="0">
+      <label>Δz<sub class="frame-symbol">B</sub> <span id="tz-val" class="val">0.0</span></label><input type="range" id="tz" min="-10" max="10" step="0.1" value="0">
+      <div class="quick"><button data-delta="tx:-1">−x</button><button data-delta="tx:1">+x</button><button data-delta="ty:-1">−y</button><button data-delta="ty:1">+y</button><button data-delta="tz:-1">−z</button><button data-delta="tz:1">+z</button></div>
+    </section>
+
+    <section class="control-group">
+      <h2>Incremento de rotación</h2>
+      <label>Δθ<sub>x<span class="frame-symbol">B</span></sub> <span id="rx-val" class="val">0°</span></label><input type="range" id="rx" min="-180" max="180" step="1" value="0">
+      <label>Δθ<sub>y<span class="frame-symbol">B</span></sub> <span id="ry-val" class="val">0°</span></label><input type="range" id="ry" min="-180" max="180" step="1" value="0">
+      <label>Δθ<sub>z<span class="frame-symbol">B</span></sub> <span id="rz-val" class="val">0°</span></label><input type="range" id="rz" min="-180" max="180" step="1" value="0">
+      <div class="quick"><button data-delta="rx:-15">−15° X</button><button data-delta="rx:15">+15° X</button><button data-delta="ry:-15">−15° Y</button><button data-delta="ry:15">+15° Y</button><button data-delta="rz:-15">−15° Z</button><button data-delta="rz:15">+15° Z</button></div>
+    </section>
+
+    <div class="actions"><button id="apply">Aplicar incremento</button><button id="undo">Deshacer</button><button id="reset">Restablecer</button></div>
+    <h2>Pose actual</h2>
+    <div id="pose" class="pose"></div>
+    <div id="matrix-ui" class="matrix-display"></div>
+    <p class="legend"><span class="axis-x">X rojo</span> · <span class="axis-y">Y verde</span> · <span class="axis-z">Z azul</span>. El marco {W} permanece fijo; el marco {B} acompaña al cuerpo.</p>
+    <div class="info-box"><strong>Controles de cámara</strong><br>Botón central: orbitar · Arrastre izquierdo/derecho: desplazar · Rueda: zoom</div>
+    <h2>Historial de transformaciones</h2><ol id="history"></ol>
+  </aside>
+
+  <nav id="view-controls" aria-label="Vistas de cámara">
+    <button type="button" data-view="top">Superior</button>
+    <button type="button" data-view="front">Frontal</button>
+    <button type="button" data-view="side">Lateral</button>
+    <button type="button" data-view="isometric" class="active">Isométrica</button>
+  </nav>
+
+  <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf8fafc);
+    const camera = new THREE.OrthographicCamera(-12, 12, 8, -8, .1, 1000); camera.position.set(11, 9, 11); camera.lookAt(0, 0, 0);
+    const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight); document.body.appendChild(renderer.domElement);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enablePan = true;
+    controls.screenSpacePanning = true;
+    controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
+    controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
+    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+    controls.target.set(0, 0, 0);
+    renderer.domElement.addEventListener('contextmenu', event => event.preventDefault());
+
+    const viewDirections = {
+      top: { direction: new THREE.Vector3(0, 1, 0), up: new THREE.Vector3(0, 0, -1) },
+      front: { direction: new THREE.Vector3(0, 0, 1), up: new THREE.Vector3(0, 1, 0) },
+      side: { direction: new THREE.Vector3(1, 0, 0), up: new THREE.Vector3(0, 1, 0) },
+      isometric: { direction: new THREE.Vector3(1, 1, 1), up: new THREE.Vector3(0, 1, 0) }
+    };
+
+    function setCameraView(viewName) {
+      const view = viewDirections[viewName];
+      if (!view) return;
+
+      const distance = Math.max(camera.position.distanceTo(controls.target), 1);
+      camera.up.copy(view.up);
+      camera.position.copy(controls.target)
+        .add(view.direction.clone().normalize().multiplyScalar(distance));
+      camera.lookAt(controls.target);
+      camera.updateProjectionMatrix();
+      controls.update();
+
+      document.querySelectorAll('#view-controls [data-view]').forEach(button => {
+        const selected = button.dataset.view === viewName;
+        button.classList.toggle('active', selected);
+        button.setAttribute('aria-pressed', String(selected));
+      });
+    }
+
+    document.querySelectorAll('#view-controls [data-view]').forEach(button => {
+      button.addEventListener('click', () => setCameraView(button.dataset.view));
+    });
+
+    scene.add(new THREE.GridHelper(20, 20, 0xcbd5e1, 0xe2e8f0)); scene.add(new THREE.AxesHelper(4));
+    scene.add(new THREE.AmbientLight(0xffffff, .65)); const light = new THREE.DirectionalLight(0xffffff, 1.1); light.position.set(5, 10, 7); scene.add(light);
+
+    const body = new THREE.Group();
+    const cube = new THREE.Mesh(new THREE.BoxGeometry(2, 1, .5), new THREE.MeshPhongMaterial({ color: 0x3b82f6, transparent: true, opacity: .9 })); body.add(cube);
+    body.add(new THREE.AxesHelper(3));
+    const marker = new THREE.Mesh(new THREE.SphereGeometry(.14, 16, 12), new THREE.MeshBasicMaterial({ color: 0xf59e0b })); body.add(marker);
+    const arrow = new THREE.ArrowHelper(new THREE.Vector3(1, 0, 0), new THREE.Vector3(1.1, 0, 0), 1, 0xdc2626, .25, .14); body.add(arrow); scene.add(body);
+
+    const frameMode = document.getElementById('frame-mode');
+    const ids = ['tx','ty','tz','rx','ry','rz']; const params = Object.fromEntries(ids.map(id => [id, 0]));
+    let T = new THREE.Matrix4(); const history = [];
+    const fmt = n => (Math.abs(n) < 1e-10 ? 0 : n).toFixed(3);
+    const renderMath = (latex, element, displayMode = true) => katex.render(latex, element, { displayMode, throwOnError: false });
+    function updateModeUI() {
+      const world = frameMode.value === 'world';
+      document.getElementById('mode-help').textContent = world
+        ? 'El incremento se expresa en los ejes fijos del mundo y se multiplica por la izquierda.'
+        : 'El incremento se expresa en los ejes actuales del cuerpo y se multiplica por la derecha.';
+      document.querySelectorAll('.frame-symbol').forEach(el => { el.textContent = world ? 'W' : 'B'; });
+      renderMath(world
+        ? String.raw`{}^{W}\mathbf{T}_{B,k+1}={}^{W}\mathbf{T}_{\Delta}\,{}^{W}\mathbf{T}_{B,k}`
+        : String.raw`{}^{W}\mathbf{T}_{B,k+1}={}^{W}\mathbf{T}_{B,k}\,{}^{B}\mathbf{T}_{\Delta}`,
+        document.getElementById('composition-equation'));
+    }
+    frameMode.addEventListener('change', updateModeUI);
+    function refreshInputs() { ids.forEach(id => { document.getElementById(id).value = params[id]; document.getElementById(id + '-val').textContent = id.startsWith('r') ? `${params[id]}°` : params[id].toFixed(1); }); }
+    function updateUI() {
+      body.matrix.copy(T); body.matrixAutoUpdate = false; body.matrixWorldNeedsUpdate = true;
+      const e = T.elements;
+      const rotation = String.raw`\begin{bmatrix}${fmt(e[0])}&${fmt(e[4])}&${fmt(e[8])}\\${fmt(e[1])}&${fmt(e[5])}&${fmt(e[9])}\\${fmt(e[2])}&${fmt(e[6])}&${fmt(e[10])}\end{bmatrix}`;
+      const position = String.raw`\begin{bmatrix}${fmt(e[12])}\\${fmt(e[13])}\\${fmt(e[14])}\end{bmatrix}`;
+      renderMath(String.raw`\mathbf{p}=${position}\qquad \mathbf{R}=${rotation}`, document.getElementById('pose'));
+      renderMath(String.raw`{}^{W}\mathbf{T}_{B}=\begin{bmatrix}${fmt(e[0])}&${fmt(e[4])}&${fmt(e[8])}&${fmt(e[12])}\\${fmt(e[1])}&${fmt(e[5])}&${fmt(e[9])}&${fmt(e[13])}\\${fmt(e[2])}&${fmt(e[6])}&${fmt(e[10])}&${fmt(e[14])}\\0&0&0&1\end{bmatrix}`, document.getElementById('matrix-ui'));
+      const list = document.getElementById('history'); list.innerHTML = history.length ? '' : '<li class="empty">Aún no se han aplicado transformaciones.</li>';
+      history.forEach((item, index) => { const li = document.createElement('li'); li.textContent = `${index + 1}. ${item.label}`; list.appendChild(li); });
+      document.getElementById('undo').disabled = !history.length;
+    }
+    function labelFor(p) { const pieces = []; [['tx','Tₓ'],['ty','Tᵧ'],['tz','T_z']].forEach(([id,name]) => p[id] && pieces.push(`${name}(${p[id].toFixed(1)})`)); [['rx','Rₓ'],['ry','Rᵧ'],['rz','R_z']].forEach(([id,name]) => p[id] && pieces.push(`${name}(${p[id]}°)`)); return pieces.join(' · '); }
+    function applyTransform() {
+      if (ids.every(id => params[id] === 0)) return;
+      const delta = new THREE.Matrix4().makeTranslation(params.tx, params.ty, params.tz)
+        .multiply(new THREE.Matrix4().makeRotationX(THREE.MathUtils.degToRad(params.rx)))
+        .multiply(new THREE.Matrix4().makeRotationY(THREE.MathUtils.degToRad(params.ry)))
+        .multiply(new THREE.Matrix4().makeRotationZ(THREE.MathUtils.degToRad(params.rz)));
+      const world = frameMode.value === 'world';
+      history.push({ matrix: T.clone(), label: (world ? 'Fijo {W}' : 'Móvil {B}') + ' · ' + labelFor(params) });
+      // Marco fijo: premultiplicar; marco móvil: posmultiplicar.
+      if (world) T.premultiply(delta);
+      else T.multiply(delta);
+      ids.forEach(id => params[id] = 0); refreshInputs(); updateUI();
+    }
+    ids.forEach(id => document.getElementById(id).addEventListener('input', event => { params[id] = Number(event.target.value); refreshInputs(); }));
+    document.querySelectorAll('[data-delta]').forEach(button => button.addEventListener('click', () => { const [id, amount] = button.dataset.delta.split(':'); params[id] = Math.max(Number(document.getElementById(id).min), Math.min(Number(document.getElementById(id).max), params[id] + Number(amount))); refreshInputs(); }));
+    document.getElementById('apply').onclick = applyTransform;
+    document.getElementById('undo').onclick = () => { const last = history.pop(); if (!last) return; T.copy(last.matrix); updateUI(); };
+    document.getElementById('reset').onclick = () => { T.identity(); history.length = 0; ids.forEach(id => params[id] = 0); refreshInputs(); updateUI(); };
+    addEventListener('resize', () => { const a = innerWidth / innerHeight, d = 8; camera.left = -d * a; camera.right = d * a; camera.top = d; camera.bottom = -d; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+    updateModeUI();
+    refreshInputs(); updateUI();
+    function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); } animate();
+  </script>
+</body>
+</html>
