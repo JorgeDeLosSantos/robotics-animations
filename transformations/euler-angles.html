@@ -78,7 +78,7 @@
             <div id="step-formula" class="step-formula"></div>
             <div id="step-description"></div>
         </div>
-        <p class="note">El arco naranja rodea el eje móvil del paso seleccionado: su recorrido y flecha indican el ángulo y el sentido de giro.</p>
+        <p class="note">Al modificar un ángulo se muestra automáticamente su paso. El arco naranja indica el eje móvil, la magnitud y el sentido de ese giro. Usa «Final» para ver la composición completa.</p>
     </div>
 
     <button id="reset">Restablecer ángulos</button>
@@ -302,10 +302,13 @@
         updateRotation();
     });
 
-    ['a1', 'a2', 'a3'].forEach(id => {
+    ['a1', 'a2', 'a3'].forEach((id, index) => {
         document.getElementById(id).addEventListener('input', event => {
             angles[id] = Number(event.target.value);
             document.getElementById(id + '-val').textContent = angles[id];
+            // Show the rotation currently being edited, rather than keeping
+            // the indicator tied to step 3 (which may still have angle zero).
+            activeStep = index + 1;
             updateRotation();
         });
     });
