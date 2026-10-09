@@ -95,6 +95,7 @@ export class RobotViewer {
         this._onAddRow = this._onAddRow.bind(this);
         this._onWindowResize = this._onWindowResize.bind(this);
         this._animate = this._animate.bind(this);
+        this._tableControlsBound = false;
     }
 
     // ======================================================================
@@ -235,10 +236,13 @@ export class RobotViewer {
             btn.addEventListener('click', this._onDeleteRow)
         );
 
-        // Attach view button event listeners
-        this._attachViewButtonListeners();
-        // Attach add row listener
-        this.addRowBtn.addEventListener('click', this._onAddRow);
+        // Static controls must be bound only once. renderTable() is called
+        // repeatedly when adding/removing links or changing joint types.
+        if (!this._tableControlsBound) {
+            this._attachViewButtonListeners();
+            this.addRowBtn?.addEventListener('click', this._onAddRow);
+            this._tableControlsBound = true;
+        }
     }
 
     /**
@@ -393,9 +397,27 @@ export class RobotViewer {
     // Override this method to provide custom rendering.
     // ======================================================================
     updateRobotGeometry() {
-        // Clear previous geometry
-        while (this.robotGroup.children.length > 0) {
-            this.robotGroup.remove(this.robotGroup.children[0]);
+        // Clear and dispose GPU resources from the previous robot drawing.
+        // Some link meshes share a material, so dispose each resource only once.
+        const disposedGeometries = new Set();
+        const disposedMaterials = new Set();
+        for (const child of [...this.robotGroup.children]) {
+            child.traverse(object => {
+                if (object.geometry && !disposedGeometries.has(object.geometry)) {
+                    object.geometry.dispose();
+                    disposedGeometries.add(object.geometry);
+                }
+                const materials = object.material
+                    ? (Array.isArray(object.material) ? object.material : [object.material])
+                    : [];
+                for (const material of materials) {
+                    if (!disposedMaterials.has(material)) {
+                        material.dispose();
+                        disposedMaterials.add(material);
+                    }
+                }
+            });
+            this.robotGroup.remove(child);
         }
 
         let currentMatrix = new THREE.Matrix4();
