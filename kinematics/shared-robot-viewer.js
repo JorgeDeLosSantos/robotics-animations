@@ -180,29 +180,34 @@ export class RobotViewer {
     // Camera View Presets
     // ======================================================================
     changeView(view) {
-        const d = 1800;
-        this.controls.target.set(0, 0, 0);
+        // Preserve the center and camera distance chosen by the student,
+        // including a previous "Encuadrar" action in the FK lab.
+        const target = this.controls.target.clone();
+        const distance = Math.max(this.camera.position.distanceTo(target), 1);
+        const direction = new THREE.Vector3();
 
         switch (view) {
             case 'top':
-                this.camera.position.set(0, 0, d);
+                direction.set(0, 0, 1);
                 this.camera.up.set(0, 1, 0);
                 break;
             case 'front':
-                this.camera.position.set(0, -d, 0);
+                direction.set(0, -1, 0);
                 this.camera.up.set(0, 0, 1);
                 break;
             case 'side':
-                this.camera.position.set(d, 0, 0);
+                direction.set(1, 0, 0);
                 this.camera.up.set(0, 0, 1);
                 break;
             case 'iso':
-                const isoVal = d / Math.sqrt(3);
-                this.camera.position.set(isoVal, -isoVal, isoVal);
+                direction.set(1, -1, 1).normalize();
                 this.camera.up.set(0, 0, 1);
                 break;
+            default:
+                return;
         }
-        this.camera.lookAt(0, 0, 0);
+        this.camera.position.copy(target).addScaledVector(direction, distance);
+        this.camera.lookAt(target);
         this.controls.update();
 
         document.querySelectorAll('.view-btn').forEach(btn => {
