@@ -40,33 +40,6 @@
         
         <!-- Left Control Panel -->
         <div class="w-full md:w-5/12 p-4 overflow-y-auto border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
-            <div class="flex justify-between items-center">
-                <h2 class="text-lg font-semibold text-slate-200">Parámetros DH</h2>
-                <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all flex items-center gap-1">
-                    &#x2795; Agregar eslabón
-                </button>
-            </div>
-
-            <!-- DH Table: Type, a, alpha, d, theta -->
-            <div class="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900/50">
-                <table class="w-full text-left border-collapse min-w-[450px]">
-                    <thead>
-                        <tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
-                            <th class="p-2.5 text-center w-10">#</th>
-                            <th class="p-2.5 text-center w-10">Tipo</th>
-                            <th class="p-2.5 text-center w-16">\(a\)</th>
-                            <th class="p-2.5 text-center w-16">\(\alpha\) (deg)</th>
-                            <th class="p-2.5 text-center w-16">\(d\)</th>
-                            <th class="p-2.5 text-center w-16">\(\theta\) (deg)</th>
-                            <th class="p-2.5 text-center w-8">.</th>
-                        </tr>
-                    </thead>
-                    <tbody id="dh-table-body">
-                        <!-- Dynamic rows are inserted here -->
-                    </tbody>
-                </table>
-            </div>
-
             <!-- Joint variables are separate from the editable DH model. -->
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Variables articulares">
                 <div class="flex justify-between items-center gap-2">
@@ -76,6 +49,38 @@
                 <div id="joint-controls" class="flex flex-col gap-3"></div>
                 <p class="text-xs text-slate-400">Para juntas R se modifica θ; para juntas P se modifica d. Los parámetros también se actualizan en la tabla DH.</p>
             </section>
+
+            <details id="dh-details" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
+                <summary class="cursor-pointer font-semibold text-sm text-indigo-400">Configuración DH · editar geometría</summary>
+                <div class="pt-3 flex flex-col gap-3">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-slate-200">Parámetros DH</h2>
+                    <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all flex items-center gap-1">
+                        &#x2795; Agregar eslabón
+                    </button>
+                </div>
+    
+                <!-- DH Table: Type, a, alpha, d, theta -->
+                <div class="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900/50">
+                    <table class="w-full text-left border-collapse min-w-[450px]">
+                        <thead>
+                            <tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
+                                <th class="p-2.5 text-center w-10">#</th>
+                                <th class="p-2.5 text-center w-10">Tipo</th>
+                                <th class="p-2.5 text-center w-16">\(a\)</th>
+                                <th class="p-2.5 text-center w-16">\(\alpha\) (deg)</th>
+                                <th class="p-2.5 text-center w-16">\(d\)</th>
+                                <th class="p-2.5 text-center w-16">\(\theta\) (deg)</th>
+                                <th class="p-2.5 text-center w-8">.</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dh-table-body">
+                            <!-- Dynamic rows are inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+                </div>
+            </details>
 
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
                 <label for="frame-select" class="text-sm text-indigo-400 font-semibold">Sistema de referencia</label>
@@ -95,6 +100,7 @@
         <!-- Right 3D Viewport (Orthographic Camera) -->
         <div class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950">
             <div id="canvas-container" class="w-full h-full"></div>
+            <button id="fit-robot" type="button" class="absolute bottom-3 right-3 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-3 py-2 rounded z-10">Encuadrar robot</button>
             
             <!-- Camera Preset Controls -->
             <div class="absolute top-3 right-3 flex flex-wrap gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10">
@@ -161,6 +167,8 @@
         const jointControls = document.getElementById('joint-controls');
         const frameSelect = document.getElementById('frame-select');
         const frameDescription = document.getElementById('frame-description');
+        const initialJointStates = initialDHParams.map(param =>
+            param.type === 'P' ? param.d : param.theta);
         let selectedFrame = 'end';
 
         // FK-only visual highlight. It lives in the scene instead of robotGroup
@@ -258,9 +266,9 @@
                 const slider = document.createElement('input');
                 slider.type = 'range';
                 slider.className = 'w-full accent-indigo-500';
-                slider.min = isRevolute ? '-180' : String(Math.min(-400, value));
-                slider.max = isRevolute ? '180' : String(Math.max(400, value));
-                slider.step = isRevolute ? '1' : '5';
+                slider.min = isRevolute ? String(Math.min(-360, value)) : String(Math.min(-400, value));
+                slider.max = isRevolute ? String(Math.max(360, value)) : String(Math.max(400, value));
+                slider.step = 'any';
                 slider.value = String(Math.max(Number(slider.min), Math.min(Number(slider.max), value)));
                 slider.setAttribute('aria-label', name.textContent);
                 slider.addEventListener('input', () => {
@@ -299,13 +307,57 @@
             updateFrameDisplay();
         });
         document.getElementById('reset-joints').addEventListener('click', () => {
-            viewer.dhParams.forEach(param => {
-                if (param.type === 'P') param.d = 0;
-                else param.theta = 0;
+            viewer.dhParams.forEach((param, index) => {
+                // Restore the initial configuration where known; newly added
+                // joints start at zero. Preserve DH geometry and joint types.
+                const baseline = initialDHParams[index];
+                const prop = param.type === 'P' ? 'd' : 'theta';
+                param[prop] = baseline && baseline.type === param.type
+                    ? initialJointStates[index] : 0;
             });
             viewer.renderTable();
             viewer.updateRobotGeometry();
         });
+
+        function fitRobot() {
+            if (!viewer.robotGroup || !viewer.camera || !viewer.controls) return;
+            // Include link geometry and system origins. The selected highlight
+            // is deliberately excluded so its long axes do not inflate bounds.
+            viewer.robotGroup.updateWorldMatrix(true, true);
+            const bounds = new THREE.Box3().setFromObject(viewer.robotGroup);
+            if (bounds.isEmpty()) return;
+
+            const center = bounds.getCenter(new THREE.Vector3());
+            const size = bounds.getSize(new THREE.Vector3());
+            const camera = viewer.camera;
+            const controls = viewer.controls;
+            const direction = camera.position.clone().sub(controls.target).normalize();
+            if (direction.lengthSq() < 1e-8) direction.set(1, -1, 1).normalize();
+            const distance = Math.max(camera.position.distanceTo(controls.target), 1);
+            controls.target.copy(center);
+            camera.position.copy(center).addScaledVector(direction, distance);
+            camera.lookAt(center);
+
+            // Orthographic fit calculated from all bounding-box corners in
+            // camera coordinates, preserving the existing viewing direction.
+            camera.updateMatrixWorld();
+            const min = bounds.min, max = bounds.max;
+            let extentX = 0, extentY = 0;
+            for (const x of [min.x, max.x]) {
+                for (const y of [min.y, max.y]) {
+                    for (const z of [min.z, max.z]) {
+                        const p = new THREE.Vector3(x, y, z).project(camera);
+                        extentX = Math.max(extentX, Math.abs(p.x));
+                        extentY = Math.max(extentY, Math.abs(p.y));
+                    }
+                }
+            }
+            const scaleFactor = Math.max(extentX, extentY, 0.1) * 1.35;
+            camera.zoom = Math.max(0.05, Math.min(20, camera.zoom / scaleFactor));
+            camera.updateProjectionMatrix();
+            controls.update();
+        }
+        document.getElementById('fit-robot').addEventListener('click', fitRobot);
 
         window.onload = () => {
             viewer.init3D();
