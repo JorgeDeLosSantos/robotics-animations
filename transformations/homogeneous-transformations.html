@@ -104,7 +104,13 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
     const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf8fafc);
-    const camera = new THREE.OrthographicCamera(-12, 12, 8, -8, .1, 1000); camera.position.set(11, 9, 11); camera.lookAt(0, 0, 0);
+    // Match the orthographic frustum to the viewport aspect ratio from the first frame.
+    // A fixed 3:2 frustum on a 16:9 canvas stretches the rendered body non-uniformly.
+    const aspect = window.innerWidth / window.innerHeight;
+    const d = 8;
+    const camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, .1, 1000);
+    camera.position.set(11, 9, 11);
+    camera.lookAt(0, 0, 0);
     const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight); document.body.appendChild(renderer.domElement);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enablePan = true;
