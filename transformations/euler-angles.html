@@ -387,8 +387,8 @@
         document.getElementById('step-title').textContent =
             activeStep === 0 ? 'Configuración inicial' : activeStep === 3 ? 'Orientación final' : `Después del paso ${activeStep}`;
         document.getElementById('step-description').textContent = activeStep === 0
-            ? 'El cuerpo coincide con el marco fijo; todavía no se ha aplicado ninguna rotación.'
-            : `Paso ${activeStep}: girar ${Number(currentValues[activeStep - 1].toFixed(1))}° alrededor del eje ${axes[activeStep - 1]} del marco móvil correspondiente al paso anterior.`;
+            ? 'El cuerpo coincide con el sistema fijo; todavía no se ha aplicado ninguna rotación.'
+            : `Paso ${activeStep}: girar ${Number(currentValues[activeStep - 1].toFixed(1))}° alrededor del eje ${axes[activeStep - 1]} del sistema móvil correspondiente al paso anterior.`;
 
         document.querySelectorAll('[data-step]').forEach(button => {
             const selected = Number(button.dataset.step) === activeStep;
