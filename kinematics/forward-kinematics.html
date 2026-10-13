@@ -44,9 +44,11 @@
         .system-nav button:disabled { opacity: .35; cursor: not-allowed; }
         .system-nav button:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
         #canvas-container canvas { touch-action: none; }
+        /* Each control card keeps its natural height; only the panel scrolls. */
+        #controls-panel > * { flex-shrink: 0; }
     </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen md:h-screen md:h-dvh md:overflow-hidden flex flex-col font-sans">
+<body class="bg-slate-900 text-slate-100 min-h-screen md:min-h-[560px] md:h-dvh flex flex-col font-sans">
 
     <!-- Header -->
     <header class="shrink-0 bg-slate-800 border-b border-slate-700 p-4 shadow-md">
@@ -56,10 +58,10 @@
     </header>
 
     <!-- Main Container -->
-    <main class="flex-1 min-h-0 flex flex-col md:flex-row overflow-visible md:overflow-hidden">
+    <main class="flex-none md:flex-1 md:min-h-0 flex flex-col md:flex-row md:overflow-hidden">
         
         <!-- Independently scrollable on desktop; regular document flow on mobile. -->
-        <div class="w-full md:w-5/12 min-h-0 p-4 overflow-visible md:overflow-y-auto md:overscroll-contain border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
+        <div id="controls-panel" class="w-full md:w-5/12 md:min-h-0 p-4 md:overflow-y-auto md:overscroll-contain border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
                 <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Manipulador de ejemplo</label>
                 <select id="robot-preset" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2">
