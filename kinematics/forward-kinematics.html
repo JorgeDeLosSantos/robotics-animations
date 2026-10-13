@@ -128,7 +128,7 @@
                 <p id="frame-description" class="text-xs text-slate-400"></p>
                 <p id="system-position" class="text-xs font-mono text-slate-300"></p>
                 <button id="show-dh-row" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Ver parámetros DH de este sistema</button>
-                <p class="text-xs text-slate-400">Haz clic cerca del origen de un sistema en el visor 3D para seleccionarlo. Los botones ‹ › permiten recorrer la cadena y distinguir sistemas con orígenes coincidentes.</p>
+                <p class="text-xs text-slate-400">Haz clic cerca del origen de un sistema para seleccionarlo. Los botones ‹ › permiten recorrer sistemas coincidentes.</p>
             </section>
 
             <!-- Homogeneous Transformation Matrix Display -->
@@ -149,6 +149,8 @@
         <div class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950">
             <div id="canvas-container" class="w-full h-full"></div>
             
+            <p class="absolute bottom-2 left-3 text-[11px] text-slate-400/80 pointer-events-none select-none z-10">Arrastrar: rotar · botón derecho: desplazar · rueda: zoom</p>
+
             <!-- Camera Preset Controls -->
             <div class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Controles de cámara">
                 <button id="btn-view-top" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
@@ -222,6 +224,11 @@
         let presetBaseline = copyDH(examples[activePreset].params);
         const initialDHParams = copyDH(presetBaseline);
 
+        // Joint defaults belong to each parameter object, never to its row
+        // index. Deleting a preceding row must not change another joint's
+        // reset value. A new joint or a changed type gets its own baseline.
+        const jointDefaults = new WeakMap();
+
         // Create the robot viewer with shared components
         const viewer = new RobotViewer({
             canvasContainerId: 'canvas-container',
@@ -239,6 +246,19 @@
         //   - Joint meshes (cylinder for R, box for P)
         //   - AxesHelpers at each frame
         // No override needed.
+
+        function trackJointDefaults() {
+            for (const param of viewer.dhParams) {
+                const prop = param.type === 'P' ? 'd' : 'theta';
+                const baseline = jointDefaults.get(param);
+                if (!baseline || baseline.type !== param.type) {
+                    jointDefaults.set(param, {
+                        type: param.type,
+                        value: Number(param[prop]) || 0
+                    });
+                }
+            }
+        }
 
         const jointControls = document.getElementById('joint-controls');
         const systemLabel = document.getElementById('selected-system-label');
@@ -546,7 +566,8 @@
                 name.textContent = `Articulación ${index + 1} · ${isRevolute ? 'R (θ)' : 'P (d)'}`;
                 const amount = document.createElement('output');
                 amount.className = 'text-indigo-300 font-mono';
-                amount.textContent = `${value}${isRevolute ? '°' : ''}`;
+                const formatValue = number => String(Number(Number(number).toFixed(1)));
+                amount.textContent = `${formatValue(value)}${isRevolute ? '°' : ''}`;
                 title.append(name, amount);
 
                 const slider = document.createElement('input');
@@ -558,12 +579,13 @@
                 slider.value = String(Math.max(Number(slider.min), Math.min(Number(slider.max), value)));
                 slider.setAttribute('aria-label', name.textContent);
                 slider.addEventListener('input', () => {
-                    viewer.dhParams[index][property] = Number(slider.value);
-                    amount.textContent = `${slider.value}${isRevolute ? '°' : ''}`;
+                    const newValue = Number(formatValue(slider.value));
+                    viewer.dhParams[index][property] = newValue;
+                    amount.textContent = `${formatValue(newValue)}${isRevolute ? '°' : ''}`;
                     const field = viewer.tableBody.querySelector(
                         `[data-index="${index}"][data-prop="${property}"]`
                     );
-                    if (field) field.value = slider.value;
+                    if (field) field.value = String(newValue);
                     viewer.updateRobotGeometry();
                 });
                 row.append(title, slider);
@@ -578,6 +600,7 @@
         viewer.updateMatrixDisplay = () => updateFrameDisplay();
         const originalRenderTable = viewer.renderTable.bind(viewer);
         viewer.renderTable = () => {
+            trackJointDefaults();
             originalRenderTable();
             refreshJointControls();
             refreshSystemNavigation();
@@ -620,13 +643,12 @@
             row?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
         });
         document.getElementById('reset-joints').addEventListener('click', () => {
-            viewer.dhParams.forEach((param, index) => {
-                // Restore the initial configuration where known; newly added
-                // joints start at zero. Preserve DH geometry and joint types.
-                const baseline = presetBaseline[index];
+            viewer.dhParams.forEach(param => {
                 const prop = param.type === 'P' ? 'd' : 'theta';
-                param[prop] = baseline && baseline.type === param.type
-                    ? baseline[prop] : 0;
+                const baseline = jointDefaults.get(param);
+                if (baseline && baseline.type === param.type) {
+                    param[prop] = baseline.value;
+                }
             });
             viewer.renderTable();
             viewer.updateRobotGeometry();
@@ -687,6 +709,13 @@
 
         window.onload = () => {
             viewer.init3D();
+            // Keep the conventional camera gestures local to this lab so
+            // existing IK and Jacobian pages retain their current mapping.
+            viewer.controls.mouseButtons = {
+                LEFT: THREE.MOUSE.ROTATE,
+                MIDDLE: THREE.MOUSE.DOLLY,
+                RIGHT: THREE.MOUSE.PAN
+            };
             viewer.scene.add(selectedSystem);
             viewer.scene.add(pickRoot);
             viewer.scene.add(hoverIndicator);
