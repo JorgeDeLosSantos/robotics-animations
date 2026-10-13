@@ -91,6 +91,7 @@ export class RobotViewer {
 
         // Bind event handlers
         this._onInputChange = this._onInputChange.bind(this);
+        this._onNumberBlur = this._onNumberBlur.bind(this);
         this._onDeleteRow = this._onDeleteRow.bind(this);
         this._onAddRow = this._onAddRow.bind(this);
         this._onWindowResize = this._onWindowResize.bind(this);
@@ -237,6 +238,11 @@ export class RobotViewer {
         this.tableBody.querySelectorAll('input, select').forEach(input =>
             input.addEventListener('input', this._onInputChange)
         );
+        // A temporarily empty/incomplete numeric field is allowed while
+        // typing. Restore the last valid model value when focus leaves.
+        this.tableBody.querySelectorAll('input[type="number"]').forEach(input =>
+            input.addEventListener('blur', this._onNumberBlur)
+        );
         this.tableBody.querySelectorAll('.delete-btn').forEach(btn =>
             btn.addEventListener('click', this._onDeleteRow)
         );
@@ -296,7 +302,11 @@ export class RobotViewer {
         let value = e.target.value;
 
         if (prop !== 'type') {
-            value = parseFloat(value) || 0;
+            // Do not move the robot to zero while the student is replacing
+            // a number or entering an incomplete negative/scientific value.
+            if (value.trim() === '' || e.target.validity?.badInput) return;
+            value = Number(value);
+            if (!Number.isFinite(value)) return;
             if (prop === 'theta' || prop === 'alpha') {
                 if (value < -360) value = -360;
                 if (value > 360) value = 360;
@@ -310,6 +320,18 @@ export class RobotViewer {
         }
 
         this.updateRobotGeometry();
+    }
+
+    _onNumberBlur(e) {
+        const index = Number(e.target.dataset.index);
+        const prop = e.target.dataset.prop;
+        const param = this.dhParams[index];
+        if (!param || !['a', 'alpha', 'd', 'theta'].includes(prop)) return;
+        if (e.target.value.trim() === '' ||
+            e.target.validity?.badInput ||
+            !Number.isFinite(Number(e.target.value))) {
+            e.target.value = String(param[prop]);
+        }
     }
 
     _onDeleteRow(e) {
