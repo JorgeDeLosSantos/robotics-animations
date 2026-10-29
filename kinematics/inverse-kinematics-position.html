@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Inverse Kinematics (Position)</title>
+    <title>Cinemática inversa de posición — CCD</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 
     <!-- Three.js via import map -->
@@ -21,170 +21,492 @@
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
             onload="renderMathInElement(document.body);"></script>
+    <style>
+        #canvas-container canvas { touch-action: none; }
+        #controls-panel > * { flex-shrink: 0; }
+        #solve-ik-btn:focus-visible, #reset-joints:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
+        #position-error { font-variant-numeric: tabular-nums; }
+    </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+<body class="bg-slate-900 text-slate-100 min-h-screen md:min-h-[560px] md:h-dvh flex flex-col font-sans">
 
-    <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md">
+    <!-- Header -->
+    <header class="shrink-0 bg-slate-800 border-b border-slate-700 p-4 shadow-md">
         <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-indigo-400">
-            Inverse Kinematics (Position)
+            Cinemática inversa de posición
         </h1>
     </header>
 
-    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+    <!-- Main Container -->
+    <main class="flex-none md:flex-1 md:min-h-0 flex flex-col md:flex-row md:overflow-hidden">
         
-        <div class="w-full md:w-5/12 p-4 overflow-y-auto border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
-            
-            <div class="bg-slate-800/80 border border-indigo-500/40 rounded-lg p-4 flex flex-col gap-3 shadow-lg">
-                <h3 class="text-sm font-bold text-indigo-300 flex items-center gap-2">IK Target</h3>
+        <!-- Independently scrollable on desktop; regular document flow on mobile. -->
+        <div id="controls-panel" class="w-full md:w-5/12 md:min-h-0 p-4 md:overflow-y-auto md:overscroll-contain border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
+                <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Manipulador de ejemplo</label>
+                <select id="robot-preset" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2">
+                    <option value="spatial3r">3R espacial</option>
+                    <option value="planar2r">2R plano</option>
+                    <option value="custom" disabled>Configuración personalizada</option>
+                </select>
+                <p id="preset-description" class="text-xs text-slate-400"></p>
+            </section>
+
+            <section class="bg-slate-800/70 border border-indigo-500/40 rounded-lg p-3 flex flex-col gap-3">
+                <div class="flex items-center justify-between gap-2">
+                    <h2 class="text-sm font-semibold text-indigo-300">Posición objetivo</h2>
+                    <span class="text-[11px] text-pink-400">● Objetivo en 3D</span>
+                </div>
                 <div class="grid grid-cols-3 gap-2">
-                    <div>
-                        <label class="text-[11px] text-slate-400 block mb-1">Target X</label>
-                        <input type="number" id="ik-x" value="200" step="10" class="w-full bg-slate-900 border border-slate-700 rounded p-1 text-center font-mono text-amber-400 focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[11px] text-slate-400 block mb-1">Target Y</label>
-                        <input type="number" id="ik-y" value="0" step="10" class="w-full bg-slate-900 border border-slate-700 rounded p-1 text-center font-mono text-amber-400 focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="text-[11px] text-slate-400 block mb-1">Target Z</label>
-                        <input type="number" id="ik-z" value="400" step="10" class="w-full bg-slate-900 border border-slate-700 rounded p-1 text-center font-mono text-amber-400 focus:outline-none">
-                    </div>
+                    <div><label for="ik-x" class="text-xs text-slate-400 block mb-1">X</label>
+                        <input type="number" id="ik-x" value="260" step="10" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-center font-mono text-amber-300"></div>
+                    <div><label for="ik-y" class="text-xs text-slate-400 block mb-1">Y</label>
+                        <input type="number" id="ik-y" value="120" step="10" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-center font-mono text-amber-300"></div>
+                    <div><label for="ik-z" class="text-xs text-slate-400 block mb-1">Z</label>
+                        <input type="number" id="ik-z" value="320" step="10" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-center font-mono text-amber-300"></div>
                 </div>
-                <button id="solve-ik-btn" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold py-2 rounded shadow transition-all">
-                    Solve IK
-                </button>
-                <div id="ik-status" class="text-[11px] text-slate-400 italic text-center"></div>
-            </div>
+                <button type="button" id="solve-ik-btn" class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold py-2.5 rounded transition-all">Resolver cinemática inversa</button>
+                <p id="ik-status" class="text-xs text-slate-400" role="status" aria-live="polite">Modifica el objetivo y pulsa Resolver para obtener una configuración articular.</p>
+                <p id="ik-limit-note" class="text-xs text-slate-500">Método CCD para juntas revolutas (R). La orientación final no se impone.</p>
+            </section>
 
-            <div class="flex justify-between items-center">
-                <h2 class="text-lg font-semibold text-slate-200">DH Parameters</h2>
-                <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all flex items-center gap-1">
-                    &#x2795; Add link
-                </button>
-            </div>
-
-            <div class="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900/50">
-                <table class="w-full text-left border-collapse min-w-[400px]">
-                    <thead>
-                        <tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
-                            <th class="p-2.5 text-center w-10">#</th>
-                            <th class="p-2.5 text-center w-10">Type</th>
-                            <th class="p-2.5 text-center w-16">\(a\)</th>
-                            <th class="p-2.5 text-center w-16">\(\alpha\) (deg)</th>
-                            <th class="p-2.5 text-center w-16">\(d\)</th>
-                            <th class="p-2.5 text-center w-16">\(\theta\) (deg)</th>
-                            <th class="p-2.5 text-center w-8">.</th>
-                        </tr>
-                    </thead>
-                    <tbody id="dh-table-body">
-                    </tbody>
-                </table>
-            </div>
-
-            <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <h3 class="text-sm font-semibold text-indigo-400">Matrix \(T_n^0\)</h3>
-                <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400">
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Resultado de posición">
+                <h3 class="text-sm font-semibold text-indigo-400">Posición y error</h3>
+                <div class="rounded bg-slate-950 border border-slate-800 p-3 flex flex-col gap-2 text-xs font-mono">
+                    <p id="current-position" class="text-cyan-300">Actual: —</p>
+                    <p id="target-position" class="text-pink-300">Objetivo: —</p>
+                    <p id="position-error" class="text-amber-300 font-bold">Error: —</p>
                 </div>
-            </div>
+                <p class="text-xs text-slate-400">El error es la distancia entre el objetivo y el efector final:</p>
+                <div class="overflow-x-auto text-center text-slate-200 text-sm py-1">\(\displaystyle e_p=\|\mathbf p_d-\mathbf p(\mathbf q)\|\)</div>
+                <p id="solution-angles" class="text-xs text-slate-300 font-mono"></p>
+            </section>
+
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Variables articulares">
+                <div class="flex justify-between items-center gap-2">
+                    <h3 class="text-sm font-semibold text-indigo-400">Variables articulares</h3>
+                    <button type="button" id="reset-joints" class="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1">Restablecer</button>
+                </div>
+                <div id="joint-controls" class="flex flex-col gap-3"></div>
+                <p class="text-xs text-slate-400">Puedes mover las articulaciones manualmente y volver a resolver desde esa configuración inicial.</p>
+            </section>
+
+            <details id="dh-details" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
+                <summary class="cursor-pointer font-semibold text-sm text-indigo-400">Configuración DH · editar geometría</summary>
+                <div class="pt-3 flex flex-col gap-3">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-lg font-semibold text-slate-200">Parámetros DH</h2>
+                        <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all">➕ Agregar eslabón</button>
+                    </div>
+                    <div class="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900/50">
+                        <table class="w-full text-left border-collapse min-w-[450px]">
+                            <thead><tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
+                                <th class="p-2.5 text-center w-10">#</th>
+                                <th class="p-2.5 text-center w-10">Tipo</th>
+                                <th class="p-2.5 text-center w-16">\(a\)</th>
+                                <th class="p-2.5 text-center w-16">\(\alpha\) (°)</th>
+                                <th class="p-2.5 text-center w-16">\(d\)</th>
+                                <th class="p-2.5 text-center w-16">\(\theta\) (°)</th>
+                                <th class="p-2.5 text-center w-8">.</th>
+                            </tr></thead>
+                            <tbody id="dh-table-body"></tbody>
+                        </table>
+                    </div>
+                    <p class="text-xs text-slate-400">Parámetros DH estándar. El solver CCD de esta versión admite únicamente juntas R.</p>
+                </div>
+            </details>
+
+            <details id="ee-transform-details" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
+                <summary class="cursor-pointer text-sm font-semibold text-indigo-400">Transformación del efector final \(T_n^0\)</summary>
+                <div class="pt-3 flex flex-col gap-2">
+                    <p class="text-xs text-slate-400">Transformación respecto al sistema base, como información complementaria.</p>
+                    <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400"></div>
+                </div>
+            </details>
         </div>
 
+        <!-- Right 3D Viewport (Orthographic Camera) -->
         <div class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950">
             <div id="canvas-container" class="w-full h-full"></div>
-            <div class="absolute top-3 right-3 flex flex-wrap gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10">
+            <div class="absolute bottom-9 left-3 text-[11px] text-slate-300/90 pointer-events-none select-none z-10 flex flex-wrap gap-3" aria-hidden="true">
+                <span>● <span class="text-pink-400">Objetivo</span></span><span>● <span class="text-cyan-300">Efector</span></span>
+                <span>— <span class="text-amber-300">Error</span></span>
+            </div>
+            
+            <p class="absolute bottom-2 left-3 text-[11px] text-slate-400/80 pointer-events-none select-none z-10">Arrastrar: rotar · botón derecho: desplazar · rueda: zoom</p>
+
+            <!-- Camera Preset Controls -->
+            <div class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Controles de cámara">
                 <button id="btn-view-top" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Top (XY)
+                    Superior (XY)
                 </button>
                 <button id="btn-view-front" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Front (XZ)
+                    Frontal (XZ)
                 </button>
                 <button id="btn-view-side" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Side (YZ)
+                    Lateral (YZ)
                 </button>
                 <button id="btn-view-iso" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Isometric
+                    Isométrica
+                </button>
+                <span aria-hidden="true" class="hidden sm:block h-6 w-px mx-0.5 bg-slate-600/70"></span>
+                <button id="fit-robot" type="button" title="Centrar y ajustar la vista al manipulador" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded transition-all border border-indigo-400/30">
+                    Encuadrar
                 </button>
             </div>
         </div>
     </main>
 
+    <!-- Footer / Developer Credits -->
+    <footer class="shrink-0 bg-slate-900 border-t border-slate-800 py-4 px-6 text-center text-xs text-slate-500 shadow-inner">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+            <p class="flex items-center gap-1.5 justify-center">
+                Developed with &#x1F499; by 
+                <a href="https://github.com/JorgeDeLosSantos" 
+                   target="_blank" 
+                   rel="noopener noreferrer" 
+                   class="font-semibold text-indigo-400 hover:text-indigo-300 hover:underline transition-colors">
+                    P.J. De Los Santos
+                </a>
+            </p>
+        </div>
+    </footer>
+
     <script type="module">
         import * as THREE from 'three';
         import { RobotViewer } from './shared-robot-viewer.js';
-        import { solveIKPositionCCD } from './ik-solvers.js';
+        import { solveIKPositionCCDDetailed } from './ik-solvers.js';
 
-        // Initial DH parameters for a 3-link manipulator
-        const initialDHParams = [
-            { type: 'R', theta: 0, d: 200, a: 0.0, alpha: 90 },
-            { type: 'R', theta: 0, d: 0.0, a: 200, alpha: 0 },
-            { type: 'R', theta: 0, d: 0.0, a: 200, alpha: 0 }
-        ];
+        // These examples use standard DH parameters and revolute joints.
+        const examples = {
+            spatial3r: {
+                description: 'Tres juntas revolutas: resolución de la posición objetivo en 3D.',
+                params: [
+                    { type: 'R', theta: 0, d: 200, a: 0, alpha: 90 },
+                    { type: 'R', theta: 0, d: 0, a: 200, alpha: 0 },
+                    { type: 'R', theta: 0, d: 0, a: 200, alpha: 0 }
+                ],
+                target: [260, 120, 320]
+            },
+            planar2r: {
+                description: 'Dos juntas revolutas coplanares. El objetivo está en el plano XY (Z = 0).',
+                params: [
+                    { type: 'R', theta: 30, d: 0, a: 220, alpha: 0 },
+                    { type: 'R', theta: -45, d: 0, a: 160, alpha: 0 }
+                ],
+                target: [210, 220, 0]
+            }
+        };
+        const copyDH = params => params.map(param => ({ ...param }));
+        let activePreset = 'spatial3r';
+        let presetBaseline = copyDH(examples[activePreset].params);
+        const jointDefaults = new WeakMap();
 
-        // Create the robot viewer with shared components
         const viewer = new RobotViewer({
             canvasContainerId: 'canvas-container',
             tableBodyId: 'dh-table-body',
             addRowBtnId: 'add-row-btn',
             matrixContainerId: 'matrix-container',
-            initialDHParams: initialDHParams,
+            initialDHParams: copyDH(presetBaseline),
             frustumSize: 1200,
             maxLinks: 6
         });
+        const jointControls = document.getElementById('joint-controls');
+        const presetSelect = document.getElementById('robot-preset');
+        const presetDescription = document.getElementById('preset-description');
+        const status = document.getElementById('ik-status');
+        const solveButton = document.getElementById('solve-ik-btn');
+        presetDescription.textContent = examples[activePreset].description;
 
-        // Create target mesh for IK visualization
-        const targetGeom = new THREE.SphereGeometry(10, 16, 16);
-        const targetMat = new THREE.MeshBasicMaterial({ color: 0xff0055, wireframe: true });
-        const targetMesh = new THREE.Mesh(targetGeom, targetMat);
+        const targetFields = ['ik-x', 'ik-y', 'ik-z']
+            .map(id => document.getElementById(id));
+        let lastValidTarget = new THREE.Vector3(...examples[activePreset].target);
 
-        // Override init3D to add the target mesh
-        const originalInit3D = viewer.init3D.bind(viewer);
-        viewer.init3D = function() {
-            originalInit3D();
-            this.scene.add(targetMesh);
-        };
+        // Teaching overlays are not children of robotGroup, which is recreated
+        // when DH geometry changes. They therefore survive ordinary redraws.
+        const targetMarker = new THREE.Mesh(
+            new THREE.SphereGeometry(13, 20, 14),
+            new THREE.MeshBasicMaterial({ color: 0xf472b6, wireframe: true })
+        );
+        const currentMarker = new THREE.Mesh(
+            new THREE.SphereGeometry(10, 16, 12),
+            new THREE.MeshBasicMaterial({ color: 0x67e8f9 })
+        );
+        const errorLine = new THREE.Line(
+            new THREE.BufferGeometry(),
+            new THREE.LineBasicMaterial({ color: 0xfbbf24 })
+        );
+        const markers = new THREE.Group();
+        markers.add(targetMarker, currentMarker, errorLine);
 
-        // Update target position from UI
-        function updateTargetFromUI() {
-            const x = parseFloat(document.getElementById('ik-x').value) || 0;
-            const y = parseFloat(document.getElementById('ik-y').value) || 0;
-            const z = parseFloat(document.getElementById('ik-z').value) || 0;
-            targetMesh.position.set(x, y, z);
+        const format = value => Math.abs(value) < 0.0005
+            ? '0' : String(Number(value.toFixed(2)));
+        const vectorText = vector => '(' + [vector.x, vector.y, vector.z]
+            .map(format).join(', ') + ')';
+
+        function readTarget() {
+            const values = targetFields.map(field => {
+                if (field.value.trim() === '' || field.validity?.badInput) return NaN;
+                return Number(field.value);
+            });
+            return values.every(Number.isFinite) ? new THREE.Vector3(...values) : null;
         }
 
-        // Solve IK using CCD algorithm from ik-solvers module
-        function solveIK() {
-            const tx = parseFloat(document.getElementById('ik-x').value) || 0;
-            const ty = parseFloat(document.getElementById('ik-y').value) || 0;
-            const tz = parseFloat(document.getElementById('ik-z').value) || 0;
-            const target = new THREE.Vector3(tx, ty, tz);
+        function clearSolveStatus() {
+            status.className = 'text-xs text-slate-400';
+            status.textContent = 'Configuración modificada. Pulsa Resolver para calcular una nueva solución.';
+        }
 
-            const statusDiv = document.getElementById('ik-status');
-            statusDiv.innerText = 'Computing...';
-
-            const finalDist = solveIKPositionCCD(viewer, target);
-
-            if (finalDist < 1.0) {
-                statusDiv.className = 'text-[11px] text-emerald-400 font-bold text-center';
-                statusDiv.innerText = `\u2714\uFE0F Success (Error: ${finalDist.toFixed(2)} units)`;
+        function updateSolveAvailability() {
+            const valid = readTarget() !== null;
+            const revoluteOnly = viewer.dhParams.every(param => param.type === 'R');
+            solveButton.disabled = !valid || !revoluteOnly;
+            const note = document.getElementById('ik-limit-note');
+            if (!revoluteOnly) {
+                note.className = 'text-xs text-amber-400';
+                note.textContent = 'CCD admite únicamente juntas revolutas (R). Cambia las juntas P a R para resolver.';
+            } else if (!valid) {
+                note.className = 'text-xs text-amber-400';
+                note.textContent = 'Completa las tres coordenadas objetivo con valores numéricos válidos.';
             } else {
-                statusDiv.className = 'text-[11px] text-amber-400 font-bold text-center';
-                statusDiv.innerText = `\u26A0\uFE0F Unreachable or Out of Range (Min Dist: ${finalDist.toFixed(2)} units)`;
+                note.className = 'text-xs text-slate-500';
+                note.textContent = 'Método CCD para juntas revolutas (R). La orientación final no se impone.';
             }
+        }
 
+        function updatePositionDisplay() {
+            const current = viewer.getEEPosition();
+            const target = readTarget();
+            if (target) lastValidTarget.copy(target);
+            targetMarker.position.copy(lastValidTarget);
+            currentMarker.position.copy(current);
+            const distance = current.distanceTo(lastValidTarget);
+            document.getElementById('current-position').textContent =
+                'Actual: ' + vectorText(current);
+            document.getElementById('target-position').textContent =
+                'Objetivo: ' + vectorText(lastValidTarget);
+            document.getElementById('position-error').textContent =
+                target ? 'Error: ' + format(distance) + ' unidades del modelo'
+                    : 'Error: — (objetivo incompleto)';
+            document.getElementById('solution-angles').textContent = viewer.dhParams
+                .map((joint, i) => (joint.type === 'R' ? 'θ' : 'd') + (i + 1)
+                    + ' = ' + format(joint.type === 'R' ? joint.theta : joint.d)
+                    + (joint.type === 'R' ? '°' : '')).join(' · ');
+
+            // Keep endpoints consistent with the currently displayed model.
+            const previous = errorLine.geometry;
+            errorLine.geometry = new THREE.BufferGeometry().setFromPoints(
+                [current, lastValidTarget]);
+            previous.dispose();
+            errorLine.visible = !!target && distance > 0.001;
+            updateSolveAvailability();
+        }
+
+        function trackJointDefaults() {
+            for (const param of viewer.dhParams) {
+                const prop = param.type === 'P' ? 'd' : 'theta';
+                const baseline = jointDefaults.get(param);
+                if (!baseline || baseline.type !== param.type) {
+                    jointDefaults.set(param, {
+                        type: param.type,
+                        value: Number(param[prop]) || 0
+                    });
+                }
+            }
+        }
+
+        function refreshPresetIdentity() {
+            const sameGeometry = viewer.dhParams.length === presetBaseline.length
+                && viewer.dhParams.every((param, i) => {
+                    const base = presetBaseline[i];
+                    return param.type === base.type && param.a === base.a
+                        && param.alpha === base.alpha
+                        && (param.type === 'P' ? param.theta === base.theta : param.d === base.d);
+                });
+            if (sameGeometry) {
+                presetSelect.value = activePreset;
+                presetDescription.textContent = examples[activePreset].description;
+            } else {
+                presetSelect.value = 'custom';
+                presetDescription.textContent =
+                    'Modelo editado. Seleccionar otro ejemplo reemplazará los parámetros DH actuales.';
+            }
+        }
+        function refreshJointControls() {
+            jointControls.replaceChildren();
+            viewer.dhParams.forEach((param, index) => {
+                const isRevolute = param.type !== 'P';
+                const property = isRevolute ? 'theta' : 'd';
+                const value = Number(param[property]) || 0;
+                const row = document.createElement('div');
+                const title = document.createElement('div');
+                title.className = 'flex justify-between gap-2 text-xs';
+                const name = document.createElement('span');
+                name.textContent = `Articulación ${index + 1} · ${isRevolute ? 'R (θ)' : 'P (d)'}`;
+                const amount = document.createElement('output');
+                amount.className = 'text-indigo-300 font-mono';
+                const formatValue = number => String(Number(Number(number).toFixed(1)));
+                amount.textContent = `${formatValue(value)}${isRevolute ? '°' : ''}`;
+                title.append(name, amount);
+
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.className = 'w-full accent-indigo-500';
+                slider.min = isRevolute ? String(Math.min(-360, value)) : String(Math.min(-400, value));
+                slider.max = isRevolute ? String(Math.max(360, value)) : String(Math.max(400, value));
+                slider.step = 'any';
+                slider.value = String(Math.max(Number(slider.min), Math.min(Number(slider.max), value)));
+                slider.setAttribute('aria-label', name.textContent);
+                slider.addEventListener('input', () => {
+                    const newValue = Number(formatValue(slider.value));
+                    viewer.dhParams[index][property] = newValue;
+                    amount.textContent = `${formatValue(newValue)}${isRevolute ? '°' : ''}`;
+                    const field = viewer.tableBody.querySelector(
+                        `[data-index="${index}"][data-prop="${property}"]`
+                    );
+                    if (field) field.value = String(newValue);
+                    clearSolveStatus();
+                    viewer.updateRobotGeometry();
+                });
+                row.append(title, slider);
+                jointControls.append(row);
+            });
+        }
+
+
+        const originalUpdateRobotGeometry = viewer.updateRobotGeometry.bind(viewer);
+        viewer.updateRobotGeometry = () => {
+            originalUpdateRobotGeometry();
+            updatePositionDisplay();
+        };
+        const originalRenderTable = viewer.renderTable.bind(viewer);
+        viewer.renderTable = () => {
+            trackJointDefaults();
+            originalRenderTable();
+            refreshJointControls();
+            refreshPresetIdentity();
+        };
+        viewer.tableBody.addEventListener('input', event => {
+            if (!event.target.matches('[data-prop]')) return;
+            clearSolveStatus();
+            refreshJointControls();
+            refreshPresetIdentity();
+            updateSolveAvailability();
+        });
+
+        targetFields.forEach(field => field.addEventListener('input', () => {
+            clearSolveStatus();
+            updatePositionDisplay();
+        }));
+
+        document.getElementById('reset-joints').addEventListener('click', () => {
+            viewer.dhParams.forEach(param => {
+                const key = param.type === 'P' ? 'd' : 'theta';
+                const baseline = jointDefaults.get(param);
+                if (baseline && baseline.type === param.type) param[key] = baseline.value;
+            });
+            clearSolveStatus();
             viewer.renderTable();
             viewer.updateRobotGeometry();
+        });
+
+        function solvePosition() {
+            const target = readTarget();
+            if (!target || viewer.dhParams.some(param => param.type !== 'R')) {
+                updateSolveAvailability();
+                return;
+            }
+            const result = solveIKPositionCCDDetailed(viewer, target, {
+                maxIterations: 200,
+                tolerance: 0.5
+            });
+            viewer.renderTable();
+            viewer.updateRobotGeometry();
+            if (result.solved) {
+                status.className = 'text-xs text-emerald-400 font-medium';
+                status.textContent = 'Convergencia alcanzada en ' + result.iterations
+                    + ' iteraciones. Error final: ' + format(result.error) + ' unidades.';
+            } else {
+                status.className = 'text-xs text-amber-400';
+                status.textContent = (result.status === 'stalled'
+                    ? 'El método dejó de mejorar.'
+                    : 'Se alcanzó el límite de iteraciones.')
+                    + ' Error final: ' + format(result.error)
+                    + ' unidades. Esto no demuestra que el objetivo sea inalcanzable.';
+            }
         }
 
-        // Attach event listeners
-        document.getElementById('ik-x').addEventListener('input', updateTargetFromUI);
-        document.getElementById('ik-y').addEventListener('input', updateTargetFromUI);
-        document.getElementById('ik-z').addEventListener('input', updateTargetFromUI);
-        document.getElementById('solve-ik-btn').addEventListener('click', solveIK);
+        solveButton.addEventListener('click', solvePosition);
+        presetSelect.addEventListener('change', () => {
+            activePreset = presetSelect.value;
+            const example = examples[activePreset];
+            if (!example) return;
+            presetBaseline = copyDH(example.params);
+            viewer.dhParams = copyDH(example.params);
+            targetFields.forEach((field, index) => {
+                field.value = String(example.target[index]);
+            });
+            lastValidTarget.set(...example.target);
+            presetDescription.textContent = example.description;
+            clearSolveStatus();
+            viewer.renderTable();
+            viewer.updateRobotGeometry();
+            fitRobot();
+        });
+
+        function fitRobot() {
+            if (!viewer.robotGroup || !viewer.camera || !viewer.controls) return;
+            // Include link geometry and system origins. The selected highlight
+            // is deliberately excluded so its long axes do not inflate bounds.
+            viewer.robotGroup.updateWorldMatrix(true, true);
+            const bounds = new THREE.Box3().setFromObject(viewer.robotGroup);
+            bounds.expandByPoint(lastValidTarget);
+            if (bounds.isEmpty()) return;
+
+            const center = bounds.getCenter(new THREE.Vector3());
+            const size = bounds.getSize(new THREE.Vector3());
+            const camera = viewer.camera;
+            const controls = viewer.controls;
+            const direction = camera.position.clone().sub(controls.target).normalize();
+            if (direction.lengthSq() < 1e-8) direction.set(1, -1, 1).normalize();
+            const distance = Math.max(camera.position.distanceTo(controls.target), 1);
+            controls.target.copy(center);
+            camera.position.copy(center).addScaledVector(direction, distance);
+            camera.lookAt(center);
+
+            // Orthographic fit calculated from all bounding-box corners in
+            // camera coordinates, preserving the existing viewing direction.
+            camera.updateMatrixWorld();
+            const min = bounds.min, max = bounds.max;
+            let extentX = 0, extentY = 0;
+            for (const x of [min.x, max.x]) {
+                for (const y of [min.y, max.y]) {
+                    for (const z of [min.z, max.z]) {
+                        const p = new THREE.Vector3(x, y, z).project(camera);
+                        extentX = Math.max(extentX, Math.abs(p.x));
+                        extentY = Math.max(extentY, Math.abs(p.y));
+                    }
+                }
+            }
+            const scaleFactor = Math.max(extentX, extentY, 0.1) * 1.35;
+            camera.zoom = Math.max(0.05, Math.min(20, camera.zoom / scaleFactor));
+            camera.updateProjectionMatrix();
+            controls.update();
+        }
+
+        document.getElementById('fit-robot').addEventListener('click', fitRobot);
 
         window.onload = () => {
             viewer.init3D();
+            viewer.controls.mouseButtons = {
+                LEFT: THREE.MOUSE.ROTATE,
+                MIDDLE: THREE.MOUSE.DOLLY,
+                RIGHT: THREE.MOUSE.PAN
+            };
+            viewer.scene.add(markers);
             viewer.renderTable();
             viewer.updateRobotGeometry();
-            updateTargetFromUI();
+            fitRobot();
         };
     </script>
 </body>
