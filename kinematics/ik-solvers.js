@@ -47,60 +47,102 @@ function gaussianElimination6x6(A, b) {
 // IK Solver: Position only using Cyclic Coordinate Descent (CCD)
 // ---------------------------------------------------------------------------
 /**
- * Solves inverse kinematics for position only using the CCD algorithm.
- * @param {RobotViewer} viewer - The robot viewer instance
- * @param {THREE.Vector3} target - Target position in world coordinates
- * @param {Object} [options] - Optional parameters
- * @param {number} [options.maxIterations=100] - Maximum CCD iterations
- * @param {number} [options.tolerance=0.1] - Convergence tolerance in mm
- * @returns {number} Final distance error to target
+ * Position-only CCD solver for revolute serial chains (standard DH).
+ *
+ * The detailed API reports convergence separately from reachability.
+ * Failure to converge does NOT establish that a target is unreachable.
+ * The manipulator is left at the best configuration encountered.
+ *
+ * @param {RobotViewer} viewer - Mutable serial-chain model
+ * @param {THREE.Vector3} target - Desired end-effector position
+ * @param {Object} [options]
+ * @param {number} [options.maxIterations=200] - Maximum full CCD sweeps
+ * @param {number} [options.tolerance=0.5] - Position tolerance in model units
+ * @returns {{solved:boolean,status:string,iterations:number,error:number,initialError:number}}
  */
-export function solveIKPositionCCD(viewer, target, options = {}) {
-    const maxIterations = options.maxIterations || 100;
-    const tolerance = options.tolerance || 0.1;
-    let solved = false;
+export function solveIKPositionCCDDetailed(viewer, target, options = {}) {
+    const maxIterations = Number.isFinite(options.maxIterations)
+        ? Math.max(1, Math.floor(options.maxIterations)) : 200;
+    const tolerance = Number.isFinite(options.tolerance) && options.tolerance > 0
+        ? options.tolerance : 0.5;
+    const initialError = viewer.getEEPosition().distanceTo(target);
+    if (viewer.dhParams.some(joint => joint.type !== 'R')) {
+        return { solved: false, status: 'unsupported_joint', iterations: 0,
+            error: initialError, initialError };
+    }
+
+    let bestError = initialError;
+    let bestAngles = viewer.dhParams.map(joint => joint.theta);
+    if (initialError <= tolerance) {
+        return { solved: true, status: 'converged', iterations: 0,
+            error: initialError, initialError };
+    }
+
+    let iterations = 0;
+    let stallCount = 0;
+    let lastError = initialError;
+    let status = 'max_iterations';
 
     for (let iter = 0; iter < maxIterations; iter++) {
         for (let i = viewer.dhParams.length - 1; i >= 0; i--) {
             const eePos = viewer.getEEPosition();
             const jointPos = viewer.getJointPosition(i);
-
-            if (eePos.distanceTo(target) < tolerance) {
-                solved = true;
-                break;
-            }
-
-            const jointToEE = new THREE.Vector3().subVectors(eePos, jointPos);
-            const jointToTarget = new THREE.Vector3().subVectors(target, jointPos);
-
             const { zAxes } = viewer.getJointStates(i);
-            const jointAxis = zAxes[i] || new THREE.Vector3(0, 0, 1);
+            const axis = zAxes[i];
 
-            jointToEE.projectOnPlane(jointAxis).normalize();
-            jointToTarget.projectOnPlane(jointAxis).normalize();
+            // Only the components perpendicular to the rotation axis can
+            // change when this particular revolute joint moves.
+            const toEE = new THREE.Vector3().subVectors(eePos, jointPos)
+                .projectOnPlane(axis);
+            const toTarget = new THREE.Vector3().subVectors(target, jointPos)
+                .projectOnPlane(axis);
+            if (toEE.lengthSq() < 1e-12 || toTarget.lengthSq() < 1e-12) continue;
 
-            let dot = jointToEE.dot(jointToTarget);
-            dot = Math.max(-1, Math.min(1, dot));
-            let deltaTheta = Math.acos(dot);
+            toEE.normalize();
+            toTarget.normalize();
+            const sine = new THREE.Vector3().crossVectors(toEE, toTarget).dot(axis);
+            const cosine = Math.max(-1, Math.min(1, toEE.dot(toTarget)));
+            const delta = Math.atan2(sine, cosine);
+            if (Math.abs(delta) < 1e-12) continue;
 
-            const cross = new THREE.Vector3().crossVectors(jointToEE, jointToTarget);
-            if (cross.dot(jointAxis) < 0) {
-                deltaTheta = -deltaTheta;
-            }
-
-            const deltaDeg = THREE.MathUtils.radToDeg(deltaTheta);
-            if (!isNaN(deltaDeg)) {
-                let newTheta = viewer.dhParams[i].theta + deltaDeg;
-                if (newTheta > 360) newTheta -= 360;
-                if (newTheta < -360) newTheta += 360;
-                viewer.dhParams[i].theta = parseFloat(newTheta.toFixed(2));
-            }
+            const theta = viewer.dhParams[i].theta + THREE.MathUtils.radToDeg(delta);
+            viewer.dhParams[i].theta = ((theta + 180) % 360 + 360) % 360 - 180;
         }
-        if (solved) break;
+
+        iterations = iter + 1;
+        const error = viewer.getEEPosition().distanceTo(target);
+        if (error < bestError) {
+            bestError = error;
+            bestAngles = viewer.dhParams.map(joint => joint.theta);
+        }
+        if (bestError <= tolerance) {
+            status = 'converged';
+            break;
+        }
+        // Stop when full sweeps cease improving the position appreciably.
+        // This may be a stationary or numerically difficult configuration,
+        // not necessarily an unreachable target.
+        stallCount = Math.abs(lastError - error) < 1e-9 ? stallCount + 1 : 0;
+        if (stallCount >= 10) {
+            status = 'stalled';
+            break;
+        }
+        lastError = error;
     }
 
-    const finalEE = viewer.getEEPosition();
-    return finalEE.distanceTo(target);
+    viewer.dhParams.forEach((joint, index) => {
+        joint.theta = bestAngles[index];
+    });
+    return { solved: bestError <= tolerance, status, iterations,
+        error: bestError, initialError };
+}
+
+/**
+ * Backward-compatible position IK API returning only the final error.
+ * For convergence diagnostics use solveIKPositionCCDDetailed().
+ */
+export function solveIKPositionCCD(viewer, target, options = {}) {
+    return solveIKPositionCCDDetailed(viewer, target, options).error;
 }
 
 // ---------------------------------------------------------------------------
