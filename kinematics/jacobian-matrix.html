@@ -113,10 +113,16 @@
                 </div>
                 <p class="text-xs text-slate-400">La Jacobiana utiliza velocidades revolutas en rad/s y prismáticas en unidades del modelo/s. Los ángulos DH se editan en grados.</p>
             </section>
-            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <h3 class="text-sm font-semibold text-indigo-400">Transformación del efector final \(T_n^0\)</h3>
-                <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400"></div>
-            </section>
+            <!-- Reference material, collapsed by default to prioritize the Jacobian. -->
+            <details id="ee-transform-details" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
+                <summary class="cursor-pointer text-sm font-semibold text-indigo-400">
+                    Transformación del efector final \(T_n^0\)
+                </summary>
+                <div class="pt-3 flex flex-col gap-2">
+                    <p class="text-xs text-slate-400">Posición y orientación del efector final respecto al sistema base.</p>
+                    <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400"></div>
+                </div>
+            </details>
         </div>
 
         <!-- Right 3D Viewport (Orthographic Camera) -->
