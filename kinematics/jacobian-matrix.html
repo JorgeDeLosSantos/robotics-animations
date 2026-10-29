@@ -30,6 +30,8 @@
         #jacobian-table button { cursor: pointer; }
         #jacobian-table button:focus-visible, [data-joint-select]:focus-visible { outline: 2px solid #facc15; outline-offset: 2px; }
         #dh-table-body tr.jac-joint-selected { background: rgba(250, 204, 21, .12); box-shadow: inset 3px 0 #facc15; }
+        .jac-mode-btn[aria-pressed="true"] { background: #4f46e5; color: white; border-color: #818cf8; }
+        .jac-mode-btn:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen md:min-h-[560px] md:h-dvh flex flex-col font-sans">
@@ -111,7 +113,11 @@
                 <div class="rounded-lg border border-slate-700 overflow-x-auto bg-slate-950">
                     <table id="jacobian-table" class="w-full border-collapse text-xs text-center whitespace-nowrap" aria-label="Matriz Jacobiana con componentes lineales y angulares"></table>
                 </div>
-                <div class="bg-slate-900/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
+                <div class="grid grid-cols-2 gap-2" role="group" aria-label="Modo de exploración de la Jacobiana">
+                    <button type="button" data-jacobian-mode="column" aria-pressed="true" class="jac-mode-btn rounded border border-slate-600 bg-slate-700 px-2 py-2 text-xs font-semibold">Por articulación</button>
+                    <button type="button" data-jacobian-mode="velocity" aria-pressed="false" class="jac-mode-btn rounded border border-slate-600 bg-slate-700 px-2 py-2 text-xs font-semibold">Velocidad resultante</button>
+                </div>
+                <div id="column-exploration-panel" class="bg-slate-900/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
                     <div class="flex items-center justify-between gap-2 flex-wrap">
                         <label for="jacobian-joint-select" class="text-xs font-semibold text-amber-300">Explorar columna</label>
                         <select id="jacobian-joint-select" class="bg-slate-800 border border-slate-600 text-slate-100 text-xs rounded px-2 py-1.5" aria-label="Articulación cuya columna se estudia"></select>
@@ -128,6 +134,28 @@
                         <span><span class="text-green-400 font-bold">➜</span> Dirección de contribución lineal</span>
                     </div>
                     <p id="column-visual-note" class="text-[11px] text-slate-500">Las flechas indican direcciones; su longitud es ilustrativa, no la magnitud de la velocidad.</p>
+                </div>
+                <div id="velocity-panel" class="hidden bg-slate-900/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3">
+                    <div class="text-center overflow-x-auto text-slate-100 text-sm">
+                        \(\mathbf v_e=\sum_{i=1}^{n}J_{v,i}\dot q_i\)
+                    </div>
+                    <p class="text-xs text-slate-400">Ajusta las velocidades articulares para sumar sus contribuciones a la velocidad instantánea del efector final.</p>
+                    <div class="flex items-center justify-between gap-2">
+                        <h4 class="text-xs font-semibold text-indigo-300">Velocidades articulares</h4>
+                        <button id="zero-joint-rates" type="button" class="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1">Todas a 0</button>
+                    </div>
+                    <div id="joint-rate-controls" class="flex flex-col gap-3"></div>
+                    <label class="text-xs text-slate-300 flex items-center gap-2 cursor-pointer">
+                        <input id="show-velocity-chain" type="checkbox" class="accent-indigo-500">
+                        Mostrar suma punta-cola en el visor
+                    </label>
+                    <div class="bg-slate-950 rounded border border-slate-800 p-3 flex flex-col gap-1">
+                        <p id="velocity-result" class="font-mono text-sm text-green-400"></p>
+                        <p id="velocity-magnitude" class="font-mono text-xs text-slate-300"></p>
+                    </div>
+                    <div id="velocity-contributions" class="flex flex-col gap-1 text-xs text-slate-300"></div>
+                    <p id="velocity-visual-note" class="text-[11px] text-slate-400">La flecha verde representa la resultante.</p>
+                    <p class="text-[11px] text-slate-500">Las flechas utilizan una escala visual común que se ajusta automáticamente al modelo. Su dirección y proporción son significativas; las unidades de velocidad son unidades del modelo/s.</p>
                 </div>
                 <div class="flex flex-wrap gap-3 text-xs text-slate-400">
                     <span><span class="text-sky-400 font-semibold">Jv</span>: velocidad lineal</span>
@@ -243,6 +271,29 @@
         });
         let selectedJointIndex = 0;
         let selectedJoint = viewer.dhParams[0];
+        let jacobianMode = 'column';
+        const jointRates = new WeakMap();
+        const contributionColors = [0x38bdf8, 0xf59e0b, 0xe879f9, 0xfb7185, 0x60a5fa, 0xa3e635];
+        const contributionTextColors = ['text-sky-400', 'text-amber-400', 'text-fuchsia-400',
+            'text-rose-400', 'text-blue-400', 'text-lime-400'];
+        let latestJacobian = null;
+        let latestMatrices = null;
+
+        function seedPresetRates() {
+            viewer.dhParams.forEach((param, i) => {
+                const example = i === 0 ? 30 : i === 1 ? -20 : param.type === 'P' ? 60 : 15;
+                jointRates.set(param, { type: param.type, value: example });
+            });
+        }
+        function getJointRate(param) {
+            const previous = jointRates.get(param);
+            if (!previous || previous.type !== param.type) {
+                jointRates.set(param, { type: param.type, value: 0 });
+                return 0;
+            }
+            return previous.value;
+        }
+        seedPresetRates();
 
         // Kept outside robotGroup: geometry redraws and "Encuadrar" ignore
         // the teaching overlays. Both arrows indicate direction, not scale.
@@ -258,6 +309,25 @@
             new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 80, 0x4ade80, 18, 9
         );
         teachingOverlay.add(jointMarker, axisArrow, linearArrow);
+
+        // A separate overlay for actual velocity contributions; no robot
+        // mesh or shared viewer changes are necessary.
+        const velocityOverlay = new THREE.Group();
+        const resultArrow = new THREE.ArrowHelper(
+            new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 90, 0x22c55e, 20, 10
+        );
+        const contributionArrows = contributionColors.map(color => {
+            const arrow = new THREE.ArrowHelper(
+                new THREE.Vector3(1, 0, 0), new THREE.Vector3(), 70, color, 16, 8
+            );
+            arrow.visible = false;
+            velocityOverlay.add(arrow);
+            return arrow;
+        });
+        velocityOverlay.add(resultArrow);
+        resultArrow.visible = false;
+        teachingOverlay.visible = true;
+        velocityOverlay.visible = false;
 
         function trackJointDefaults() {
             for (const param of viewer.dhParams) {
@@ -339,6 +409,171 @@
         }
 
 
+        function syncRateControls() {
+            const container = document.getElementById('joint-rate-controls');
+            container.replaceChildren();
+            viewer.dhParams.forEach((param, index) => {
+                const rate = getJointRate(param);
+                const isRevolute = param.type !== 'P';
+                const units = isRevolute ? '°/s' : 'unid./s';
+                const row = document.createElement('div');
+                const heading = document.createElement('div');
+                heading.className = 'flex justify-between text-xs gap-2';
+                const name = document.createElement('label');
+                const id = 'joint-rate-' + index;
+                name.htmlFor = id;
+                name.textContent = 'Articulación ' + (index + 1) + ' · ' + param.type;
+                const amount = document.createElement('output');
+                amount.className = 'text-indigo-300 font-mono';
+                amount.textContent = String(rate) + ' ' + units;
+                heading.append(name, amount);
+                const slider = document.createElement('input');
+                slider.id = id;
+                slider.type = 'range';
+                slider.className = 'w-full accent-indigo-500';
+                const limit = isRevolute ? 120 : 200;
+                slider.min = String(-limit);
+                slider.max = String(limit);
+                slider.step = '1';
+                slider.value = String(rate);
+                slider.addEventListener('input', () => {
+                    const value = Number(slider.value);
+                    jointRates.set(param, { type: param.type, value });
+                    amount.textContent = String(value) + ' ' + units;
+                    refreshVelocityResults();
+                });
+                row.append(heading, slider);
+                container.appendChild(row);
+            });
+        }
+
+        // The Jacobian maps revolute rates expressed in rad/s, although the
+        // student-facing sliders are intentionally expressed in degrees/s.
+        function calculateLinearVelocity(J) {
+            const contributions = [];
+            const total = new THREE.Vector3();
+            viewer.dhParams.forEach((param, index) => {
+                const speed = getJointRate(param);
+                const rateSI = param.type === 'P' ? speed : THREE.MathUtils.degToRad(speed);
+                const vector = new THREE.Vector3(
+                    J[0][index], J[1][index], J[2][index]
+                ).multiplyScalar(rateSI);
+                contributions.push(vector);
+                total.add(vector);
+            });
+            return { contributions, total };
+        }
+
+        function formatVelocity(value) {
+            return Math.abs(value) < 0.0005 ? '0' : String(Number(value.toFixed(3)));
+        }
+        function velocityComponents(vector) {
+            return '(' + [vector.x, vector.y, vector.z].map(formatVelocity).join(', ') + ')';
+        }
+
+        function updateVelocityOverlay(matrices, contributions, total) {
+            velocityOverlay.visible = jacobianMode === 'velocity';
+            teachingOverlay.visible = jacobianMode === 'column';
+            if (!velocityOverlay.visible || !matrices.length) return;
+
+            const ee = new THREE.Vector3().setFromMatrixPosition(matrices[matrices.length - 1]);
+            const partials = [];
+            const running = new THREE.Vector3();
+            contributions.forEach(vector => {
+                running.add(vector);
+                partials.push(running.clone());
+            });
+            const maxMagnitude = Math.max(0, total.length(),
+                ...contributions.map(v => v.length()), ...partials.map(v => v.length()));
+            const modelExtent = Math.max(140, ...matrices.map(matrix =>
+                new THREE.Vector3().setFromMatrixPosition(matrix).length()));
+            const targetLength = Math.max(70, Math.min(170, modelExtent * 0.27));
+            const scale = maxMagnitude > 1e-10 ? targetLength / maxMagnitude : 0;
+
+            resultArrow.visible = total.length() > 1e-8;
+            if (resultArrow.visible) {
+                const magnitude = total.length() * scale;
+                resultArrow.position.copy(ee);
+                resultArrow.setDirection(total.clone().normalize());
+                resultArrow.setLength(magnitude, Math.min(20, magnitude * 0.25),
+                    Math.min(10, magnitude * 0.12));
+            }
+
+            let start = ee.clone();
+            contributionArrows.forEach((arrow, index) => {
+                const vector = contributions[index];
+                arrow.visible = !!vector && document.getElementById('show-velocity-chain').checked
+                    && vector.length() > 1e-8;
+                if (arrow.visible) {
+                    const magnitude = vector.length() * scale;
+                    arrow.position.copy(start);
+                    arrow.setDirection(vector.clone().normalize());
+                    arrow.setLength(magnitude, Math.min(18, magnitude * 0.25),
+                        Math.min(9, magnitude * 0.12));
+                }
+                if (vector) start.addScaledVector(vector, scale);
+            });
+
+            const note = document.getElementById('velocity-visual-note');
+            note.textContent = maxMagnitude <= 1e-10
+                ? 'Todas las contribuciones son nulas: no hay velocidad lineal instantánea.'
+                : !resultArrow.visible
+                    ? 'Las contribuciones se cancelan: la velocidad resultante es nula.'
+                    : 'Verde: velocidad resultante en el extremo.'
+                        + (document.getElementById('show-velocity-chain').checked
+                            ? ' Flechas de colores: suma punta-cola de las contribuciones.'
+                            : ' Activa la suma punta-cola para mostrar las contribuciones.');
+        }
+
+        function refreshVelocityResults() {
+            if (!latestJacobian || !latestMatrices) return;
+            const { contributions, total } = calculateLinearVelocity(latestJacobian);
+            const unit = ' unidades/s';
+            document.getElementById('velocity-result').textContent =
+                'vₑ = ' + velocityComponents(total) + unit;
+            document.getElementById('velocity-magnitude').textContent =
+                '|vₑ| = ' + formatVelocity(total.length()) + unit;
+            const details = document.getElementById('velocity-contributions');
+            details.replaceChildren();
+            contributions.forEach((vector, index) => {
+                const p = document.createElement('p');
+                p.className = contributionTextColors[index % contributionTextColors.length]
+                    + ' font-mono';
+                p.textContent = 'v' + (index + 1) + ' = '
+                    + velocityComponents(vector) + unit;
+                details.appendChild(p);
+            });
+            updateVelocityOverlay(latestMatrices, contributions, total);
+        }
+
+        function setJacobianMode(mode) {
+            if (mode !== 'column' && mode !== 'velocity') return;
+            jacobianMode = mode;
+            document.querySelectorAll('[data-jacobian-mode]').forEach(button => {
+                button.setAttribute('aria-pressed', String(button.dataset.jacobianMode === mode));
+            });
+            document.getElementById('column-exploration-panel').classList.toggle(
+                'hidden', mode !== 'column');
+            document.getElementById('velocity-panel').classList.toggle(
+                'hidden', mode !== 'velocity');
+            teachingOverlay.visible = mode === 'column';
+            velocityOverlay.visible = mode === 'velocity';
+            renderJacobian();
+        }
+
+        document.querySelectorAll('[data-jacobian-mode]').forEach(button => {
+            button.addEventListener('click', () => setJacobianMode(button.dataset.jacobianMode));
+        });
+        document.getElementById('show-velocity-chain').addEventListener('change',
+            () => refreshVelocityResults());
+        document.getElementById('zero-joint-rates').addEventListener('click', () => {
+            viewer.dhParams.forEach(param => {
+                jointRates.set(param, { type: param.type, value: 0 });
+            });
+            syncRateControls();
+            refreshVelocityResults();
+        });
+
         function syncJointSelector() {
             // Keep the same selected joint if earlier DH rows are removed.
             const currentIndex = viewer.dhParams.indexOf(selectedJoint);
@@ -371,8 +606,12 @@
             if (!Number.isInteger(index) || index < 0 || index >= viewer.dhParams.length) return;
             selectedJointIndex = index;
             selectedJoint = viewer.dhParams[index];
-            updateSelectionHighlights();
-            renderJacobian();
+            if (jacobianMode === 'velocity') {
+                setJacobianMode('column');
+            } else {
+                updateSelectionHighlights();
+                renderJacobian();
+            }
         }
 
         document.getElementById('jacobian-joint-select').addEventListener('change', event => {
@@ -407,6 +646,7 @@
 
         function updateTeachingOverlay(matrices, J) {
             if (!viewer.scene) return;
+            if (jacobianMode !== 'column') return;
             const index = selectedJointIndex;
             const prevFrame = index === 0 ? new THREE.Matrix4() : matrices[index - 1];
             const origin = new THREE.Vector3().setFromMatrixPosition(prevFrame);
@@ -454,7 +694,7 @@
             viewer.dhParams.forEach((param, index) => {
                 const th = cell('th', 'py-2 px-1 border-b border-slate-700');
                 th.scope = 'col';
-                if (index === selectedJointIndex) th.classList.add('jac-selected');
+                if (jacobianMode === 'column' && index === selectedJointIndex) th.classList.add('jac-selected');
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'w-full px-2 py-1.5 rounded hover:text-amber-200';
@@ -502,14 +742,19 @@
                         'px-2 py-2 border-b border-slate-800/50 font-mono tabular-nums '
                         + (angular ? 'text-teal-300' : 'text-sky-300'),
                         format(J[i][j]));
-                    if (j === selectedJointIndex) number.classList.add('jac-selected');
+                    if (jacobianMode === 'column' && j === selectedJointIndex) number.classList.add('jac-selected');
                     tr.appendChild(number);
                 }
                 body.appendChild(tr);
             }
             table.replaceChildren(heading, body);
-            updateColumnExplanation(J);
-            updateTeachingOverlay(matrices, J);
+            latestJacobian = J;
+            latestMatrices = matrices;
+            if (jacobianMode === 'column') {
+                updateColumnExplanation(J);
+                updateTeachingOverlay(matrices, J);
+            }
+            refreshVelocityResults();
         }
 
         const originalUpdateRobotGeometry = viewer.updateRobotGeometry.bind(viewer);
@@ -523,6 +768,7 @@
             trackJointDefaults();
             originalRenderTable();
             refreshJointControls();
+            syncRateControls();
             syncJointSelector();
             refreshPresetIdentity();
         };
@@ -549,6 +795,7 @@
             const example = examples[activePreset];
             presetBaseline = copyDH(example.params);
             viewer.dhParams = copyDH(example.params);
+            seedPresetRates();
             selectedJointIndex = 0;
             selectedJoint = viewer.dhParams[0];
             presetDescription.textContent = example.description;
@@ -600,7 +847,7 @@
 
         window.onload = () => {
             viewer.init3D();
-            viewer.scene.add(teachingOverlay);
+            viewer.scene.add(teachingOverlay, velocityOverlay);
             viewer.controls.mouseButtons = {
                 LEFT: THREE.MOUSE.ROTATE,
                 MIDDLE: THREE.MOUSE.DOLLY,
