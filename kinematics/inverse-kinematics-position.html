@@ -515,6 +515,9 @@
 
             playbackProgress.max = String(Math.max(1, ccdFrames.length - 1));
             playbackProgress.value = String(ccdFrameIndex);
+            playbackProgress.disabled = ccdFrames.length <= 1;
+            playbackButton.disabled = ccdFrames.length <= 1;
+            document.getElementById('ccd-final').disabled = ccdFrames.length <= 1;
             document.getElementById('ccd-step-counter').textContent =
                 'Paso ' + ccdFrameIndex + ' / ' + (ccdFrames.length - 1);
             document.getElementById('ccd-step-error').textContent =
@@ -536,7 +539,7 @@
                 status.className = 'text-xs text-slate-300';
                 status.textContent = ccdFrameIndex === 0
                     ? 'Listo para observar los pasos del algoritmo CCD.'
-                    : 'Reproduciendo el barrido ' + frame.iteration
+                    : 'Paso CCD · barrido ' + frame.iteration
                         + ', articulación ' + (frame.jointIndex + 1) + '.';
             }
         }
