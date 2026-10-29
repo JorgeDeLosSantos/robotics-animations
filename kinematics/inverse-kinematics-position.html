@@ -26,6 +26,10 @@
         #controls-panel > * { flex-shrink: 0; }
         #solve-ik-btn:focus-visible, #reset-joints:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
         #position-error { font-variant-numeric: tabular-nums; }
+        #ccd-playback-panel button:focus-visible, #ccd-speed:focus-visible, #ccd-progress:focus-visible {
+            outline: 2px solid #a5b4fc; outline-offset: 2px;
+        }
+        #ccd-playback-panel button:disabled { opacity: .4; cursor: not-allowed; }
     </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen md:min-h-[560px] md:h-dvh flex flex-col font-sans">
@@ -68,6 +72,35 @@
                 <button type="button" id="solve-ik-btn" class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold py-2.5 rounded transition-all">Resolver cinemática inversa</button>
                 <p id="ik-status" class="text-xs text-slate-400" role="status" aria-live="polite">Modifica el objetivo y pulsa Resolver para obtener una configuración articular.</p>
                 <p id="ik-limit-note" class="text-xs text-slate-500">Método CCD para juntas revolutas (R). La orientación final no se impone.</p>
+            </section>
+
+            <section id="ccd-playback-panel" class="hidden bg-slate-800/60 border border-indigo-500/30 rounded-lg p-3 flex flex-col gap-3" aria-label="Reproducción del algoritmo CCD">
+                <div class="flex items-center justify-between gap-2">
+                    <h3 class="text-sm font-semibold text-indigo-300">Ejecución paso a paso · CCD</h3>
+                    <label class="text-xs text-slate-400 flex items-center gap-2" for="ccd-speed">Velocidad
+                        <select id="ccd-speed" class="bg-slate-900 border border-slate-600 text-slate-100 rounded px-2 py-1">
+                            <option value="550">Lenta</option>
+                            <option value="250" selected>Normal</option>
+                            <option value="100">Rápida</option>
+                        </select>
+                    </label>
+                </div>
+                <p class="text-xs text-slate-400">CCD recorre las juntas desde la última hasta la primera. Cada paso muestra el ajuste de una articulación y la evolución del error.</p>
+                <div class="flex items-center justify-between text-xs text-slate-300 font-mono gap-2">
+                    <output id="ccd-step-counter">Paso 0 / 0</output>
+                    <output id="ccd-step-error" class="text-amber-300">Error: —</output>
+                </div>
+                <input id="ccd-progress" type="range" min="0" max="1" value="0" step="1"
+                    class="w-full accent-indigo-500" aria-label="Ir a un paso de la ejecución CCD">
+                <div class="grid grid-cols-4 gap-2">
+                    <button id="ccd-first" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-2 text-xs" title="Volver a la configuración inicial">Inicio</button>
+                    <button id="ccd-prev" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-2 text-xs" title="Retroceder un paso">‹ Anterior</button>
+                    <button id="ccd-play" type="button" class="bg-indigo-600 hover:bg-indigo-500 rounded px-2 py-2 text-xs font-semibold">Reproducir</button>
+                    <button id="ccd-next" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-2 text-xs" title="Avanzar un paso">Siguiente ›</button>
+                </div>
+                <button id="ccd-final" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Ir directamente al resultado</button>
+                <p id="ccd-step-description" class="text-xs text-slate-200" aria-live="off">Configuración inicial.</p>
+                <p class="text-[11px] text-slate-500">El marcador amarillo identifica la junta ajustada. La línea entre el extremo y el objetivo muestra el error después de cada paso.</p>
             </section>
 
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Resultado de posición">
@@ -237,7 +270,25 @@
             new THREE.LineBasicMaterial({ color: 0xfbbf24 })
         );
         const markers = new THREE.Group();
-        markers.add(targetMarker, currentMarker, errorLine);
+        const activeJointMarker = new THREE.Mesh(
+            new THREE.SphereGeometry(17, 16, 12),
+            new THREE.MeshBasicMaterial({ color: 0xfacc15, transparent: true, opacity: 0.7, depthTest: false })
+        );
+        activeJointMarker.visible = false;
+        activeJointMarker.renderOrder = 20;
+        markers.add(targetMarker, currentMarker, errorLine, activeJointMarker);
+
+        // A trace records actual per-joint CCD updates, not interpolated
+        // poses or a fabricated motion. Playback is entirely local to this page.
+        let ccdFrames = [];
+        let ccdFrameIndex = 0;
+        let lastCCDResult = null;
+        let playbackRunning = false;
+        let playbackRequest = null;
+        let playbackLastTick = null;
+        const playbackPanel = document.getElementById('ccd-playback-panel');
+        const playbackProgress = document.getElementById('ccd-progress');
+        const playbackButton = document.getElementById('ccd-play');
 
         const format = value => Math.abs(value) < 0.0005
             ? '0' : String(Number(value.toFixed(2)));
@@ -253,6 +304,7 @@
         }
 
         function clearSolveStatus() {
+            invalidatePlayback();
             status.className = 'text-xs text-slate-400';
             status.textContent = 'Configuración modificada. Pulsa Resolver para calcular una nueva solución.';
         }
@@ -410,18 +462,24 @@
             viewer.updateRobotGeometry();
         });
 
-        function solvePosition() {
-            const target = readTarget();
-            if (!target || viewer.dhParams.some(param => param.type !== 'R')) {
-                updateSolveAvailability();
-                return;
-            }
-            const result = solveIKPositionCCDDetailed(viewer, target, {
-                maxIterations: 200,
-                tolerance: 0.5
-            });
-            viewer.renderTable();
-            viewer.updateRobotGeometry();
+        function stopPlayback() {
+            playbackRunning = false;
+            if (playbackRequest !== null) cancelAnimationFrame(playbackRequest);
+            playbackRequest = null;
+            playbackLastTick = null;
+            playbackButton.textContent = 'Reproducir';
+        }
+
+        function invalidatePlayback() {
+            stopPlayback();
+            ccdFrames = [];
+            ccdFrameIndex = 0;
+            lastCCDResult = null;
+            playbackPanel.classList.add('hidden');
+            activeJointMarker.visible = false;
+        }
+
+        function showSolveOutcome(result) {
             if (result.solved) {
                 status.className = 'text-xs text-emerald-400 font-medium';
                 status.textContent = 'Convergencia alcanzada en ' + result.iterations
@@ -433,6 +491,160 @@
                     : 'Se alcanzó el límite de iteraciones.')
                     + ' Error final: ' + format(result.error)
                     + ' unidades. Esto no demuestra que el objetivo sea inalcanzable.';
+            }
+        }
+
+        function showCCDFrame(index) {
+            if (!ccdFrames.length) return;
+            ccdFrameIndex = Math.max(0, Math.min(index, ccdFrames.length - 1));
+            const frame = ccdFrames[ccdFrameIndex];
+            frame.angles.forEach((theta, i) => {
+                viewer.dhParams[i].theta = theta;
+            });
+            viewer.renderTable();
+            viewer.updateRobotGeometry();
+
+            const isLast = ccdFrameIndex === ccdFrames.length - 1;
+            activeJointMarker.visible = frame.jointIndex !== null;
+            if (activeJointMarker.visible) {
+                activeJointMarker.position.copy(viewer.getJointPosition(frame.jointIndex));
+            }
+            [...viewer.tableBody.rows].forEach((row, i) => {
+                row.classList.toggle('bg-amber-500/20', i === frame.jointIndex);
+            });
+
+            playbackProgress.max = String(Math.max(1, ccdFrames.length - 1));
+            playbackProgress.value = String(ccdFrameIndex);
+            document.getElementById('ccd-step-counter').textContent =
+                'Paso ' + ccdFrameIndex + ' / ' + (ccdFrames.length - 1);
+            document.getElementById('ccd-step-error').textContent =
+                'Error: ' + format(frame.error);
+            document.getElementById('ccd-step-description').textContent =
+                ccdFrameIndex === 0 ? 'Configuración inicial antes del primer barrido.'
+                    : frame.jointIndex === null
+                        ? 'Configuración final: la mejor encontrada durante la búsqueda.'
+                        : 'Barrido ' + frame.iteration + ' · ajuste de articulación '
+                            + (frame.jointIndex + 1) + ' (Δθ = '
+                            + format(frame.deltaDegrees) + '°).';
+            document.getElementById('ccd-first').disabled = ccdFrameIndex === 0;
+            document.getElementById('ccd-prev').disabled = ccdFrameIndex === 0;
+            document.getElementById('ccd-next').disabled = isLast;
+            if (isLast && lastCCDResult) {
+                stopPlayback();
+                showSolveOutcome(lastCCDResult);
+            } else {
+                status.className = 'text-xs text-slate-300';
+                status.textContent = ccdFrameIndex === 0
+                    ? 'Listo para observar los pasos del algoritmo CCD.'
+                    : 'Reproduciendo el barrido ' + frame.iteration
+                        + ', articulación ' + (frame.jointIndex + 1) + '.';
+            }
+        }
+
+        function advancePlayback(timestamp) {
+            if (!playbackRunning) return;
+            if (playbackLastTick === null) playbackLastTick = timestamp;
+            const interval = Number(document.getElementById('ccd-speed').value);
+            if (timestamp - playbackLastTick >= interval) {
+                playbackLastTick = timestamp;
+                if (ccdFrameIndex < ccdFrames.length - 1) {
+                    showCCDFrame(ccdFrameIndex + 1);
+                } else {
+                    stopPlayback();
+                }
+            }
+            if (playbackRunning) playbackRequest = requestAnimationFrame(advancePlayback);
+        }
+
+        function startPlayback() {
+            if (!ccdFrames.length) return;
+            if (ccdFrameIndex === ccdFrames.length - 1) showCCDFrame(0);
+            playbackRunning = true;
+            playbackButton.textContent = 'Pausar';
+            playbackLastTick = null;
+            playbackRequest = requestAnimationFrame(advancePlayback);
+        }
+
+        playbackButton.addEventListener('click', () => {
+            if (playbackRunning) stopPlayback();
+            else startPlayback();
+        });
+        document.getElementById('ccd-first').addEventListener('click', () => {
+            stopPlayback();
+            showCCDFrame(0);
+        });
+        document.getElementById('ccd-prev').addEventListener('click', () => {
+            stopPlayback();
+            showCCDFrame(ccdFrameIndex - 1);
+        });
+        document.getElementById('ccd-next').addEventListener('click', () => {
+            stopPlayback();
+            showCCDFrame(ccdFrameIndex + 1);
+        });
+        document.getElementById('ccd-final').addEventListener('click', () => {
+            stopPlayback();
+            showCCDFrame(ccdFrames.length - 1);
+        });
+        playbackProgress.addEventListener('input', () => {
+            stopPlayback();
+            showCCDFrame(Number(playbackProgress.value));
+        });
+
+        function solvePosition() {
+            const target = readTarget();
+            if (!target || viewer.dhParams.some(param => param.type !== 'R')) {
+                updateSolveAvailability();
+                return;
+            }
+            invalidatePlayback();
+            const initialAngles = viewer.dhParams.map(param => param.theta);
+            const initialError = viewer.getEEPosition().distanceTo(target);
+            const frames = [{
+                angles: initialAngles,
+                error: initialError,
+                iteration: 0,
+                jointIndex: null,
+                deltaDegrees: 0
+            }];
+            const result = solveIKPositionCCDDetailed(viewer, target, {
+                maxIterations: 200,
+                tolerance: 0.5,
+                onStep: step => frames.push({
+                    angles: step.angles,
+                    error: step.error,
+                    iteration: step.iteration,
+                    jointIndex: step.jointIndex,
+                    deltaDegrees: step.deltaDegrees
+                })
+            });
+            // The solver keeps the best sweep, which can precede its final
+            // attempted pose. Show that restoration explicitly if it occurs.
+            const bestAngles = viewer.dhParams.map(param => param.theta);
+            if (frames.some(frame => frame.angles.length !== bestAngles.length)) {
+                throw new Error('CCD trace has incompatible joint counts.');
+            }
+            if (bestAngles.some((theta, i) =>
+                Math.abs(theta - frames[frames.length - 1].angles[i]) > 1e-8)) {
+                frames.push({
+                    angles: bestAngles,
+                    error: result.error,
+                    iteration: result.iterations,
+                    jointIndex: null,
+                    deltaDegrees: 0
+                });
+            }
+            ccdFrames = frames;
+            lastCCDResult = result;
+            playbackPanel.classList.remove('hidden');
+            showCCDFrame(0);
+            if (frames.length > 1) {
+                // Honor reduced-motion preferences: manual stepping remains
+                // available without automatically animating the robot.
+                if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+                    startPlayback();
+                }
+            } else {
+                showCCDFrame(0);
             }
         }
 
