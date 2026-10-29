@@ -58,6 +58,10 @@ function gaussianElimination6x6(A, b) {
  * @param {Object} [options]
  * @param {number} [options.maxIterations=200] - Maximum full CCD sweeps
  * @param {number} [options.tolerance=0.5] - Position tolerance in model units
+ * @param {Function} [options.onStep] - Optional callback after a joint update:
+ *   {iteration, jointIndex, deltaDegrees, angles, error}.
+ *   Each iteration denotes one full sweep from the last joint to the first.
+ *   No callbacks are emitted for joints that cannot move or have zero update.
  * @returns {{solved:boolean,status:string,iterations:number,error:number,initialError:number}}
  */
 export function solveIKPositionCCDDetailed(viewer, target, options = {}) {
@@ -107,6 +111,15 @@ export function solveIKPositionCCDDetailed(viewer, target, options = {}) {
 
             const theta = viewer.dhParams[i].theta + THREE.MathUtils.radToDeg(delta);
             viewer.dhParams[i].theta = ((theta + 180) % 360 + 360) % 360 - 180;
+            if (typeof options.onStep === 'function') {
+                options.onStep({
+                    iteration: iter + 1,
+                    jointIndex: i,
+                    deltaDegrees: THREE.MathUtils.radToDeg(delta),
+                    angles: viewer.dhParams.map(joint => joint.theta),
+                    error: viewer.getEEPosition().distanceTo(target)
+                });
+            }
         }
 
         iterations = iter + 1;
