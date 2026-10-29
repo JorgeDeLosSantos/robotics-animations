@@ -242,6 +242,7 @@
             maxLinks: 6
         });
         let selectedJointIndex = 0;
+        let selectedJoint = viewer.dhParams[0];
 
         // Kept outside robotGroup: geometry redraws and "Encuadrar" ignore
         // the teaching overlays. Both arrows indicate direction, not scale.
@@ -339,7 +340,12 @@
 
 
         function syncJointSelector() {
-            selectedJointIndex = Math.max(0, Math.min(selectedJointIndex, viewer.dhParams.length - 1));
+            // Keep the same selected joint if earlier DH rows are removed.
+            const currentIndex = viewer.dhParams.indexOf(selectedJoint);
+            selectedJointIndex = currentIndex >= 0
+                ? currentIndex
+                : Math.max(0, Math.min(selectedJointIndex, viewer.dhParams.length - 1));
+            selectedJoint = viewer.dhParams[selectedJointIndex];
             const select = document.getElementById('jacobian-joint-select');
             select.replaceChildren();
             viewer.dhParams.forEach((param, index) => {
@@ -364,6 +370,7 @@
         function selectJoint(index) {
             if (!Number.isInteger(index) || index < 0 || index >= viewer.dhParams.length) return;
             selectedJointIndex = index;
+            selectedJoint = viewer.dhParams[index];
             updateSelectionHighlights();
             renderJacobian();
         }
@@ -457,7 +464,12 @@
                     ? "\\dot{d}_{" + (index + 1) + "}"
                     : "\\dot{\\theta}_{" + (index + 1) + "}";
                 katex.render(tex, button, { throwOnError: false });
-                button.addEventListener('click', () => selectJoint(index));
+                button.addEventListener('click', () => {
+                    selectJoint(index);
+                    // The matrix is rebuilt when a column changes; restore
+                    // keyboard focus to the newly rendered header button.
+                    table.querySelectorAll('thead button')[index]?.focus({ preventScroll: true });
+                });
                 th.title = 'Articulación ' + (index + 1) + ' (' + param.type + ')';
                 th.appendChild(button);
                 header.appendChild(th);
@@ -538,6 +550,7 @@
             presetBaseline = copyDH(example.params);
             viewer.dhParams = copyDH(example.params);
             selectedJointIndex = 0;
+            selectedJoint = viewer.dhParams[0];
             presetDescription.textContent = example.description;
             viewer.renderTable();
             viewer.updateRobotGeometry();
