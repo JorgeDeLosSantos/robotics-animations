@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cinemática inversa de pose completa — DLS</title>
+    <title>Full-Pose Inverse Kinematics — DLS</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <script type="importmap">
     {
@@ -32,75 +32,75 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen md:min-h-[560px] md:h-dvh flex flex-col font-sans">
     <header class="shrink-0 bg-slate-800 border-b border-slate-700 p-4 shadow-md">
-        <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-indigo-400">Cinemática inversa de pose completa</h1>
+        <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-indigo-400">Full-Pose Inverse Kinematics</h1>
     </header>
     <main class="flex-none md:flex-1 md:min-h-0 flex flex-col md:flex-row md:overflow-hidden">
         <div id="controls-panel" class="w-full md:w-5/12 md:min-h-0 p-4 md:overflow-y-auto md:overscroll-contain border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Manipulador de ejemplo</label>
+                <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Example Manipulator</label>
                 <select id="robot-preset" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2">
-                    <option value="spatial6r">6R espacial</option>
-                    <option value="custom" disabled>Configuración personalizada</option>
+                    <option value="spatial6r">Spatial 6R</option>
+                    <option value="custom" disabled>Custom Configuration</option>
                 </select>
-                <p id="preset-description" class="text-xs text-slate-400">Manipulador de seis juntas revolutas para estudiar posición y orientación del efector final.</p>
+                <p id="preset-description" class="text-xs text-slate-400">Six-revolute-joint manipulator for exploring end-effector position and orientation.</p>
             </section>
 
             <section class="bg-slate-800/70 border border-indigo-500/40 rounded-lg p-3 flex flex-col gap-3">
-                <h2 class="text-sm font-semibold text-indigo-300">Pose objetivo</h2>
-                <p class="text-xs font-medium text-slate-300">Posición deseada · unidades del modelo</p>
+                <h2 class="text-sm font-semibold text-indigo-300">Target Pose</h2>
+                <p class="text-xs font-medium text-slate-300">Desired Position · Model Units</p>
                 <div class="grid grid-cols-3 gap-2">
                     <div><label for="ik-x" class="block mb-1 text-xs text-slate-400">X</label><input id="ik-x" type="number" step="any" class="w-full rounded border border-slate-600 bg-slate-900 p-2 text-center text-amber-300 font-mono"></div>
                     <div><label for="ik-y" class="block mb-1 text-xs text-slate-400">Y</label><input id="ik-y" type="number" step="any" class="w-full rounded border border-slate-600 bg-slate-900 p-2 text-center text-amber-300 font-mono"></div>
                     <div><label for="ik-z" class="block mb-1 text-xs text-slate-400">Z</label><input id="ik-z" type="number" step="any" class="w-full rounded border border-slate-600 bg-slate-900 p-2 text-center text-amber-300 font-mono"></div>
                 </div>
-                <p class="text-xs font-medium text-slate-300">Orientación deseada · ángulos de Euler XYZ, grados</p>
+                <p class="text-xs font-medium text-slate-300">Desired Orientation · XYZ Euler Angles (Degrees)</p>
                 <div class="grid grid-cols-3 gap-2">
                     <div><label for="ik-roll" class="block mb-1 text-xs text-slate-400">Roll (X)</label><input id="ik-roll" type="number" step="any" class="w-full rounded border border-slate-600 bg-slate-900 p-2 text-center text-emerald-300 font-mono"></div>
                     <div><label for="ik-pitch" class="block mb-1 text-xs text-slate-400">Pitch (Y)</label><input id="ik-pitch" type="number" step="any" class="w-full rounded border border-slate-600 bg-slate-900 p-2 text-center text-emerald-300 font-mono"></div>
                     <div><label for="ik-yaw" class="block mb-1 text-xs text-slate-400">Yaw (Z)</label><input id="ik-yaw" type="number" step="any" class="w-full rounded border border-slate-600 bg-slate-900 p-2 text-center text-emerald-300 font-mono"></div>
                 </div>
-                <p class="text-[11px] text-slate-400">Convención XYZ: \(R=R_x(\mathrm{roll})R_y(\mathrm{pitch})R_z(\mathrm{yaw})\). Los tres ángulos definen una orientación, no tres errores angulares independientes.</p>
-                <button id="solve-ik-btn" type="button" class="w-full rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-semibold py-2.5">Resolver pose completa (DLS)</button>
+                <p class="text-[11px] text-slate-400">XYZ convention: \(R=R_x(\mathrm{roll})R_y(\mathrm{pitch})R_z(\mathrm{yaw})\). The three angles define an orientation, not three independent angular errors.</p>
+                <button id="solve-ik-btn" type="button" class="w-full rounded bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white text-sm font-semibold py-2.5">Solve Full Pose (DLS)</button>
                 <div class="flex flex-wrap gap-2 text-xs">
-                    <button id="target-from-current" type="button" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-1.5">Usar pose actual como objetivo</button>
-                    <button id="reset-target" type="button" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-1.5">Restablecer objetivo</button>
+                    <button id="target-from-current" type="button" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-1.5">Use Current Pose as Target</button>
+                    <button id="reset-target" type="button" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-1.5">Reset Target</button>
                 </div>
                 <p id="ik-status" role="status" aria-live="polite" class="text-xs text-slate-400">Modifica la pose objetivo y pulsa Resolver.</p>
-                <p id="ik-limit-note" class="text-[11px] text-slate-500">DLS para al menos seis juntas revolutas; sin límites articulares ni colisiones.</p>
+                <p id="ik-limit-note" class="text-[11px] text-slate-500">DLS requires at least six revolute joints; no joint limits or collision checks.</p>
             </section>
 
-            <section id="dls-playback-panel" class="hidden bg-slate-800/60 border border-indigo-500/30 rounded-lg p-3 flex flex-col gap-3" aria-label="Reproducción de iteraciones DLS">
+            <section id="dls-playback-panel" class="hidden bg-slate-800/60 border border-indigo-500/30 rounded-lg p-3 flex flex-col gap-3" aria-label="Reproducción de iterations DLS">
                 <div class="flex flex-wrap items-center justify-between gap-2">
-                    <h3 class="text-sm font-semibold text-indigo-300">Ejecución paso a paso · DLS</h3>
-                    <label for="dls-speed" class="flex items-center gap-2 text-xs text-slate-400">Velocidad
+                    <h3 class="text-sm font-semibold text-indigo-300">Step-by-Step Execution · DLS</h3>
+                    <label for="dls-speed" class="flex items-center gap-2 text-xs text-slate-400">Speed
                         <select id="dls-speed" class="rounded bg-slate-900 border border-slate-600 text-slate-100 px-2 py-1">
-                            <option value="650">Lenta</option>
+                            <option value="650">Slow</option>
                             <option value="300" selected>Normal</option>
-                            <option value="110">Rápida</option>
+                            <option value="110">Fast</option>
                         </select>
                     </label>
                 </div>
-                <p class="text-xs text-slate-400">Cada paso corresponde a una actualización numérica aceptada por DLS. El solver ajusta simultáneamente todas las articulaciones.</p>
+                <p class="text-xs text-slate-400">Each step is an accepted numerical DLS update. The solver adjusts all joints simultaneously.</p>
                 <div class="flex justify-between items-center gap-2 font-mono text-xs text-slate-300">
-                    <output id="dls-step-counter">Paso 0 / 0</output>
-                    <output id="dls-step-iteration">Iteración 0</output>
+                    <output id="dls-step-counter">Step 0 / 0</output>
+                    <output id="dls-step-iteration">Iteration 0</output>
                 </div>
                 <input id="dls-progress" type="range" min="0" max="1" step="1" value="0"
-                    aria-label="Recorrer iteraciones DLS" class="w-full accent-indigo-500">
+                    aria-label="Recorrer iterations DLS" class="w-full accent-indigo-500">
                 <div class="grid grid-cols-4 gap-2">
-                    <button type="button" id="dls-first" title="Ir a la configuración inicial" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs">Inicio</button>
-                    <button type="button" id="dls-prev" title="Retroceder una actualización" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs">‹ Anterior</button>
-                    <button type="button" id="dls-play" class="rounded bg-indigo-600 hover:bg-indigo-500 px-2 py-2 text-xs font-semibold">Reproducir</button>
-                    <button type="button" id="dls-next" title="Avanzar una actualización" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs">Siguiente ›</button>
+                    <button type="button" id="dls-first" title="Ir a la configuración inicial" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs">Start</button>
+                    <button type="button" id="dls-prev" title="Retroceder una actualización" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs">‹ Previous</button>
+                    <button type="button" id="dls-play" class="rounded bg-indigo-600 hover:bg-indigo-500 px-2 py-2 text-xs font-semibold">Play</button>
+                    <button type="button" id="dls-next" title="Avanzar una actualización" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs">Next ›</button>
                 </div>
-                <button id="dls-final" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Ir directamente al resultado</button>
-                <p id="dls-step-description" class="text-xs text-slate-200">Configuración inicial.</p>
+                <button id="dls-final" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Jump to Result</button>
+                <p id="dls-step-description" class="text-xs text-slate-200">Initial configuration.</p>
                 <div class="rounded bg-slate-950/70 border border-slate-800 p-2 flex flex-col gap-2">
 <div class="flex items-center justify-between gap-2 text-xs">
-                        <span class="text-amber-300 font-semibold">Error de posición</span>
+                        <span class="text-amber-300 font-semibold">Position Error</span>
                         <output id="dls-position-value" class="text-amber-300 font-mono">—</output>
                     </div>
-                    <svg viewBox="0 0 360 122" role="img" aria-label="Evolución del error de posición en unidades del modelo y su tolerancia durante las actualizaciones DLS" class="w-full">
+                    <svg viewBox="0 0 360 122" role="img" aria-label="Evolución del error de posición en model units y su tolerancia durante las actualizaciones DLS" class="w-full">
                         <line x1="51" y1="92" x2="342" y2="92" stroke="#64748b" stroke-width="1"/>
                         <line x1="51" y1="16" x2="51" y2="92" stroke="#64748b" stroke-width="1"/>
                         <line x1="51" y1="54" x2="342" y2="54" stroke="#64748b" stroke-opacity=".22" stroke-dasharray="3 4"/>
@@ -111,12 +111,12 @@
                         <polyline id="dls-position-curve" points="" fill="none" stroke="#fbbf24" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
                         <line id="dls-position-selector" x1="51" y1="16" x2="51" y2="92" stroke="#fbbf24" stroke-width="1" stroke-opacity=".5" stroke-dasharray="3 4"/>
                         <circle id="dls-position-cursor" cx="51" cy="16" r="4.2" fill="#fbbf24" stroke="#0f172a" stroke-width="1.5"/>
-                        <text x="51" y="108" font-size="10" fill="#94a3b8">Inicio</text>
-                        <text x="342" y="108" font-size="10" fill="#94a3b8" text-anchor="end">Resultado</text>
-                        <text x="196" y="120" font-size="9.5" fill="#94a3b8" text-anchor="middle">Pasos registrados</text>
+                        <text x="51" y="108" font-size="10" fill="#94a3b8">Start</text>
+                        <text x="342" y="108" font-size="10" fill="#94a3b8" text-anchor="end">Result</text>
+                        <text x="196" y="120" font-size="9.5" fill="#94a3b8" text-anchor="middle">Recorded Steps</text>
                     </svg>
                     <div class="flex items-center justify-between gap-2 text-xs">
-                        <span class="text-violet-300 font-semibold">Error de orientación</span>
+                        <span class="text-violet-300 font-semibold">Orientation Error</span>
                         <output id="dls-orientation-value" class="text-violet-300 font-mono">—</output>
                     </div>
                     <svg viewBox="0 0 360 122" role="img" aria-label="Evolución del error de orientación en grados y su tolerancia durante las actualizaciones DLS" class="w-full">
@@ -130,87 +130,87 @@
                         <polyline id="dls-orientation-curve" points="" fill="none" stroke="#c084fc" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
                         <line id="dls-orientation-selector" x1="51" y1="16" x2="51" y2="92" stroke="#c084fc" stroke-width="1" stroke-opacity=".5" stroke-dasharray="3 4"/>
                         <circle id="dls-orientation-cursor" cx="51" cy="16" r="4.2" fill="#c084fc" stroke="#0f172a" stroke-width="1.5"/>
-                        <text x="51" y="108" font-size="10" fill="#94a3b8">Inicio</text>
-                        <text x="342" y="108" font-size="10" fill="#94a3b8" text-anchor="end">Resultado</text>
-                        <text x="196" y="120" font-size="9.5" fill="#94a3b8" text-anchor="middle">Pasos registrados</text>
+                        <text x="51" y="108" font-size="10" fill="#94a3b8">Start</text>
+                        <text x="342" y="108" font-size="10" fill="#94a3b8" text-anchor="end">Result</text>
+                        <text x="196" y="120" font-size="9.5" fill="#94a3b8" text-anchor="middle">Recorded Steps</text>
                     </svg>
                 </div>
-                <p class="text-[11px] text-slate-500">Las curvas muestran valores con escalas verticales independientes. <span class="text-green-400">Línea verde discontinua</span> = tolerancia de convergencia (0.5 unidades para posición, 0.5° para orientación). La marca vertical sigue el paso seleccionado; una métrica puede subir aunque mejore el residual conjunto.</p>
+                <p class="text-[11px] text-slate-500">The plots use independent vertical scales. <span class="text-green-400">Green Dashed Line</span> = convergence tolerance (0.5 model units for position, 0.5° for orientation). The vertical marker follows the selected step; one error may increase even when the combined residual improves.</p>
             </section>
 
-            <section id="dls-summary" class="hidden bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Resumen de la solución DLS">
-                <h3 class="text-sm font-semibold text-indigo-300">Resumen de convergencia</h3>
+            <section id="dls-summary" class="hidden bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Resumen de la solution DLS">
+                <h3 class="text-sm font-semibold text-indigo-300">Convergence Summary</h3>
                 <p id="dls-summary-status" class="text-sm font-semibold" role="status">—</p>
                 <p id="dls-summary-counts" class="text-xs text-slate-300">—</p>
                 <div class="grid grid-cols-2 gap-2 text-xs">
                     <div class="rounded bg-slate-950 border border-slate-800 p-2">
-                        <div class="font-semibold text-amber-300 mb-1">Posición</div>
+                        <div class="font-semibold text-amber-300 mb-1">Position</div>
                         <p id="dls-summary-position" class="font-mono text-slate-200">—</p>
-                        <p class="text-slate-500 mt-1">Tolerancia ≤ 0.5 unid.</p>
+                        <p class="text-slate-500 mt-1">Tolerance ≤ 0.5 units</p>
                     </div>
                     <div class="rounded bg-slate-950 border border-slate-800 p-2">
-                        <div class="font-semibold text-violet-300 mb-1">Orientación</div>
+                        <div class="font-semibold text-violet-300 mb-1">Orientation</div>
                         <p id="dls-summary-orientation" class="font-mono text-slate-200">—</p>
-                        <p class="text-slate-500 mt-1">Tolerancia ≤ 0.5°</p>
+                        <p class="text-slate-500 mt-1">Tolerance ≤ 0.5°</p>
                     </div>
                 </div>
                 <p id="dls-summary-note" class="text-xs text-slate-400">—</p>
             </section>
 
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Error de pose">
-                <h3 class="text-sm font-semibold text-indigo-400">Pose y errores</h3>
+                <h3 class="text-sm font-semibold text-indigo-400">Pose and Errors</h3>
                 <div class="rounded border border-slate-800 bg-slate-950 p-3 text-xs font-mono flex flex-col gap-2">
-                    <p id="current-position" class="text-cyan-300">Posición actual: —</p>
-                    <p id="target-position" class="text-pink-300">Posición objetivo: —</p>
-                    <p id="position-error" class="text-amber-300 font-bold">Error de posición: —</p>
-                    <p id="orientation-error" class="text-violet-300 font-bold">Error de orientación: —</p>
-                    <p id="orientation-axis" class="text-slate-300">Eje de corrección: —</p>
+                    <p id="current-position" class="text-cyan-300">Current Position: —</p>
+                    <p id="target-position" class="text-pink-300">Target Position: —</p>
+                    <p id="position-error" class="text-amber-300 font-bold">Position Error: —</p>
+                    <p id="orientation-error" class="text-violet-300 font-bold">Orientation Error: —</p>
+                    <p id="orientation-axis" class="text-slate-300">Correction Axis: —</p>
                 </div>
                 <div class="overflow-x-auto text-center text-sm py-1">\(e_p=\|\mathbf p_d-\mathbf p_e\|\)</div>
                 <div class="overflow-x-auto text-center text-sm py-1">\(e_R=2\arccos\left(|\mathbf q_d\cdot\mathbf q_e|\right)\)</div>
-                <p class="text-xs text-slate-400">El error de orientación es el ángulo de rotación mínimo entre ambos sistemas, no la diferencia entre los valores de roll, pitch y yaw.</p>
-                <p class="text-[11px] text-slate-500">Tolerancias de convergencia del solver: posición ≤ 0.5 unidades del modelo y orientación ≤ 0.5°.</p>
+                <p class="text-xs text-slate-400">Orientation error is the minimum rotation angle between frames, not the difference between roll, pitch, and yaw values.</p>
+                <p class="text-[11px] text-slate-500">Solver convergence tolerances: position ≤ 0.5 model units and orientation ≤ 0.5°.</p>
                 <label class="flex gap-2 items-center text-xs text-slate-300 cursor-pointer">
                     <input id="show-rotation-axis" type="checkbox" checked class="accent-indigo-500">
-                    Mostrar eje de rotación correctiva en 3D
+                    Show Correction Rotation Axis in 3D
                 </label>
                 <p id="solution-angles" class="text-xs text-slate-300 font-mono"></p>
             </section>
 
-            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Variables articulares">
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Joint Variables">
                 <div class="flex justify-between items-center gap-2">
-                    <h3 class="text-sm font-semibold text-indigo-400">Variables articulares</h3>
-                    <button id="reset-joints" type="button" class="text-xs rounded bg-slate-700 hover:bg-slate-600 px-2 py-1">Restablecer</button>
+                    <h3 class="text-sm font-semibold text-indigo-400">Joint Variables</h3>
+                    <button id="reset-joints" type="button" class="text-xs rounded bg-slate-700 hover:bg-slate-600 px-2 py-1">Reset</button>
                 </div>
                 <div id="joint-controls" class="flex flex-col gap-3"></div>
-                <p class="text-xs text-slate-400">Puedes cambiar la configuración inicial antes de resolver. La solución depende de esta configuración.</p>
+                <p class="text-xs text-slate-400">You can change the initial configuration before solving. The solution depends on this configuration.</p>
             </section>
 
             <details id="dh-details" class="rounded-lg border border-slate-700 bg-slate-800/60 p-3">
-                <summary class="cursor-pointer font-semibold text-sm text-indigo-400">Configuración DH · editar geometría</summary>
+                <summary class="cursor-pointer font-semibold text-sm text-indigo-400">DH Configuration · Edit Geometry</summary>
                 <div class="pt-3 flex flex-col gap-3">
                     <div class="flex items-center justify-between">
-                        <h2 class="text-sm font-semibold text-slate-200">Parámetros DH</h2>
-                        <button id="add-row-btn" type="button" class="rounded bg-indigo-600 hover:bg-indigo-500 text-xs px-2 py-1.5">+ Agregar eslabón</button>
+                        <h2 class="text-sm font-semibold text-slate-200">DH Parameters</h2>
+                        <button id="add-row-btn" type="button" class="rounded bg-indigo-600 hover:bg-indigo-500 text-xs px-2 py-1.5">+ Add Link</button>
                     </div>
                     <div class="overflow-x-auto rounded border border-slate-700 bg-slate-900/50">
                         <table class="w-full text-left min-w-[450px] text-xs">
                             <thead><tr class="bg-slate-800 text-slate-400">
-                                <th class="p-2 text-center">#</th><th class="p-2 text-center">Tipo</th>
+                                <th class="p-2 text-center">#</th><th class="p-2 text-center">Type</th>
                                 <th class="p-2 text-center">\(a\)</th><th class="p-2 text-center">\(\alpha\) (°)</th>
                                 <th class="p-2 text-center">\(d\)</th><th class="p-2 text-center">\(\theta\) (°)</th>
                                 <th class="p-2 text-center">.</th>
                             </tr></thead><tbody id="dh-table-body"></tbody>
                         </table>
                     </div>
-                    <p class="text-xs text-slate-400">Los modelos mixtos R/P pueden visualizarse, pero la resolución DLS de pose completa de esta versión utiliza únicamente juntas R.</p>
+                    <p class="text-xs text-slate-400">Mixed R/P models can be visualized, but this version's full-pose DLS solver supports only R joints.</p>
                 </div>
             </details>
 
             <details id="ee-transform-details" class="rounded-lg border border-slate-700 bg-slate-800/60 p-3">
-                <summary class="cursor-pointer font-semibold text-sm text-indigo-400">Transformación del efector final \(T_n^0\)</summary>
+                <summary class="cursor-pointer font-semibold text-sm text-indigo-400">End-Effector Transformation \(T_n^0\)</summary>
                 <div class="pt-3 flex flex-col gap-2">
-                    <p class="text-xs text-slate-400">Transformación respecto al sistema base.</p>
+                    <p class="text-xs text-slate-400">Transformation relative to the base frame.</p>
                     <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400"></div>
                 </div>
             </details>
@@ -219,19 +219,19 @@
         <div class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950">
             <div id="canvas-container" class="w-full h-full"></div>
             <div class="absolute bottom-9 left-3 z-10 flex flex-wrap gap-x-4 text-[11px] text-slate-300 pointer-events-none select-none">
-                <span><span class="text-pink-400">●</span> Pose objetivo · ejes grandes</span>
-                <span><span class="text-cyan-300">●</span> Pose actual · ejes pequeños</span>
-                <span><span class="text-amber-300">—</span> Distancia</span>
-                <span><span class="text-violet-300">➜</span> Eje correctivo</span>
+                <span><span class="text-pink-400">●</span> Target Pose · Large Axes</span>
+                <span><span class="text-cyan-300">●</span> Current Pose · Small Axes</span>
+                <span><span class="text-amber-300">—</span> Distance</span>
+                <span><span class="text-violet-300">➜</span> Correction Axis</span>
             </div>
-            <p class="absolute bottom-2 left-3 text-[11px] text-slate-400/80 pointer-events-none select-none z-10">Arrastrar: rotar · botón derecho: desplazar · rueda: zoom</p>
-            <div class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Controles de cámara">
-                <button id="btn-view-top" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all">Superior (XY)</button>
-                <button id="btn-view-front" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all">Frontal (XZ)</button>
-                <button id="btn-view-side" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all">Lateral (YZ)</button>
-                <button id="btn-view-iso" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all">Isométrica</button>
+            <p class="absolute bottom-2 left-3 text-[11px] text-slate-400/80 pointer-events-none select-none z-10">Drag: rotate · right-click drag: pan · scroll: zoom</p>
+            <div class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Camera Controls">
+                <button id="btn-view-top" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all">Top (XY)</button>
+                <button id="btn-view-front" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all">Front (XZ)</button>
+                <button id="btn-view-side" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all">Side (YZ)</button>
+                <button id="btn-view-iso" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all">Isometric</button>
                 <span class="hidden sm:block h-6 w-px mx-0.5 bg-slate-600/70"></span>
-                <button id="fit-robot" type="button" title="Centrar y ajustar la vista" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded">Encuadrar</button>
+                <button id="fit-robot" type="button" title="Centrar y ajustar la vista" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded">Fit View</button>
             </div>
         </div>
     </main>
@@ -256,7 +256,7 @@
         const copyDH = params => params.map(param => ({ ...param }));
         const examples = {
             spatial6r: {
-                description: 'Manipulador 6R espacial para estudiar posición y orientación.',
+                description: 'Spatial 6R manipulator for exploring position and orientation.',
                 params: initialDHParams
             }
         };
@@ -368,7 +368,7 @@
         function clearSolveStatus() {
             invalidatePlayback();
             status.className = 'text-xs text-slate-400';
-            status.textContent = 'Pose modificada. Pulsa Resolver para calcular una nueva solución.';
+            status.textContent = 'Target pose changed. Click Solve to compute a new solution.';
         }
         function refreshSolveAvailability() {
             const valid = readTarget() !== null;
@@ -378,16 +378,16 @@
             const note = document.getElementById('ik-limit-note');
             if (!supported) {
                 note.className = 'text-xs text-amber-300';
-                note.textContent = 'La resolución de pose completa todavía admite únicamente juntas revolutas (R).';
+                note.textContent = 'Full-pose IK currently supports only revolute (R) joints.';
             } else if (!sufficient) {
                 note.className = 'text-xs text-amber-300';
-                note.textContent = 'Se necesitan al menos seis juntas R para habilitar este ejemplo de DLS.';
+                note.textContent = 'At least six R joints are required for this DLS example.';
             } else if (!valid) {
                 note.className = 'text-xs text-amber-300';
-                note.textContent = 'Completa las seis coordenadas objetivo con números válidos.';
+                note.textContent = 'Enter valid numeric values for all six target coordinates.';
             } else {
                 note.className = 'text-[11px] text-slate-500';
-                note.textContent = 'DLS de pose completa para juntas R; sin límites articulares ni control de colisiones.';
+                note.textContent = 'Full-pose DLS for R joints; no joint limits or collision checks.';
             }
         }
         function updatePoseDisplay() {
@@ -421,19 +421,19 @@
                 orientationArrow.setLength(length,length * .23,length * .11);
             }
             document.getElementById('current-position').textContent =
-                'Posición actual: ' + coordinateText(current.position);
+                'Current Position: ' + coordinateText(current.position);
             document.getElementById('target-position').textContent =
-                'Posición objetivo: ' + coordinateText(lastValidTarget.position);
+                'Target Position: ' + coordinateText(lastValidTarget.position);
             document.getElementById('position-error').textContent = target
-                ? 'Error de posición: ' + format(errors.pErr) + ' unid.'
-                : 'Error de posición: — (objetivo incompleto)';
+                ? 'Position Error: ' + format(errors.pErr) + ' units'
+                : 'Position Error: — (objetivo incompleto)';
             document.getElementById('orientation-error').textContent = target
-                ? 'Error de orientación: '
+                ? 'Orientation Error: '
                     + format(THREE.MathUtils.radToDeg(errors.rErr)) + '°'
-                : 'Error de orientación: — (objetivo incompleto)';
+                : 'Orientation Error: — (objetivo incompleto)';
             document.getElementById('orientation-axis').textContent = target && errors.rErr > 1e-5
-                ? 'Eje correctivo en {0}: ' + coordinateText(errors.rotation.clone().normalize())
-                : 'Eje correctivo: —';
+                ? 'Correction Axis en {0}: ' + coordinateText(errors.rotation.clone().normalize())
+                : 'Correction Axis: —';
             document.getElementById('solution-angles').textContent =
                 viewer.dhParams.map((j,i)=> (j.type === 'R' ? 'θ' : 'd')+(i+1)+' = '
                     +format(j.type === 'R' ? j.theta : j.d)
@@ -468,7 +468,7 @@
             } else {
                 presetSelect.value = 'custom';
                 presetDescription.textContent =
-                    'Modelo editado. Seleccionar otro ejemplo reemplazará los parámetros DH actuales.';
+                    'Model edited. Selecting another example will replace the current DH parameters.';
             }
         }
         function refreshJointControls() {
@@ -481,7 +481,7 @@
                 const title = document.createElement('div');
                 title.className = 'flex justify-between gap-2 text-xs';
                 const name = document.createElement('span');
-                name.textContent = `Articulación ${index + 1} · ${isRevolute ? 'R (θ)' : 'P (d)'}`;
+                name.textContent = `Joint ${index + 1} · ${isRevolute ? 'R (θ)' : 'P (d)'}`;
                 const amount = document.createElement('output');
                 amount.className = 'text-indigo-300 font-mono';
                 const formatValue = number => String(Number(Number(number).toFixed(1)));
@@ -569,7 +569,7 @@
             if (playbackRequest !== null) cancelAnimationFrame(playbackRequest);
             playbackRequest = null;
             playbackLastTick = null;
-            playbackButton.textContent = 'Reproducir';
+            playbackButton.textContent = 'Play';
         }
 
         function invalidatePlayback() {
@@ -585,18 +585,18 @@
             if (result.solved) {
                 status.className = 'text-xs text-emerald-400 font-medium';
                 status.textContent = 'Convergencia en ' + result.iterations
-                    + ' iteraciones. Posición: ' + format(result.pErr)
-                    + ' unid.; orientación: '
+                    + ' iterations. Position: ' + format(result.pErr)
+                    + ' units; orientación: '
                     + format(THREE.MathUtils.radToDeg(result.rErr)) + '°.';
             } else {
                 status.className = 'text-xs text-amber-300';
                 const cause = result.status === 'stalled'
-                    ? 'El algoritmo se estancó.'
+                    ? 'The algorithm stalled.'
                     : result.status === 'numerical_failure'
-                        ? 'Se produjo una dificultad numérica.'
-                        : 'Se alcanzó el máximo de iteraciones.';
-                status.textContent = cause + ' Error de posición: ' + format(result.pErr)
-                    + ' unid.; orientación: '
+                        ? 'A numerical difficulty occurred.'
+                        : 'The maximum iteration count was reached.';
+                status.textContent = cause + ' Position Error: ' + format(result.pErr)
+                    + ' units; orientación: '
                     + format(THREE.MathUtils.radToDeg(result.rErr))
                     + '°. Esto no demuestra que la pose sea inalcanzable.';
             }
@@ -652,13 +652,13 @@
             const label = document.getElementById('dls-summary-status');
             const reasons = {
                 converged: 'Convergencia alcanzada',
-                stalled: 'Sin convergencia: estancamiento',
-                max_iterations: 'Sin convergencia: límite de iteraciones',
-                numerical_failure: 'Sin convergencia: dificultad numérica',
-                insufficient_dof: 'Sin convergencia: grados de libertad insuficientes',
-                unsupported_joint: 'Sin convergencia: tipo de junta no admitido'
+                stalled: 'No convergence: estancamiento',
+                max_iterations: 'No convergence: iteration limit',
+                numerical_failure: 'No convergence: numerical difficulty',
+                insufficient_dof: 'No convergence: grados de libertad insuficientes',
+                unsupported_joint: 'No convergence: unsupported joint type'
             };
-            label.textContent = reasons[result.status] || 'Solución no convergente';
+            label.textContent = reasons[result.status] || 'Non-convergent solution';
             label.className = result.solved
                 ? 'text-sm font-semibold text-emerald-400'
                 : 'text-sm font-semibold text-amber-300';
@@ -666,13 +666,13 @@
                 'Iteraciones intentadas: ' + result.iterations +
                 ' · actualizaciones aceptadas: ' + acceptedUpdates;
             document.getElementById('dls-summary-position').textContent =
-                format(result.initialPErr) + ' → ' + format(result.pErr) + ' unid.';
+                format(result.initialPErr) + ' → ' + format(result.pErr) + ' units';
             document.getElementById('dls-summary-orientation').textContent =
                 format(THREE.MathUtils.radToDeg(result.initialRErr)) + '° → ' +
                 format(THREE.MathUtils.radToDeg(result.rErr)) + '°';
             document.getElementById('dls-summary-note').textContent = result.solved
-                ? 'Ambos errores cumplen sus tolerancias. La solución no considera límites articulares ni colisiones.'
-                : 'La mejor configuración encontrada no cumple ambas tolerancias. Esto no demuestra que la pose sea inalcanzable.';
+                ? 'Both errors meet their tolerances. The solution does not account for joint limits or collisions.'
+                : 'The best configuration found does not meet both tolerances. This does not prove the pose is unreachable.';
         }
 
         function showDLSFrame(index) {
@@ -693,11 +693,11 @@
             document.getElementById('dls-prev').disabled = dlsFrameIndex === 0;
             document.getElementById('dls-next').disabled = isLast;
             document.getElementById('dls-step-counter').textContent =
-                'Paso ' + dlsFrameIndex + ' / ' + (dlsFrames.length - 1);
+                'Step ' + dlsFrameIndex + ' / ' + (dlsFrames.length - 1);
             document.getElementById('dls-step-iteration').textContent =
-                'Iteración ' + frame.iteration;
+                'Iteration ' + frame.iteration;
             document.getElementById('dls-position-value').textContent =
-                format(frame.pErr) + ' unid.';
+                format(frame.pErr) + ' units';
             const angleDegrees = THREE.MathUtils.radToDeg(frame.rErr);
             document.getElementById('dls-orientation-value').textContent =
                 format(angleDegrees) + '°';
@@ -713,17 +713,17 @@
             }
             document.getElementById('dls-step-description').textContent =
                 dlsFrameIndex === 0
-                    ? 'Configuración inicial antes de la primera actualización.'
+                    ? 'Initial configuration before the first update.'
                     : frame.restored
-                        ? 'Mejor configuración restaurada al terminar la búsqueda.'
-                        : 'Actualización aceptada en la iteración ' + frame.iteration
-                            + ' (factor de búsqueda: ' + frame.fraction + ').';
+                        ? 'Best configuration restored after the search.'
+                        : 'Accepted update at iteration ' + frame.iteration
+                            + ' (search factor: ' + frame.fraction + ').';
             if (isLast && lastDLSResult) {
                 stopPlayback();
                 showSolveOutcome(lastDLSResult);
             } else {
                 status.className = 'text-xs text-slate-300';
-                status.textContent = 'Explorando paso ' + dlsFrameIndex
+                status.textContent = 'Exploring step ' + dlsFrameIndex
                     + ' de ' + (dlsFrames.length - 1) + '.';
             }
         }
@@ -747,7 +747,7 @@
             if (dlsFrames.length <= 1) return;
             if (dlsFrameIndex === dlsFrames.length - 1) showDLSFrame(0);
             playbackRunning = true;
-            playbackButton.textContent = 'Pausar';
+            playbackButton.textContent = 'Pause';
             playbackLastTick = null;
             playbackRequest = requestAnimationFrame(advancePlayback);
         }
@@ -835,7 +835,7 @@
             activePreset = 'spatial6r';
             presetBaseline = copyDH(initialDHParams);
             viewer.dhParams = copyDH(initialDHParams);
-            presetDescription.textContent = 'Manipulador 6R espacial para estudiar posición y orientación.';
+            presetDescription.textContent = 'Spatial 6R manipulator for exploring position and orientation.';
             clearSolveStatus();
             viewer.renderTable();
             viewer.updateRobotGeometry();

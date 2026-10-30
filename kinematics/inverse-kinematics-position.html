@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cinemática inversa de posición — CCD</title>
+    <title>Position Inverse Kinematics — CCD</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 
     <!-- Three.js via import map -->
@@ -38,7 +38,7 @@
     <!-- Header -->
     <header class="shrink-0 bg-slate-800 border-b border-slate-700 p-4 shadow-md">
         <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-indigo-400">
-            Cinemática inversa de posición
+            Position Inverse Kinematics
         </h1>
     </header>
 
@@ -48,20 +48,20 @@
         <!-- Independently scrollable on desktop; regular document flow on mobile. -->
         <div id="controls-panel" class="w-full md:w-5/12 md:min-h-0 p-4 md:overflow-y-auto md:overscroll-contain border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Manipulador de ejemplo</label>
+                <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Example Manipulator</label>
                 <select id="robot-preset" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2">
-                    <option value="spatial3r">3R espacial</option>
-                    <option value="planar2r">2R plano</option>
-                    <option value="mixedRRP">RRP mixto</option>
-                    <option value="custom" disabled>Configuración personalizada</option>
+                    <option value="spatial3r">Spatial 3R</option>
+                    <option value="planar2r">Planar 2R</option>
+                    <option value="mixedRRP">Mixed RRP</option>
+                    <option value="custom" disabled>Custom Configuration</option>
                 </select>
                 <p id="preset-description" class="text-xs text-slate-400"></p>
             </section>
 
             <section class="bg-slate-800/70 border border-indigo-500/40 rounded-lg p-3 flex flex-col gap-3">
                 <div class="flex items-center justify-between gap-2">
-                    <h2 class="text-sm font-semibold text-indigo-300">Posición objetivo</h2>
-                    <span class="text-[11px] text-pink-400">● Objetivo en 3D</span>
+                    <h2 class="text-sm font-semibold text-indigo-300">Target Position</h2>
+                    <span class="text-[11px] text-pink-400">● Target en 3D</span>
                 </div>
                 <div class="grid grid-cols-3 gap-2">
                     <div><label for="ik-x" class="text-xs text-slate-400 block mb-1">X</label>
@@ -71,73 +71,73 @@
                     <div><label for="ik-z" class="text-xs text-slate-400 block mb-1">Z</label>
                         <input type="number" id="ik-z" value="320" step="10" class="w-full bg-slate-900 border border-slate-600 rounded p-2 text-center font-mono text-amber-300"></div>
                 </div>
-                <button type="button" id="solve-ik-btn" class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold py-2.5 rounded transition-all">Resolver cinemática inversa</button>
-                <p id="ik-status" class="text-xs text-slate-400" role="status" aria-live="polite">Modifica el objetivo y pulsa Resolver para obtener una configuración articular.</p>
-                <p id="ik-limit-note" class="text-xs text-slate-500">CCD admite juntas R y P; las juntas prismáticas se consideran sin límites de recorrido. La orientación final no se impone.</p>
+                <button type="button" id="solve-ik-btn" class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold py-2.5 rounded transition-all">Solve Inverse Kinematics</button>
+                <p id="ik-status" class="text-xs text-slate-400" role="status" aria-live="polite">Adjust the target and click Solve to obtain a joint configuration.</p>
+                <p id="ik-limit-note" class="text-xs text-slate-500">CCD supports R and P joints; prismatic travel is unrestricted. Final orientation is not constrained.</p>
             </section>
 
             <section id="ccd-playback-panel" class="hidden bg-slate-800/60 border border-indigo-500/30 rounded-lg p-3 flex flex-col gap-3" aria-label="Reproducción del algoritmo CCD">
                 <div class="flex items-center justify-between gap-2">
-                    <h3 class="text-sm font-semibold text-indigo-300">Ejecución paso a paso · CCD</h3>
-                    <label class="text-xs text-slate-400 flex items-center gap-2" for="ccd-speed">Velocidad
+                    <h3 class="text-sm font-semibold text-indigo-300">Step-by-Step Execution · CCD</h3>
+                    <label class="text-xs text-slate-400 flex items-center gap-2" for="ccd-speed">Speed
                         <select id="ccd-speed" class="bg-slate-900 border border-slate-600 text-slate-100 rounded px-2 py-1">
-                            <option value="550">Lenta</option>
+                            <option value="550">Slow</option>
                             <option value="250" selected>Normal</option>
-                            <option value="100">Rápida</option>
+                            <option value="100">Fast</option>
                         </select>
                     </label>
                 </div>
-                <p class="text-xs text-slate-400">CCD recorre las juntas desde la última hasta la primera. Cada paso muestra el ajuste de una articulación y la evolución del error.</p>
+                <p class="text-xs text-slate-400">CCD visits joints from last to first. Each step shows a joint adjustment and the change in error.</p>
                 <div class="flex items-center justify-between text-xs text-slate-300 font-mono gap-2">
-                    <output id="ccd-step-counter">Paso 0 / 0</output>
+                    <output id="ccd-step-counter">Step 0 / 0</output>
                     <output id="ccd-step-error" class="text-amber-300">Error: —</output>
                 </div>
                 <input id="ccd-progress" type="range" min="0" max="1" value="0" step="1"
-                    class="w-full accent-indigo-500" aria-label="Ir a un paso de la ejecución CCD">
+                    class="w-full accent-indigo-500" aria-label="Ir a un step de la axiscución CCD">
                 <div class="grid grid-cols-4 gap-2">
-                    <button id="ccd-first" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-2 text-xs" title="Volver a la configuración inicial">Inicio</button>
-                    <button id="ccd-prev" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-2 text-xs" title="Retroceder un paso">‹ Anterior</button>
-                    <button id="ccd-play" type="button" class="bg-indigo-600 hover:bg-indigo-500 rounded px-2 py-2 text-xs font-semibold">Reproducir</button>
-                    <button id="ccd-next" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-2 text-xs" title="Avanzar un paso">Siguiente ›</button>
+                    <button id="ccd-first" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-2 text-xs" title="Volver a la configuración inicial">Start</button>
+                    <button id="ccd-prev" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-2 text-xs" title="Retroceder un step">‹ Previous</button>
+                    <button id="ccd-play" type="button" class="bg-indigo-600 hover:bg-indigo-500 rounded px-2 py-2 text-xs font-semibold">Play</button>
+                    <button id="ccd-next" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-2 text-xs" title="Avanzar un step">Next ›</button>
                 </div>
-                <button id="ccd-final" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Ir directamente al resultado</button>
-                <p id="ccd-step-description" class="text-xs text-slate-200" aria-live="off">Configuración inicial.</p>
-                <p class="text-[11px] text-slate-500">El marcador amarillo identifica la junta ajustada; en las prismáticas, la flecha turquesa indica el sentido del desplazamiento. La línea al objetivo muestra el error tras cada paso.</p>
+                <button id="ccd-final" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Jump to Result</button>
+                <p id="ccd-step-description" class="text-xs text-slate-200" aria-live="off">Initial configuration.</p>
+                <p class="text-[11px] text-slate-500">The yellow marker identifies the adjusted joint; for prismatic joints, the turquoise arrow shows displacement direction. The target line shows the error after each step.</p>
             </section>
 
-            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Resultado de posición">
-                <h3 class="text-sm font-semibold text-indigo-400">Posición y error</h3>
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Result de posición">
+                <h3 class="text-sm font-semibold text-indigo-400">Position and Error</h3>
                 <div class="rounded bg-slate-950 border border-slate-800 p-3 flex flex-col gap-2 text-xs font-mono">
-                    <p id="current-position" class="text-cyan-300">Actual: —</p>
-                    <p id="target-position" class="text-pink-300">Objetivo: —</p>
+                    <p id="current-position" class="text-cyan-300">Current: —</p>
+                    <p id="target-position" class="text-pink-300">Target: —</p>
                     <p id="position-error" class="text-amber-300 font-bold">Error: —</p>
                 </div>
-                <p class="text-xs text-slate-400">El error es la distancia entre el objetivo y el efector final:</p>
+                <p class="text-xs text-slate-400">The error is the distance between the target and the end effector:</p>
                 <div class="overflow-x-auto text-center text-slate-200 text-sm py-1">\(\displaystyle e_p=\|\mathbf p_d-\mathbf p(\mathbf q)\|\)</div>
                 <p id="solution-angles" class="text-xs text-slate-300 font-mono"></p>
             </section>
 
-            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Variables articulares">
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Joint Variables">
                 <div class="flex justify-between items-center gap-2">
-                    <h3 class="text-sm font-semibold text-indigo-400">Variables articulares</h3>
-                    <button type="button" id="reset-joints" class="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1">Restablecer</button>
+                    <h3 class="text-sm font-semibold text-indigo-400">Joint Variables</h3>
+                    <button type="button" id="reset-joints" class="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1">Reset</button>
                 </div>
                 <div id="joint-controls" class="flex flex-col gap-3"></div>
-                <p class="text-xs text-slate-400">Puedes mover las articulaciones manualmente y volver a resolver desde esa configuración inicial.</p>
+                <p class="text-xs text-slate-400">You can manually adjust joints and solve again from the resulting initial configuration.</p>
             </section>
 
             <details id="dh-details" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
-                <summary class="cursor-pointer font-semibold text-sm text-indigo-400">Configuración DH · editar geometría</summary>
+                <summary class="cursor-pointer font-semibold text-sm text-indigo-400">DH Configuration · Edit Geometry</summary>
                 <div class="pt-3 flex flex-col gap-3">
                     <div class="flex justify-between items-center">
-                        <h2 class="text-lg font-semibold text-slate-200">Parámetros DH</h2>
-                        <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all">➕ Agregar eslabón</button>
+                        <h2 class="text-lg font-semibold text-slate-200">DH Parameters</h2>
+                        <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all">➕ Add Link</button>
                     </div>
                     <div class="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900/50">
                         <table class="w-full text-left border-collapse min-w-[450px]">
                             <thead><tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
                                 <th class="p-2.5 text-center w-10">#</th>
-                                <th class="p-2.5 text-center w-10">Tipo</th>
+                                <th class="p-2.5 text-center w-10">Type</th>
                                 <th class="p-2.5 text-center w-16">\(a\)</th>
                                 <th class="p-2.5 text-center w-16">\(\alpha\) (°)</th>
                                 <th class="p-2.5 text-center w-16">\(d\)</th>
@@ -147,14 +147,14 @@
                             <tbody id="dh-table-body"></tbody>
                         </table>
                     </div>
-                    <p class="text-xs text-slate-400">Parámetros DH estándar. CCD admite juntas R y P ideales, sin límites de recorrido prismático en esta versión.</p>
+                    <p class="text-xs text-slate-400">Standard DH parameters. CCD supports ideal R and P joints without prismatic travel limits in this version.</p>
                 </div>
             </details>
 
             <details id="ee-transform-details" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
-                <summary class="cursor-pointer text-sm font-semibold text-indigo-400">Transformación del efector final \(T_n^0\)</summary>
+                <summary class="cursor-pointer text-sm font-semibold text-indigo-400">End-Effector Transformation \(T_n^0\)</summary>
                 <div class="pt-3 flex flex-col gap-2">
-                    <p class="text-xs text-slate-400">Transformación respecto al sistema base, como información complementaria.</p>
+                    <p class="text-xs text-slate-400">Transformation relative to the base frame, provided for reference.</p>
                     <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400"></div>
                 </div>
             </details>
@@ -164,29 +164,29 @@
         <div class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950">
             <div id="canvas-container" class="w-full h-full"></div>
             <div class="absolute bottom-9 left-3 text-[11px] text-slate-300/90 pointer-events-none select-none z-10 flex flex-wrap gap-3" aria-hidden="true">
-                <span>● <span class="text-pink-400">Objetivo</span></span><span>● <span class="text-cyan-300">Efector</span></span>
+                <span>● <span class="text-pink-400">Target</span></span><span>● <span class="text-cyan-300">End Effector</span></span>
                 <span>— <span class="text-amber-300">Error</span></span>
             </div>
             
-            <p class="absolute bottom-2 left-3 text-[11px] text-slate-400/80 pointer-events-none select-none z-10">Arrastrar: rotar · botón derecho: desplazar · rueda: zoom</p>
+            <p class="absolute bottom-2 left-3 text-[11px] text-slate-400/80 pointer-events-none select-none z-10">Drag: rotate · right-click drag: pan · scroll: zoom</p>
 
             <!-- Camera Preset Controls -->
-            <div class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Controles de cámara">
+            <div class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Camera Controls">
                 <button id="btn-view-top" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Superior (XY)
+                    Top (XY)
                 </button>
                 <button id="btn-view-front" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Frontal (XZ)
+                    Front (XZ)
                 </button>
                 <button id="btn-view-side" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Lateral (YZ)
+                    Side (YZ)
                 </button>
                 <button id="btn-view-iso" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Isométrica
+                    Isometric
                 </button>
                 <span aria-hidden="true" class="hidden sm:block h-6 w-px mx-0.5 bg-slate-600/70"></span>
                 <button id="fit-robot" type="button" title="Centrar y ajustar la vista al manipulador" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded transition-all border border-indigo-400/30">
-                    Encuadrar
+                    Fit View
                 </button>
             </div>
         </div>
@@ -215,7 +215,7 @@
         // These examples use standard DH parameters and revolute joints.
         const examples = {
             spatial3r: {
-                description: 'Tres juntas revolutas: resolución de la posición objetivo en 3D.',
+                description: 'Three revolute joints: solve a 3D target position.',
                 params: [
                     { type: 'R', theta: 0, d: 200, a: 0, alpha: 90 },
                     { type: 'R', theta: 0, d: 0, a: 200, alpha: 0 },
@@ -224,7 +224,7 @@
                 target: [260, 120, 320]
             },
             planar2r: {
-                description: 'Dos juntas revolutas coplanares. El objetivo está en el plano XY (Z = 0).',
+                description: 'Two coplanar revolute joints. The target lies in the XY plane (Z = 0).',
                 params: [
                     { type: 'R', theta: 30, d: 0, a: 220, alpha: 0 },
                     { type: 'R', theta: -45, d: 0, a: 160, alpha: 0 }
@@ -232,7 +232,7 @@
                 target: [210, 220, 0]
             },
             mixedRRP: {
-                description: 'Dos juntas revolutas y una prismática. Observa cómo CCD alterna Δθ y Δd.',
+                description: 'Two revolute joints and one prismatic joint. Observe how CCD alternates Δθ and Δd.',
                 params: [
                     { type: 'R', theta: 0, d: 140, a: 0, alpha: 90 },
                     { type: 'R', theta: 30, d: 0, a: 170, alpha: 0 },
@@ -321,7 +321,7 @@
         function clearSolveStatus() {
             invalidatePlayback();
             status.className = 'text-xs text-slate-400';
-            status.textContent = 'Configuración modificada. Pulsa Resolver para calcular una nueva solución.';
+            status.textContent = 'Configuration changed. Click Solve to compute a new solution.';
         }
 
         function updateSolveAvailability() {
@@ -332,13 +332,13 @@
             const note = document.getElementById('ik-limit-note');
             if (!supportedTypes) {
                 note.className = 'text-xs text-amber-400';
-                note.textContent = 'CCD de posición admite solamente juntas R y P.';
+                note.textContent = 'Position CCD supports only R and P joints.';
             } else if (!valid) {
                 note.className = 'text-xs text-amber-400';
-                note.textContent = 'Completa las tres coordenadas objetivo con valores numéricos válidos.';
+                note.textContent = 'Enter valid numeric values for all three target coordinates.';
             } else {
                 note.className = 'text-xs text-slate-500';
-                note.textContent = 'CCD admite juntas R y P ideales; sin límites de recorrido prismático. La orientación final no se impone.';
+                note.textContent = 'CCD supports ideal R and P joints without prismatic travel limits. Final orientation is not constrained.';
             }
         }
 
@@ -350,11 +350,11 @@
             currentMarker.position.copy(current);
             const distance = current.distanceTo(lastValidTarget);
             document.getElementById('current-position').textContent =
-                'Actual: ' + vectorText(current);
+                'Current: ' + vectorText(current);
             document.getElementById('target-position').textContent =
-                'Objetivo: ' + vectorText(lastValidTarget);
+                'Target: ' + vectorText(lastValidTarget);
             document.getElementById('position-error').textContent =
-                target ? 'Error: ' + format(distance) + ' unidades del modelo'
+                target ? 'Error: ' + format(distance) + ' model units'
                     : 'Error: — (objetivo incompleto)';
             document.getElementById('solution-angles').textContent = viewer.dhParams
                 .map((joint, i) => (joint.type === 'R' ? 'θ' : 'd') + (i + 1)
@@ -397,7 +397,7 @@
             } else {
                 presetSelect.value = 'custom';
                 presetDescription.textContent =
-                    'Modelo editado. Seleccionar otro ejemplo reemplazará los parámetros DH actuales.';
+                    'Model edited. Selecting another example will replace the current DH parameters.';
             }
         }
         function refreshJointControls() {
@@ -410,7 +410,7 @@
                 const title = document.createElement('div');
                 title.className = 'flex justify-between gap-2 text-xs';
                 const name = document.createElement('span');
-                name.textContent = `Articulación ${index + 1} · ${isRevolute ? 'R (θ)' : 'P (d)'}`;
+                name.textContent = `Joint ${index + 1} · ${isRevolute ? 'R (θ)' : 'P (d)'}`;
                 const amount = document.createElement('output');
                 amount.className = 'text-indigo-300 font-mono';
                 const formatValue = number => String(Number(Number(number).toFixed(1)));
@@ -483,7 +483,7 @@
             if (playbackRequest !== null) cancelAnimationFrame(playbackRequest);
             playbackRequest = null;
             playbackLastTick = null;
-            playbackButton.textContent = 'Reproducir';
+            playbackButton.textContent = 'Play';
         }
 
         function invalidatePlayback() {
@@ -500,14 +500,14 @@
             if (result.solved) {
                 status.className = 'text-xs text-emerald-400 font-medium';
                 status.textContent = 'Convergencia alcanzada en ' + result.iterations
-                    + ' iteraciones. Error final: ' + format(result.error) + ' unidades.';
+                    + ' iterations. Error final: ' + format(result.error) + ' units.';
             } else {
                 status.className = 'text-xs text-amber-400';
                 status.textContent = (result.status === 'stalled'
-                    ? 'El método dejó de mejorar.'
-                    : 'Se alcanzó el límite de iteraciones.')
+                    ? 'The method stopped improving.'
+                    : 'The iteration limit was reached.')
                     + ' Error final: ' + format(result.error)
-                    + ' unidades. Esto no demuestra que el objetivo sea inalcanzable.';
+                    + ' units. Esto no demuestra que el objetivo sea inalcanzable.';
             }
         }
 
@@ -549,17 +549,17 @@
             playbackButton.disabled = ccdFrames.length <= 1;
             document.getElementById('ccd-final').disabled = ccdFrames.length <= 1;
             document.getElementById('ccd-step-counter').textContent =
-                'Paso ' + ccdFrameIndex + ' / ' + (ccdFrames.length - 1);
+                'Step ' + ccdFrameIndex + ' / ' + (ccdFrames.length - 1);
             document.getElementById('ccd-step-error').textContent =
                 'Error: ' + format(frame.error);
             document.getElementById('ccd-step-description').textContent =
-                ccdFrameIndex === 0 ? 'Configuración inicial antes del primer barrido.'
+                ccdFrameIndex === 0 ? 'Initial configuration before the first sweep.'
                     : frame.jointIndex === null
-                        ? 'Configuración final: la mejor encontrada durante la búsqueda.'
-                        : 'Barrido ' + frame.iteration + ' · articulación '
+                        ? 'Final configuration: the best found during the search.'
+                        : 'Sweep ' + frame.iteration + ' · joint '
                             + (frame.jointIndex + 1) + ' (' + frame.jointType + ') · '
                             + (frame.jointType === 'P' ? 'Δd = ' + format(frame.delta)
-                                + ' unidades del modelo' : 'Δθ = ' + format(frame.delta) + '°') + '.';
+                                + ' model units' : 'Δθ = ' + format(frame.delta) + '°') + '.';
             document.getElementById('ccd-first').disabled = ccdFrameIndex === 0;
             document.getElementById('ccd-prev').disabled = ccdFrameIndex === 0;
             document.getElementById('ccd-next').disabled = isLast;
@@ -569,11 +569,11 @@
             } else {
                 status.className = 'text-xs text-slate-300';
                 status.textContent = ccdFrameIndex === 0
-                    ? 'Listo para observar los pasos del algoritmo CCD.'
+                    ? 'Listo para observar los steps del algoritmo CCD.'
                     : frame.jointIndex === null
-                        ? 'Configuración óptima restaurada.'
-                        : 'Paso CCD · barrido ' + frame.iteration
-                            + ', articulación ' + (frame.jointIndex + 1) + '.';
+                        ? 'Best configuration restored.'
+                        : 'Step CCD · sweep ' + frame.iteration
+                            + ', joint ' + (frame.jointIndex + 1) + '.';
             }
         }
 
@@ -596,7 +596,7 @@
             if (!ccdFrames.length) return;
             if (ccdFrameIndex === ccdFrames.length - 1) showCCDFrame(0);
             playbackRunning = true;
-            playbackButton.textContent = 'Pausar';
+            playbackButton.textContent = 'Pause';
             playbackLastTick = null;
             playbackRequest = requestAnimationFrame(advancePlayback);
         }
