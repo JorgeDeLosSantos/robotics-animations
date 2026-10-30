@@ -137,7 +137,7 @@ export class RobotViewer {
             const colors = this._themeGrid.geometry.attributes.color;
             if (colors) {
                 for (let i = 0; i < colors.count; i++) {
-                    const c = new THREE.Color(palette[Math.floor(i / 4) % 2]);
+                    const c = new THREE.Color(palette[Math.floor(i / 4) === 20 ? 0 : 1]);
                     colors.setXYZ(i, c.r, c.g, c.b);
                 }
                 colors.needsUpdate = true;
