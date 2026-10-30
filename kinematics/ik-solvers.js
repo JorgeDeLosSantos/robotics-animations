@@ -47,7 +47,8 @@ function gaussianElimination6x6(A, b) {
 // IK Solver: Position only using Cyclic Coordinate Descent (CCD)
 // ---------------------------------------------------------------------------
 /**
- * Position-only CCD solver for revolute serial chains (standard DH).
+ * Position-only CCD solver for serial chains with revolute (R) and
+ * prismatic (P) joints, using standard DH parameters.
  *
  * The detailed API reports convergence separately from reachability.
  * Failure to converge does NOT establish that a target is unreachable.
@@ -59,9 +60,13 @@ function gaussianElimination6x6(A, b) {
  * @param {number} [options.maxIterations=200] - Maximum full CCD sweeps
  * @param {number} [options.tolerance=0.5] - Position tolerance in model units
  * @param {Function} [options.onStep] - Optional callback after a joint update:
- *   {iteration, jointIndex, deltaDegrees, angles, error}.
+ *   {iteration, jointIndex, jointType, delta, values, error}.
+ *   Revolute delta is in degrees; prismatic delta is in model length units.
+ *   values contains theta for R and d for P. For backward compatibility,
+ *   callbacks also receive angles (all theta values) and deltaDegrees for R.
  *   Each iteration denotes one full sweep from the last joint to the first.
  *   No callbacks are emitted for joints that cannot move or have zero update.
+ *   The ideal prismatic joints have unrestricted travel in this version.
  * @returns {{solved:boolean,status:string,iterations:number,error:number,initialError:number}}
  */
 export function solveIKPositionCCDDetailed(viewer, target, options = {}) {
@@ -70,13 +75,15 @@ export function solveIKPositionCCDDetailed(viewer, target, options = {}) {
     const tolerance = Number.isFinite(options.tolerance) && options.tolerance > 0
         ? options.tolerance : 0.5;
     const initialError = viewer.getEEPosition().distanceTo(target);
-    if (viewer.dhParams.some(joint => joint.type !== 'R')) {
+    if (viewer.dhParams.some(joint => joint.type !== 'R' && joint.type !== 'P')) {
         return { solved: false, status: 'unsupported_joint', iterations: 0,
             error: initialError, initialError };
     }
 
     let bestError = initialError;
-    let bestAngles = viewer.dhParams.map(joint => joint.theta);
+    const getValues = () => viewer.dhParams.map(joint =>
+        joint.type === 'P' ? joint.d : joint.theta);
+    let bestValues = getValues();
     if (initialError <= tolerance) {
         return { solved: true, status: 'converged', iterations: 0,
             error: initialError, initialError };
@@ -89,34 +96,54 @@ export function solveIKPositionCCDDetailed(viewer, target, options = {}) {
 
     for (let iter = 0; iter < maxIterations; iter++) {
         for (let i = viewer.dhParams.length - 1; i >= 0; i--) {
+            const joint = viewer.dhParams[i];
             const eePos = viewer.getEEPosition();
-            const jointPos = viewer.getJointPosition(i);
             const { zAxes } = viewer.getJointStates(i);
             const axis = zAxes[i];
+            let delta = 0;
 
-            // Only the components perpendicular to the rotation axis can
-            // change when this particular revolute joint moves.
-            const toEE = new THREE.Vector3().subVectors(eePos, jointPos)
-                .projectOnPlane(axis);
-            const toTarget = new THREE.Vector3().subVectors(target, jointPos)
-                .projectOnPlane(axis);
-            if (toEE.lengthSq() < 1e-12 || toTarget.lengthSq() < 1e-12) continue;
+            if (joint.type === 'P') {
+                // Moving d_i translates the end-effector along z_{i-1}.
+                // Projecting the current positional error onto this unit
+                // axis exactly minimizes the error with other joints fixed.
+                const error = new THREE.Vector3().subVectors(target, eePos);
+                delta = error.dot(axis); // model length units
+                if (Math.abs(delta) < 1e-12) continue;
+                joint.d += delta;
+            } else {
+                const jointPos = viewer.getJointPosition(i);
+                // R joint: align the two projected directions by rotating
+                // about z_{i-1}, leaving the axial component unchanged.
+                const toEE = new THREE.Vector3().subVectors(eePos, jointPos)
+                    .projectOnPlane(axis);
+                const toTarget = new THREE.Vector3().subVectors(target, jointPos)
+                    .projectOnPlane(axis);
+                if (toEE.lengthSq() < 1e-12 || toTarget.lengthSq() < 1e-12) continue;
 
-            toEE.normalize();
-            toTarget.normalize();
-            const sine = new THREE.Vector3().crossVectors(toEE, toTarget).dot(axis);
-            const cosine = Math.max(-1, Math.min(1, toEE.dot(toTarget)));
-            const delta = Math.atan2(sine, cosine);
-            if (Math.abs(delta) < 1e-12) continue;
+                toEE.normalize();
+                toTarget.normalize();
+                const sine = new THREE.Vector3().crossVectors(toEE, toTarget).dot(axis);
+                const cosine = Math.max(-1, Math.min(1, toEE.dot(toTarget)));
+                const angle = Math.atan2(sine, cosine);
+                delta = THREE.MathUtils.radToDeg(angle);
+                if (Math.abs(angle) < 1e-12) continue;
 
-            const theta = viewer.dhParams[i].theta + THREE.MathUtils.radToDeg(delta);
-            viewer.dhParams[i].theta = ((theta + 180) % 360 + 360) % 360 - 180;
+                const theta = joint.theta + delta;
+                joint.theta = ((theta + 180) % 360 + 360) % 360 - 180;
+            }
+
             if (typeof options.onStep === 'function') {
                 options.onStep({
                     iteration: iter + 1,
                     jointIndex: i,
-                    deltaDegrees: THREE.MathUtils.radToDeg(delta),
+                    jointType: joint.type,
+                    delta,
+                    // A snapshot allows the interface to replay real CCD
+                    // updates, including the displacement of prismatic joints.
+                    values: getValues(),
+                    // Keep existing R-only animation callbacks compatible.
                     angles: viewer.dhParams.map(joint => joint.theta),
+                    deltaDegrees: joint.type === 'R' ? delta : null,
                     error: viewer.getEEPosition().distanceTo(target)
                 });
             }
@@ -126,7 +153,7 @@ export function solveIKPositionCCDDetailed(viewer, target, options = {}) {
         const error = viewer.getEEPosition().distanceTo(target);
         if (error < bestError) {
             bestError = error;
-            bestAngles = viewer.dhParams.map(joint => joint.theta);
+            bestValues = getValues();
         }
         if (bestError <= tolerance) {
             status = 'converged';
@@ -144,7 +171,8 @@ export function solveIKPositionCCDDetailed(viewer, target, options = {}) {
     }
 
     viewer.dhParams.forEach((joint, index) => {
-        joint.theta = bestAngles[index];
+        if (joint.type === 'P') joint.d = bestValues[index];
+        else joint.theta = bestValues[index];
     });
     return { solved: bestError <= tolerance, status, iterations,
         error: bestError, initialError };
