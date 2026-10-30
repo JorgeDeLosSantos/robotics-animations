@@ -242,6 +242,10 @@ export function measureIKPoseError(eeMatrix, targetPos, targetQuat) {
  * @param {number} [options.rotTolerance=0.008726646259971648] - Radians (0.5 deg)
  * @param {number} [options.characteristicLength] - Model length units
  * @param {number} [options.maxStepDegrees=12] - Maximum change per joint per iteration
+ * @param {Function} [options.onStep] - Called after each ACCEPTED DLS update.
+ *   Receives {iteration, angles, pErr, rErr, residual, fraction}. Angle
+ *   values are degrees; rotation error is radians; position error uses
+ *   model units. Rejected line-search candidates are not recorded.
  * @returns {{solved:boolean,status:string,iterations:number,pErr:number,
  *            rErr:number,initialPErr:number,initialRErr:number}}
  */
@@ -327,6 +331,7 @@ export function solveIKFull6DoF(viewer, targetPos, targetQuat, options = {}) {
         const stepScale = largestStep > maxStep ? maxStep / largestStep : 1;
         const previous = viewer.dhParams.map(joint => joint.theta);
         let accepted = false;
+        let acceptedFraction = null;
         // Monotone line search: refuse numerical steps that worsen the
         // combined error. A difficult target may still stall.
         for (const fraction of [1, 0.5, 0.25, 0.125, 0.0625]) {
@@ -339,6 +344,7 @@ export function solveIKFull6DoF(viewer, targetPos, targetQuat, options = {}) {
             if (candidate.residual < current.residual - 1e-11) {
                 current = candidate;
                 accepted = true;
+                acceptedFraction = fraction;
                 break;
             }
         }
@@ -352,6 +358,16 @@ export function solveIKFull6DoF(viewer, targetPos, targetQuat, options = {}) {
             if (current.residual < best.residual) {
                 best = current;
                 bestAngles = viewer.dhParams.map(joint => joint.theta);
+            }
+            if (typeof options.onStep === 'function') {
+                options.onStep({
+                    iteration: iterations,
+                    angles: viewer.dhParams.map(joint => joint.theta),
+                    pErr: current.pErr,
+                    rErr: current.rErr,
+                    residual: current.residual,
+                    fraction: acceptedFraction
+                });
             }
         }
     }
