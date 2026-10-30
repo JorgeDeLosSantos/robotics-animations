@@ -499,7 +499,7 @@
         function showSolveOutcome(result) {
             if (result.solved) {
                 status.className = 'text-xs text-emerald-400 font-medium';
-                status.textContent = 'Convergencia alcanzada en ' + result.iterations
+                status.textContent = 'Converged after ' + result.iterations
                     + ' iterations. Error final: ' + format(result.error) + ' units.';
             } else {
                 status.className = 'text-xs text-amber-400';

@@ -584,7 +584,7 @@
         function showSolveOutcome(result) {
             if (result.solved) {
                 status.className = 'text-xs text-emerald-400 font-medium';
-                status.textContent = 'Convergencia en ' + result.iterations
+                status.textContent = 'Converged after ' + result.iterations
                     + ' iterations. Position: ' + format(result.pErr)
                     + ' units; orientation: '
                     + format(THREE.MathUtils.radToDeg(result.rErr)) + '°.';
@@ -651,7 +651,7 @@
             summary.classList.remove('hidden');
             const label = document.getElementById('dls-summary-status');
             const reasons = {
-                converged: 'Convergencia alcanzada',
+                converged: 'Converged',
                 stalled: 'No convergence: estancamiento',
                 max_iterations: 'No convergence: iteration limit',
                 numerical_failure: 'No convergence: numerical difficulty',
@@ -663,8 +663,8 @@
                 ? 'text-sm font-semibold text-emerald-400'
                 : 'text-sm font-semibold text-amber-300';
             document.getElementById('dls-summary-counts').textContent =
-                'Iteraciones intentadas: ' + result.iterations +
-                ' · actualizaciones aceptadas: ' + acceptedUpdates;
+                'Iterations attempted: ' + result.iterations +
+                ' · accepted updates: ' + acceptedUpdates;
             document.getElementById('dls-summary-position').textContent =
                 format(result.initialPErr) + ' → ' + format(result.pErr) + ' units';
             document.getElementById('dls-summary-orientation').textContent =
