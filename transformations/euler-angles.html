@@ -51,9 +51,12 @@
         .axis-label { font-weight: 700; }
         .legend { font-size: 12px; margin: 8px 0 0; color: #475569; }
         @media (max-width: 720px) {
-            #ui-panel { width: min(380px, 100%); max-height: 55vh; height: auto; }
+            #ui-panel { width: min(380px, 100%); max-height: 52dvh; height: auto; padding: 14px; }
             #view-controls { top: auto; right: 8px; bottom: 8px; left: 8px; }
             #view-controls button { flex: 1; min-width: 0; padding: 8px 3px; }
+        }
+        @media (max-height: 480px) and (max-width: 900px) {
+            #ui-panel { max-height: 66dvh; }
         }
         .val { float: right; color: #2563eb; font-weight: bold; }
         button { 
@@ -147,7 +150,8 @@
         0.1,          // Near
         1000          // Far
     );
-    camera.position.set(8, 5, 8);
+    camera.position.set(8, -8, 8);
+    camera.up.set(0, 0, 1); // Z is vertical, as in the kinematics labs
     camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -155,21 +159,20 @@
     document.body.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    // Configure CAD-style mouse controls:
-    // Left: Pan, Scroll wheel press: Rotate, Right: Pan
+    // Match kinematics labs: left drag orbit, right drag pan, wheel zoom.
     controls.mouseButtons = {
-        LEFT: THREE.MOUSE.PAN,
-        MIDDLE: THREE.MOUSE.ROTATE,
+        LEFT: THREE.MOUSE.ROTATE,
+        MIDDLE: THREE.MOUSE.DOLLY,
         RIGHT: THREE.MOUSE.PAN
     };
 
-    // Match the camera presets used by the homogeneous-transformations lab.
-    // Y is the vertical world axis in both viewers.
+    // Match RobotViewer: Z vertical, XY horizontal, same camera directions.
+    // For the top view camera.up is +Y in the screen plane.
     const viewDirections = {
-        top: { direction: new THREE.Vector3(0, 1, 0), up: new THREE.Vector3(0, 0, -1) },
-        front: { direction: new THREE.Vector3(0, 0, 1), up: new THREE.Vector3(0, 1, 0) },
-        side: { direction: new THREE.Vector3(1, 0, 0), up: new THREE.Vector3(0, 1, 0) },
-        isometric: { direction: new THREE.Vector3(1, 1, 1), up: new THREE.Vector3(0, 1, 0) }
+        top: { direction: new THREE.Vector3(0, 0, 1), up: new THREE.Vector3(0, 1, 0) },
+        front: { direction: new THREE.Vector3(0, -1, 0), up: new THREE.Vector3(0, 0, 1) },
+        side: { direction: new THREE.Vector3(1, 0, 0), up: new THREE.Vector3(0, 0, 1) },
+        isometric: { direction: new THREE.Vector3(1, -1, 1), up: new THREE.Vector3(0, 0, 1) }
     };
 
     function setCameraView(viewName) {
@@ -194,7 +197,10 @@
         button.addEventListener('click', () => setCameraView(button.dataset.view));
     });
 
-    scene.add(new THREE.GridHelper(10, 10, 0xDADADA, 0xDADADA));
+    // GridHelper is created in XZ by Three.js. Rotate it into XY at Z = 0.
+    const groundGrid = new THREE.GridHelper(10, 10, 0xDADADA, 0xDADADA);
+    groundGrid.rotation.x = Math.PI / 2;
+    scene.add(groundGrid);
 
     // World Axes (Fixed)
     const worldAxes = new THREE.AxesHelper(5);
