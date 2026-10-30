@@ -383,6 +383,24 @@ export class RobotViewer {
     }
 
     // ======================================================================
+    // Position helpers used by the CCD solver and its teaching playback.
+    // Joint i is located at the origin of DH frame {i}, i.e., before
+    // the transform for joint i + 1 is applied (zero-based joint index).
+    // ======================================================================
+    getEEPosition() {
+        return new THREE.Vector3().setFromMatrixPosition(
+            this.computeForwardKinematics().eeMatrix
+        );
+    }
+
+    getJointPosition(index) {
+        if (!Number.isInteger(index) || index < 0 || index >= this.dhParams.length) {
+            throw new RangeError('Joint index is out of range.');
+        }
+        return this.getJointStates(index).positions[index].clone();
+    }
+
+    // ======================================================================
     // Robot Geometry Rendering – Default (FK style with orthogonal links)
     // Override this method to provide custom rendering.
     // ======================================================================

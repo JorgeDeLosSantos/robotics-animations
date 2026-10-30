@@ -10,8 +10,6 @@ Colección de visualizaciones y laboratorios didácticos para explorar transform
 
 - [Transformaciones homogéneas: sistemas fijo y móvil](transformations/homogeneous-transformations.html)
 - [Ángulos de Euler: secuencias intrínsecas](transformations/euler-angles.html)
-- [Transformaciones en el sistema fijo (actividad complementaria)](transformations/transformations-fixed-frame.html)
-- [Transformaciones en el sistema móvil (actividad complementaria)](transformations/transformations-body-frame.html)
 
 ## Cinemática de robots
 
@@ -41,3 +39,5 @@ python -m http.server 8000
 ```
 
 Y abre `http://localhost:8000/` en el navegador.
+
+> The standalone fixed-frame and body-frame labs were retired in favor of the combined homogeneous-transformations lab.
