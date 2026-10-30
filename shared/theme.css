@@ -166,19 +166,13 @@ html[data-theme="dark"] body.robotics-fullscreen #history li {
   background: #1e293b; color: #e2e8f0;
 }
 html[data-theme="dark"] body.robotics-fullscreen .quick button,
-html[data-theme="dark"] body.robotics-fullscreen .step-controls button,
-html[data-theme="dark"] body.robotics-fullscreen #view-controls button {
+html[data-theme="dark"] body.robotics-fullscreen .step-controls button {
   background: #334155; color: #f1f5f9; border-color: #475569;
 }
 html[data-theme="dark"] body.robotics-fullscreen .quick button:hover,
-html[data-theme="dark"] body.robotics-fullscreen .step-controls button:hover,
-html[data-theme="dark"] body.robotics-fullscreen #view-controls button:hover { background: #475569; }
-html[data-theme="dark"] body.robotics-fullscreen .step-controls button.active,
-html[data-theme="dark"] body.robotics-fullscreen #view-controls button.active {
+html[data-theme="dark"] body.robotics-fullscreen .step-controls button:hover { background: #475569; }
+html[data-theme="dark"] body.robotics-fullscreen .step-controls button.active {
   background: #4f46e5; color: #ffffff; border-color: #818cf8;
-}
-html[data-theme="dark"] body.robotics-fullscreen #view-controls {
-  background: rgb(15 23 42 / .96); border-color: #475569;
 }
 html[data-theme="dark"] body.robotics-fullscreen .matrix-display {
   background: #020617; border-color: #475569; color: #a7f3d0;
@@ -216,4 +210,80 @@ html[data-theme="dark"] body.robotics-fullscreen .matrix-display {
   font-size: 13px;
   font-weight: 400;
   line-height: 1.5;
+}
+
+/* Consistent camera toolbar for the two standalone transformation labs.
+ * Mirrors the kinematics camera presets while remaining framework-independent. */
+#view-controls.robotics-view-toolbar {
+  box-sizing: border-box;
+  position: fixed;
+  top: calc(var(--robotics-nav-height, 46px) + 16px);
+  right: 16px;
+  z-index: 11;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid var(--ui-border);
+  border-radius: 8px;
+  background: rgb(248 250 252 / .94);
+  box-shadow: 0 4px 16px rgb(15 23 42 / .16);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+#view-controls .robotics-view-btn {
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--ui-border);
+  border-radius: 5px;
+  background: var(--ui-control);
+  color: var(--ui-text-secondary);
+  font: 600 12px/1.5 system-ui, sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+#view-controls .robotics-view-btn:hover { background: var(--ui-surface-muted); }
+#view-controls .robotics-view-btn.active,
+#view-controls .robotics-view-btn[aria-pressed="true"] {
+  background: #4f46e5;
+  border-color: #818cf8;
+  color: #ffffff;
+}
+#view-controls .robotics-view-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 24px;
+  margin: 0 2px;
+  background: var(--ui-border);
+}
+#view-controls .robotics-view-btn.robotics-view-fit {
+  background: #4f46e5;
+  color: #ffffff;
+  border-color: #818cf8;
+}
+#view-controls .robotics-view-btn.robotics-view-fit:hover { background: #6366f1; }
+#view-controls .robotics-view-btn:focus-visible {
+  outline: 2px solid var(--ui-accent);
+  outline-offset: 2px;
+}
+html[data-theme="dark"] #view-controls.robotics-view-toolbar {
+  background: rgb(15 23 42 / .94);
+  border-color: #475569;
+}
+@media (max-width: 720px) {
+  #view-controls.robotics-view-toolbar {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    top: auto;
+    justify-content: center;
+  }
+  #view-controls .robotics-view-btn {
+    flex: 1 1 auto;
+    padding: 6px 5px;
+  }
+  #view-controls .robotics-view-divider { display: none; }
 }
