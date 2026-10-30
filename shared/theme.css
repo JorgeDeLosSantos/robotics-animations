@@ -186,3 +186,34 @@ html[data-theme="dark"] body.robotics-fullscreen .matrix-display {
 @media (prefers-reduced-motion: reduce) {
   .robotics-theme-toggle { transition: none; }
 }
+
+/* Shared identity block inside the controls sidebar of every laboratory. */
+.lab-sidebar-heading {
+  padding: 0 0 3px;
+  color: var(--ui-text);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.lab-sidebar-heading .lab-sidebar-category {
+  margin: 0 0 5px;
+  color: var(--ui-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+.lab-sidebar-heading h1 {
+  margin: 0;
+  color: var(--ui-accent);
+  font-size: clamp(19px, 1.8vw, 22px);
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -.015em;
+}
+.lab-sidebar-heading .lab-sidebar-description {
+  margin: 7px 0 0;
+  color: var(--ui-text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+}
