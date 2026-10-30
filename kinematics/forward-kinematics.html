@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Forward Kinematics</title>
+    <title>Cinemática directa — Denavit–Hartenberg</title>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 
     <!-- Three.js via import map -->
@@ -21,52 +21,126 @@
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/contrib/auto-render.min.js"
             onload="renderMathInElement(document.body);"></script>
+    <style>
+        #matrix-container { overflow-x: auto; }
+        #matrix-container .katex { font-size: 1em; }
+        #dh-table-body tr.dh-selected {
+            background: rgba(250, 204, 21, 0.12);
+            box-shadow: inset 3px 0 #facc15;
+        }
+        #dh-table-body td:first-child { cursor: pointer; }
+        #dh-table-body td:first-child:hover { color: #fef08a; }
+        .matrix-mode-btn.active {
+            background: #4f46e5;
+            border-color: #818cf8;
+            color: white;
+        }
+        .matrix-mode-btn:focus-visible, #show-dh-row:focus-visible {
+            outline: 2px solid #a5b4fc;
+            outline-offset: 2px;
+        }
+        #transform-equation { overflow-x: auto; }
+        #transform-equation .katex { font-size: .95em; }
+        .system-nav button:disabled { opacity: .35; cursor: not-allowed; }
+        .system-nav button:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
+        #canvas-container canvas { touch-action: none; }
+        /* Each control card keeps its natural height; only the panel scrolls. */
+        #controls-panel > * { flex-shrink: 0; }
+    </style>
 </head>
-<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col font-sans">
+<body class="bg-slate-900 text-slate-100 min-h-screen md:min-h-[560px] md:h-dvh flex flex-col font-sans">
 
     <!-- Header -->
-    <header class="bg-slate-800 border-b border-slate-700 p-4 shadow-md">
+    <header class="shrink-0 bg-slate-800 border-b border-slate-700 p-4 shadow-md">
         <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-indigo-400">
-            Forward Kinematics
+            Cinemática directa
         </h1>
     </header>
 
     <!-- Main Container -->
-    <main class="flex-1 flex flex-col md:flex-row overflow-hidden">
+    <main class="flex-none md:flex-1 md:min-h-0 flex flex-col md:flex-row md:overflow-hidden">
         
-        <!-- Left Control Panel -->
-        <div class="w-full md:w-5/12 p-4 overflow-y-auto border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
-            <div class="flex justify-between items-center">
-                <h2 class="text-lg font-semibold text-slate-200">DH Parameters</h2>
-                <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all flex items-center gap-1">
-                    &#x2795; Add link
-                </button>
-            </div>
+        <!-- Independently scrollable on desktop; regular document flow on mobile. -->
+        <div id="controls-panel" class="w-full md:w-5/12 md:min-h-0 p-4 md:overflow-y-auto md:overscroll-contain border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
+                <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Manipulador de ejemplo</label>
+                <select id="robot-preset" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2">
+                    <option value="spatial3r">3R espacial</option>
+                    <option value="planar2r">2R plano</option>
+                    <option value="mixedRRP">RRP mixto</option>
+                    <option value="custom" disabled>Configuración personalizada</option>
+                </select>
+                <p id="preset-description" class="text-xs text-slate-400"></p>
+            </section>
 
-            <!-- DH Table: Type, a, alpha, d, theta -->
-            <div class="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900/50">
-                <table class="w-full text-left border-collapse min-w-[450px]">
-                    <thead>
-                        <tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
-                            <th class="p-2.5 text-center w-10">#</th>
-                            <th class="p-2.5 text-center w-10">Type</th>
-                            <th class="p-2.5 text-center w-16">\(a\)</th>
-                            <th class="p-2.5 text-center w-16">\(\alpha\) (deg)</th>
-                            <th class="p-2.5 text-center w-16">\(d\)</th>
-                            <th class="p-2.5 text-center w-16">\(\theta\) (deg)</th>
-                            <th class="p-2.5 text-center w-8">.</th>
-                        </tr>
-                    </thead>
-                    <tbody id="dh-table-body">
-                        <!-- Dynamic rows are inserted here -->
-                    </tbody>
-                </table>
-            </div>
+            <!-- Joint variables are separate from the editable DH model. -->
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Variables articulares">
+                <div class="flex justify-between items-center gap-2">
+                    <h3 class="text-sm font-semibold text-indigo-400">Variables articulares</h3>
+                    <button id="reset-joints" class="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1">Restablecer</button>
+                </div>
+                <div id="joint-controls" class="flex flex-col gap-3"></div>
+                <p class="text-xs text-slate-400">Para juntas R se modifica θ; para juntas P se modifica d. Los parámetros también se actualizan en la tabla DH.</p>
+            </section>
+
+            <details id="dh-details" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
+                <summary class="cursor-pointer font-semibold text-sm text-indigo-400">Configuración DH · editar geometría</summary>
+                <div class="pt-3 flex flex-col gap-3">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-slate-200">Parámetros DH</h2>
+                    <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all flex items-center gap-1">
+                        &#x2795; Agregar eslabón
+                    </button>
+                </div>
+    
+                <!-- DH Table: Type, a, alpha, d, theta -->
+                <div class="overflow-x-auto rounded-lg border border-slate-700 bg-slate-900/50">
+                    <table class="w-full text-left border-collapse min-w-[450px]">
+                        <thead>
+                            <tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
+                                <th class="p-2.5 text-center w-10">#</th>
+                                <th class="p-2.5 text-center w-10">Tipo</th>
+                                <th class="p-2.5 text-center w-16">\(a\)</th>
+                                <th class="p-2.5 text-center w-16">\(\alpha\) (deg)</th>
+                                <th class="p-2.5 text-center w-16">\(d\)</th>
+                                <th class="p-2.5 text-center w-16">\(\theta\) (deg)</th>
+                                <th class="p-2.5 text-center w-8">.</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dh-table-body">
+                            <!-- Dynamic rows are inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-xs text-slate-400">Parámetros DH estándar: longitudes en unidades del modelo y ángulos en grados.</p>
+                </div>
+            </details>
+
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
+                <h3 class="text-sm text-indigo-400 font-semibold">Sistema de referencia</h3>
+                <div class="system-nav flex items-center gap-2">
+                    <button id="previous-system" type="button" aria-label="Sistema anterior" title="Sistema anterior"
+                        class="shrink-0 bg-slate-700 hover:bg-slate-600 rounded px-3 py-2">‹</button>
+                    <div id="selected-system-label" class="flex-1 text-center font-semibold text-sm bg-slate-900 rounded px-2 py-2" aria-live="polite">Sistema {3}</div>
+                    <button id="next-system" type="button" aria-label="Sistema siguiente" title="Sistema siguiente"
+                        class="shrink-0 bg-slate-700 hover:bg-slate-600 rounded px-3 py-2">›</button>
+                </div>
+                <p id="frame-description" class="text-xs text-slate-400"></p>
+                <p id="system-position" class="text-xs font-mono text-slate-300"></p>
+                <button id="show-dh-row" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Ver parámetros DH de este sistema</button>
+                <p class="text-xs text-slate-400">Haz clic cerca del origen de un sistema para seleccionarlo. Los botones ‹ › permiten recorrer sistemas coincidentes.</p>
+            </section>
 
             <!-- Homogeneous Transformation Matrix Display -->
             <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <h3 class="text-sm font-semibold text-indigo-400">Matrix \(T_n^0\)</h3>
-                <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400">
+                <h3 class="text-sm font-semibold text-indigo-400">Transformación del sistema</h3>
+                <div class="grid grid-cols-2 gap-2" role="group" aria-label="Tipo de transformación">
+                    <button type="button" data-matrix-mode="cumulative" aria-pressed="true" class="matrix-mode-btn active text-xs rounded border border-slate-600 bg-slate-700 px-2 py-2">Acumulada</button>
+                    <button type="button" data-matrix-mode="local" aria-pressed="false" class="matrix-mode-btn text-xs rounded border border-slate-600 bg-slate-700 px-2 py-2">Local</button>
+                </div>
+                <div id="transform-equation" class="text-center text-xs text-slate-200 px-1 py-2"></div>
+                <p id="transform-description" class="text-xs text-slate-400"></p>
+                <div id="matrix-container" class="bg-slate-950 p-3 rounded border border-slate-800 text-center text-emerald-400">
                 </div>
             </div>
         </div>
@@ -75,26 +149,32 @@
         <div class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950">
             <div id="canvas-container" class="w-full h-full"></div>
             
+            <p class="absolute bottom-2 left-3 text-[11px] text-slate-400/80 pointer-events-none select-none z-10">Arrastrar: rotar · botón derecho: desplazar · rueda: zoom</p>
+
             <!-- Camera Preset Controls -->
-            <div class="absolute top-3 right-3 flex flex-wrap gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10">
+            <div class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Controles de cámara">
                 <button id="btn-view-top" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Top (XY)
+                    Superior (XY)
                 </button>
                 <button id="btn-view-front" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Front (XZ)
+                    Frontal (XZ)
                 </button>
                 <button id="btn-view-side" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Side (YZ)
+                    Lateral (YZ)
                 </button>
                 <button id="btn-view-iso" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Isometric
+                    Isométrica
+                </button>
+                <span aria-hidden="true" class="hidden sm:block h-6 w-px mx-0.5 bg-slate-600/70"></span>
+                <button id="fit-robot" type="button" title="Centrar y ajustar la vista al manipulador" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded transition-all border border-indigo-400/30">
+                    Encuadrar
                 </button>
             </div>
         </div>
     </main>
 
     <!-- Footer / Developer Credits -->
-    <footer class="bg-slate-900 border-t border-slate-800 py-4 px-6 text-center text-xs text-slate-500 shadow-inner">
+    <footer class="shrink-0 bg-slate-900 border-t border-slate-800 py-4 px-6 text-center text-xs text-slate-500 shadow-inner">
         <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
             <p class="flex items-center gap-1.5 justify-center">
                 Developed with &#x1F499; by 
@@ -109,14 +189,45 @@
     </footer>
 
     <script type="module">
+        import * as THREE from 'three';
         import { RobotViewer } from './shared-robot-viewer.js';
 
-        // Initial DH parameters for a 3-link manipulator (Revolute joints)
-        const initialDHParams = [
-            { type: 'R', theta: 0, d: 200, a: 0.0, alpha: 90 },
-            { type: 'R', theta: 0, d: 0.0, a: 200, alpha: 0 },
-            { type: 'R', theta: 0, d: 0.0, a: 200, alpha: 0 }
-        ];
+        // Lightweight teaching presets (standard DH: Rz(theta) Tz(d) Tx(a) Rx(alpha)).
+        // They illustrate different joint structures rather than physical CAD models.
+        const examples = {
+            spatial3r: {
+                description: 'Tres juntas revolutas; permite estudiar orientación y posición en el espacio.',
+                params: [
+                    { type: 'R', theta: 0, d: 200, a: 0, alpha: 90 },
+                    { type: 'R', theta: 0, d: 0, a: 200, alpha: 0 },
+                    { type: 'R', theta: 0, d: 0, a: 200, alpha: 0 }
+                ]
+            },
+            planar2r: {
+                description: 'Dos juntas revolutas coplanares: observa cómo se determina la posición del extremo.',
+                params: [
+                    { type: 'R', theta: 30, d: 0, a: 220, alpha: 0 },
+                    { type: 'R', theta: -45, d: 0, a: 160, alpha: 0 }
+                ]
+            },
+            mixedRRP: {
+                description: 'Dos juntas revolutas y una prismática; compara el efecto de θ y d.',
+                params: [
+                    { type: 'R', theta: 0, d: 140, a: 0, alpha: 90 },
+                    { type: 'R', theta: 30, d: 0, a: 170, alpha: 0 },
+                    { type: 'P', theta: 0, d: 130, a: 0, alpha: 0 }
+                ]
+            }
+        };
+        const copyDH = params => params.map(param => ({ ...param }));
+        let activePreset = 'spatial3r';
+        let presetBaseline = copyDH(examples[activePreset].params);
+        const initialDHParams = copyDH(presetBaseline);
+
+        // Joint defaults belong to each parameter object, never to its row
+        // index. Deleting a preceding row must not change another joint's
+        // reset value. A new joint or a changed type gets its own baseline.
+        const jointDefaults = new WeakMap();
 
         // Create the robot viewer with shared components
         const viewer = new RobotViewer({
@@ -136,8 +247,479 @@
         //   - AxesHelpers at each frame
         // No override needed.
 
+        function trackJointDefaults() {
+            for (const param of viewer.dhParams) {
+                const prop = param.type === 'P' ? 'd' : 'theta';
+                const baseline = jointDefaults.get(param);
+                if (!baseline || baseline.type !== param.type) {
+                    jointDefaults.set(param, {
+                        type: param.type,
+                        value: Number(param[prop]) || 0
+                    });
+                }
+            }
+        }
+
+        const jointControls = document.getElementById('joint-controls');
+        const systemLabel = document.getElementById('selected-system-label');
+        const previousSystemButton = document.getElementById('previous-system');
+        const nextSystemButton = document.getElementById('next-system');
+        const frameDescription = document.getElementById('frame-description');
+        const presetSelect = document.getElementById('robot-preset');
+        const presetDescription = document.getElementById('preset-description');
+        presetDescription.textContent = examples[presetSelect.value].description;
+
+        // Treat a preset as a geometric model, not an immutable pose. Moving
+        // a joint does not make it "custom"; changing DH geometry/topology does.
+        function refreshPresetIdentity() {
+            const sameGeometry = viewer.dhParams.length === presetBaseline.length
+                && viewer.dhParams.every((param, i) => {
+                    const base = presetBaseline[i];
+                    return param.type === base.type && param.a === base.a
+                        && param.alpha === base.alpha
+                        && (param.type === 'P' ? param.theta === base.theta : param.d === base.d);
+                });
+            if (sameGeometry) {
+                presetSelect.value = activePreset;
+                presetDescription.textContent = examples[activePreset].description;
+            } else {
+                presetSelect.value = 'custom';
+                presetDescription.textContent =
+                    'Modelo editado. Seleccionar otro ejemplo reemplazará los parámetros DH actuales.';
+            }
+        }
+        let selectedFrame = 'end';
+        let matrixMode = 'cumulative';
+
+        // FK-only visual highlight. It lives in the scene instead of robotGroup
+        // so redraws of the robot do not destroy it.
+        const selectedSystem = new THREE.Group();
+        selectedSystem.matrixAutoUpdate = false;
+        selectedSystem.renderOrder = 100;
+        const selectedAxes = new THREE.AxesHelper(125);
+        selectedAxes.material.depthTest = false;
+        selectedAxes.renderOrder = 101;
+        selectedSystem.add(selectedAxes);
+
+        const originMaterial = new THREE.MeshBasicMaterial({
+            color: 0xfacc15, depthTest: false
+        });
+        const originMarker = new THREE.Mesh(
+            new THREE.SphereGeometry(12, 16, 12), originMaterial
+        );
+        originMarker.renderOrder = 102;
+        selectedSystem.add(originMarker);
+
+        const originRing = new THREE.Mesh(
+            new THREE.TorusGeometry(26, 2.5, 8, 32),
+            new THREE.MeshBasicMaterial({ color: 0xfacc15, depthTest: false })
+        );
+        originRing.renderOrder = 101;
+        selectedSystem.add(originRing);
+
+        // FK-only hit targets: invisible spheres at each DH system origin.
+        // Keep them OUTSIDE robotGroup, which is redrawn on joint changes.
+        const pickRoot = new THREE.Group();
+        const pickGeometry = new THREE.SphereGeometry(24, 12, 10);
+        const pickMaterial = new THREE.MeshBasicMaterial({
+            transparent: true, opacity: 0, depthWrite: false, colorWrite: false
+        });
+        const pickMeshes = [];
+        const pickRaycaster = new THREE.Raycaster();
+        const pickPointer = new THREE.Vector2();
+        let hoveredSystem = null;
+        let pointerStart = null;
+
+        // Hover feedback appears only during interaction, not permanently.
+        const hoverIndicator = new THREE.Mesh(
+            new THREE.TorusGeometry(30, 2.5, 8, 32),
+            new THREE.MeshBasicMaterial({ color: 0x93c5fd, depthTest: false })
+        );
+        hoverIndicator.renderOrder = 104;
+        hoverIndicator.visible = false;
+
+        function selectedSystemIndex() {
+            if (selectedFrame === 'base') return 0;
+            if (selectedFrame === 'end') return viewer.dhParams.length;
+            return Math.max(1, Math.min(viewer.dhParams.length, Number(selectedFrame) + 1));
+        }
+
+        function selectSystem(index) {
+            const count = viewer.dhParams.length;
+            if (!Number.isInteger(index) || index < 0 || index > count) return;
+            selectedFrame = index === 0 ? 'base' : String(index - 1);
+            updateFrameDisplay();
+        }
+
+        function syncPickTargets(matrices) {
+            const count = matrices.length + 1;
+            if (pickMeshes.length !== count) {
+                pickRoot.clear();
+                pickMeshes.length = 0;
+                for (let index = 0; index < count; index++) {
+                    const mesh = new THREE.Mesh(pickGeometry, pickMaterial);
+                    mesh.userData.systemIndex = index;
+                    pickRoot.add(mesh);
+                    pickMeshes.push(mesh);
+                }
+                hoveredSystem = null;
+                hoverIndicator.visible = false;
+                if (viewer.renderer) viewer.renderer.domElement.style.cursor = '';
+            }
+
+            pickMeshes[0].position.set(0, 0, 0);
+            matrices.forEach((matrix, index) => {
+                pickMeshes[index + 1].position.setFromMatrixPosition(matrix);
+            });
+            pickRoot.updateMatrixWorld(true);
+            if (hoveredSystem !== null && pickMeshes[hoveredSystem]) {
+                hoverIndicator.position.copy(pickMeshes[hoveredSystem].position);
+            }
+        }
+
+        function systemCandidates(event) {
+            if (!viewer.renderer || !viewer.camera) return [];
+            const canvas = viewer.renderer.domElement;
+            const rect = canvas.getBoundingClientRect();
+            if (!rect.width || !rect.height) return [];
+            pickPointer.set(
+                ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                -((event.clientY - rect.top) / rect.height) * 2 + 1
+            );
+            pickRaycaster.setFromCamera(pickPointer, viewer.camera);
+            const hits = pickRaycaster.intersectObjects(pickMeshes, false);
+            if (!hits.length) return [];
+
+            // Prefer the system whose projected ORIGIN is nearest the pointer,
+            // rather than the front surface of its invisible picking sphere.
+            const distance2 = mesh => {
+                const p = mesh.position.clone().project(viewer.camera);
+                const dx = (p.x - pickPointer.x) * rect.width / 2;
+                const dy = (p.y - pickPointer.y) * rect.height / 2;
+                return dx * dx + dy * dy;
+            };
+            const ranked = hits.map(hit => ({
+                index: hit.object.userData.systemIndex,
+                distance: distance2(hit.object)
+            })).sort((a, b) => a.distance - b.distance || a.index - b.index);
+            // Coincident origins are ambiguous. Allow repeated clicks to cycle
+            // their system indices; sequential buttons remain an alternative.
+            const closest = ranked[0].distance;
+            return ranked.filter(candidate => candidate.distance <= closest + 36)
+                .map(candidate => candidate.index).sort((a, b) => a - b);
+        }
+
+        function setHoveredSystem(index) {
+            hoveredSystem = index;
+            hoverIndicator.visible = index !== null;
+            if (index !== null && pickMeshes[index]) {
+                hoverIndicator.position.copy(pickMeshes[index].position);
+                hoverIndicator.quaternion.copy(viewer.camera.quaternion);
+            }
+            viewer.renderer.domElement.style.cursor = index === null ? '' : 'pointer';
+        }
+
+        function attachSystemPicking() {
+            const canvas = viewer.renderer.domElement;
+            canvas.addEventListener('pointerdown', event => {
+                if (event.button !== 0) return;
+                pointerStart = { id: event.pointerId, x: event.clientX, y: event.clientY };
+            });
+            canvas.addEventListener('pointermove', event => {
+                if (pointerStart || event.pointerType === 'touch') return;
+                const candidates = systemCandidates(event);
+                const selected = selectedSystemIndex();
+                setHoveredSystem(candidates.includes(selected) ? selected : (candidates[0] ?? null));
+            });
+            canvas.addEventListener('pointerup', event => {
+                if (!pointerStart || event.pointerId !== pointerStart.id) return;
+                const moved = Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y);
+                pointerStart = null;
+                if (moved > 6) {
+                    setHoveredSystem(null);
+                    return; // OrbitControls handled a drag, not a selection.
+                }
+                const candidates = systemCandidates(event);
+                if (!candidates.length) {
+                    setHoveredSystem(null);
+                    return;
+                }
+                const current = selectedSystemIndex();
+                const position = candidates.indexOf(current);
+                const choice = position >= 0
+                    ? candidates[(position + 1) % candidates.length]
+                    : candidates[0];
+                selectSystem(choice);
+                setHoveredSystem(choice);
+            });
+            canvas.addEventListener('pointercancel', () => {
+                pointerStart = null;
+                setHoveredSystem(null);
+            });
+            canvas.addEventListener('pointerleave', () => {
+                if (!pointerStart) setHoveredSystem(null);
+            });
+            viewer.controls.addEventListener('change', () => {
+                if (hoverIndicator.visible) {
+                    hoverIndicator.quaternion.copy(viewer.camera.quaternion);
+                }
+            });
+        }
+
+        // Keep the viewer shared with IK/Jacobian pages. FK-specific teaching
+        // controls live here, without extending the shared module's public API.
+        function highlightSelectedDHRow(systemIndex) {
+            [...viewer.tableBody.rows].forEach((row, index) => {
+                row.classList.toggle('dh-selected', index === systemIndex - 1);
+            });
+            document.getElementById('show-dh-row').hidden = systemIndex === 0;
+        }
+
+        function updateFrameDisplay() {
+            const { matrices } = viewer.computeForwardKinematics();
+            syncPickTargets(matrices);
+            const index = selectedFrame === 'base' ? -1
+                : selectedFrame === 'end' ? matrices.length - 1
+                : Math.min(Number(selectedFrame), matrices.length - 1);
+            const cumulative = index >= 0 ? matrices[index] : new THREE.Matrix4();
+            const systemIndex = index + 1;
+
+            // The 3D marker always represents the selected system with
+            // respect to {0}; the matrix panel may use a different reference.
+            selectedSystem.matrix.copy(cumulative);
+            selectedSystem.matrixWorldNeedsUpdate = true;
+            highlightSelectedDHRow(systemIndex);
+
+            // {0} has no preceding system, so only the identity is meaningful.
+            if (systemIndex === 0) matrixMode = 'cumulative';
+            const localButton = document.querySelector('[data-matrix-mode="local"]');
+            localButton.disabled = systemIndex === 0;
+            localButton.classList.toggle('opacity-40', systemIndex === 0);
+            document.querySelectorAll('[data-matrix-mode]').forEach(button => {
+                const active = button.dataset.matrixMode === matrixMode;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-pressed', String(active));
+            });
+
+            let matrix = cumulative;
+            let formula = String.raw`\mathbf{T}_{0}^{0}=\mathbf{I}`;
+            let description = 'Sistema base: transformación identidad.';
+            if (systemIndex > 0 && matrixMode === 'local') {
+                const previous = systemIndex === 1
+                    ? new THREE.Matrix4() : matrices[systemIndex - 2];
+                matrix = previous.clone().invert().multiply(cumulative);
+                formula = String.raw`\mathbf{T}_{${systemIndex}}^{${systemIndex - 1}}`
+                    + String.raw`=R_z(\theta_{${systemIndex}})\,T_z(d_{${systemIndex}})`
+                    + String.raw`\,T_x(a_{${systemIndex}})\,R_x(\alpha_{${systemIndex}})`;
+                description = `Transformación del sistema {${systemIndex}} respecto al sistema {${systemIndex - 1}}.`;
+            } else if (systemIndex > 0) {
+                const factors = Array.from({ length: systemIndex }, (_, i) =>
+                    String.raw`\mathbf{T}_{${i + 1}}^{${i}}`);
+                formula = systemIndex === 1
+                    ? factors[0]
+                    : String.raw`\mathbf{T}_{${systemIndex}}^{0}=` + factors.join(String.raw`\,`);
+                description = `Transformación del sistema {${systemIndex}} respecto al sistema base {0}.`;
+            }
+
+            katex.render(formula, document.getElementById('transform-equation'),
+                { displayMode: true, throwOnError: false });
+            const e = matrix.elements;
+            const fmt = value => (Math.abs(value) < 1e-10 ? 0 : value).toFixed(3);
+            const latex = String.raw`\mathbf{T}_{${systemIndex}}^{${matrixMode === 'local' ? systemIndex - 1 : 0}}=\begin{bmatrix}
+                ${fmt(e[0])} & ${fmt(e[4])} & ${fmt(e[8])} & ${fmt(e[12])}\\
+                ${fmt(e[1])} & ${fmt(e[5])} & ${fmt(e[9])} & ${fmt(e[13])}\\
+                ${fmt(e[2])} & ${fmt(e[6])} & ${fmt(e[10])} & ${fmt(e[14])}\\
+                0 & 0 & 0 & 1
+            \end{bmatrix}`;
+            katex.render(latex, document.getElementById('matrix-container'),
+                { displayMode: true, throwOnError: false });
+            systemLabel.textContent = systemIndex === 0
+                ? 'Sistema {0} · base'
+                : systemIndex === viewer.dhParams.length
+                    ? `Sistema {${systemIndex}} · efector final`
+                    : `Sistema {${systemIndex}}`;
+            previousSystemButton.disabled = systemIndex === 0;
+            nextSystemButton.disabled = systemIndex === viewer.dhParams.length;
+            frameDescription.textContent = `Sistema seleccionado: {${systemIndex}}.`;
+            document.getElementById('system-position').textContent =
+                `Posición en {0}: (${fmt(cumulative.elements[12])}, ${fmt(cumulative.elements[13])}, ${fmt(cumulative.elements[14])})`;
+            document.getElementById('transform-description').textContent = description;
+        }
+        function refreshSystemNavigation() {
+            if (selectedFrame !== 'end' && selectedFrame !== 'base'
+                && Number(selectedFrame) >= viewer.dhParams.length) {
+                selectedFrame = 'end';
+            }
+            updateFrameDisplay();
+        }
+
+        function refreshJointControls() {
+            jointControls.replaceChildren();
+            viewer.dhParams.forEach((param, index) => {
+                const isRevolute = param.type !== 'P';
+                const property = isRevolute ? 'theta' : 'd';
+                const value = Number(param[property]) || 0;
+                const row = document.createElement('div');
+                const title = document.createElement('div');
+                title.className = 'flex justify-between gap-2 text-xs';
+                const name = document.createElement('span');
+                name.textContent = `Articulación ${index + 1} · ${isRevolute ? 'R (θ)' : 'P (d)'}`;
+                const amount = document.createElement('output');
+                amount.className = 'text-indigo-300 font-mono';
+                const formatValue = number => String(Number(Number(number).toFixed(1)));
+                amount.textContent = `${formatValue(value)}${isRevolute ? '°' : ''}`;
+                title.append(name, amount);
+
+                const slider = document.createElement('input');
+                slider.type = 'range';
+                slider.className = 'w-full accent-indigo-500';
+                slider.min = isRevolute ? String(Math.min(-360, value)) : String(Math.min(-400, value));
+                slider.max = isRevolute ? String(Math.max(360, value)) : String(Math.max(400, value));
+                slider.step = 'any';
+                slider.value = String(Math.max(Number(slider.min), Math.min(Number(slider.max), value)));
+                slider.setAttribute('aria-label', name.textContent);
+                slider.addEventListener('input', () => {
+                    const newValue = Number(formatValue(slider.value));
+                    viewer.dhParams[index][property] = newValue;
+                    amount.textContent = `${formatValue(newValue)}${isRevolute ? '°' : ''}`;
+                    const field = viewer.tableBody.querySelector(
+                        `[data-index="${index}"][data-prop="${property}"]`
+                    );
+                    if (field) field.value = String(newValue);
+                    viewer.updateRobotGeometry();
+                });
+                row.append(title, slider);
+                jointControls.append(row);
+            });
+        }
+
+        // Only this FK page overrides matrix presentation. Other pages using
+        // RobotViewer keep their own matrix renderer.
+        // updateRobotGeometry() already invokes updateMatrixDisplay(), so this
+        // also refreshes the selected transformation when the robot moves.
+        viewer.updateMatrixDisplay = () => updateFrameDisplay();
+        const originalRenderTable = viewer.renderTable.bind(viewer);
+        viewer.renderTable = () => {
+            trackJointDefaults();
+            originalRenderTable();
+            refreshJointControls();
+            refreshSystemNavigation();
+            refreshPresetIdentity();
+            [...viewer.tableBody.rows].forEach((row, index) => {
+                row.cells[0].title = `Seleccionar sistema {${index + 1}}`;
+            });
+        };
+        viewer.tableBody.addEventListener('input', event => {
+            if (event.target.matches('[data-prop]')) {
+                refreshJointControls();
+                refreshPresetIdentity();
+            }
+        });
+        viewer.tableBody.addEventListener('click', event => {
+            const cell = event.target.closest('td');
+            if (!cell || cell.cellIndex !== 0) return;
+            selectSystem(cell.parentElement.sectionRowIndex + 1);
+        });
+        previousSystemButton.addEventListener('click', () => {
+            selectSystem(selectedSystemIndex() - 1);
+        });
+        nextSystemButton.addEventListener('click', () => {
+            selectSystem(selectedSystemIndex() + 1);
+        });
+        document.querySelectorAll('[data-matrix-mode]').forEach(button => {
+            button.addEventListener('click', () => {
+                if (button.disabled) return;
+                matrixMode = button.dataset.matrixMode;
+                updateFrameDisplay();
+            });
+        });
+        document.getElementById('show-dh-row').addEventListener('click', () => {
+            const selectedIndex = selectedFrame === 'end'
+                ? viewer.dhParams.length - 1 : Number(selectedFrame);
+            if (selectedFrame === 'base' || selectedIndex < 0) return;
+            const editor = document.getElementById('dh-details');
+            editor.open = true;
+            const row = viewer.tableBody.rows[selectedIndex];
+            row?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+        });
+        document.getElementById('reset-joints').addEventListener('click', () => {
+            viewer.dhParams.forEach(param => {
+                const prop = param.type === 'P' ? 'd' : 'theta';
+                const baseline = jointDefaults.get(param);
+                if (baseline && baseline.type === param.type) {
+                    param[prop] = baseline.value;
+                }
+            });
+            viewer.renderTable();
+            viewer.updateRobotGeometry();
+        });
+
+        presetSelect.addEventListener('change', () => {
+            activePreset = presetSelect.value;
+            const example = examples[activePreset];
+            presetBaseline = copyDH(example.params);
+            viewer.dhParams = copyDH(example.params);
+            presetDescription.textContent = example.description;
+            selectedFrame = 'end';
+            matrixMode = 'cumulative';
+            viewer.renderTable();
+            viewer.updateRobotGeometry();
+            fitRobot();
+        });
+
+        function fitRobot() {
+            if (!viewer.robotGroup || !viewer.camera || !viewer.controls) return;
+            // Include link geometry and system origins. The selected highlight
+            // is deliberately excluded so its long axes do not inflate bounds.
+            viewer.robotGroup.updateWorldMatrix(true, true);
+            const bounds = new THREE.Box3().setFromObject(viewer.robotGroup);
+            if (bounds.isEmpty()) return;
+
+            const center = bounds.getCenter(new THREE.Vector3());
+            const size = bounds.getSize(new THREE.Vector3());
+            const camera = viewer.camera;
+            const controls = viewer.controls;
+            const direction = camera.position.clone().sub(controls.target).normalize();
+            if (direction.lengthSq() < 1e-8) direction.set(1, -1, 1).normalize();
+            const distance = Math.max(camera.position.distanceTo(controls.target), 1);
+            controls.target.copy(center);
+            camera.position.copy(center).addScaledVector(direction, distance);
+            camera.lookAt(center);
+
+            // Orthographic fit calculated from all bounding-box corners in
+            // camera coordinates, preserving the existing viewing direction.
+            camera.updateMatrixWorld();
+            const min = bounds.min, max = bounds.max;
+            let extentX = 0, extentY = 0;
+            for (const x of [min.x, max.x]) {
+                for (const y of [min.y, max.y]) {
+                    for (const z of [min.z, max.z]) {
+                        const p = new THREE.Vector3(x, y, z).project(camera);
+                        extentX = Math.max(extentX, Math.abs(p.x));
+                        extentY = Math.max(extentY, Math.abs(p.y));
+                    }
+                }
+            }
+            const scaleFactor = Math.max(extentX, extentY, 0.1) * 1.35;
+            camera.zoom = Math.max(0.05, Math.min(20, camera.zoom / scaleFactor));
+            camera.updateProjectionMatrix();
+            controls.update();
+        }
+        document.getElementById('fit-robot').addEventListener('click', fitRobot);
+
         window.onload = () => {
             viewer.init3D();
+            // Keep the conventional camera gestures local to this lab so
+            // existing IK and Jacobian pages retain their current mapping.
+            viewer.controls.mouseButtons = {
+                LEFT: THREE.MOUSE.ROTATE,
+                MIDDLE: THREE.MOUSE.DOLLY,
+                RIGHT: THREE.MOUSE.PAN
+            };
+            viewer.scene.add(selectedSystem);
+            viewer.scene.add(pickRoot);
+            viewer.scene.add(hoverIndicator);
+            attachSystemPicking();
             viewer.renderTable();
             viewer.updateRobotGeometry();
         };

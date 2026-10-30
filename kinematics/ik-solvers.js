@@ -47,163 +47,334 @@ function gaussianElimination6x6(A, b) {
 // IK Solver: Position only using Cyclic Coordinate Descent (CCD)
 // ---------------------------------------------------------------------------
 /**
- * Solves inverse kinematics for position only using the CCD algorithm.
- * @param {RobotViewer} viewer - The robot viewer instance
- * @param {THREE.Vector3} target - Target position in world coordinates
- * @param {Object} [options] - Optional parameters
- * @param {number} [options.maxIterations=100] - Maximum CCD iterations
- * @param {number} [options.tolerance=0.1] - Convergence tolerance in mm
- * @returns {number} Final distance error to target
+ * Position-only CCD solver for serial chains with revolute (R) and
+ * prismatic (P) joints, using standard DH parameters.
+ *
+ * The detailed API reports convergence separately from reachability.
+ * Failure to converge does NOT establish that a target is unreachable.
+ * The manipulator is left at the best configuration encountered.
+ *
+ * @param {RobotViewer} viewer - Mutable serial-chain model
+ * @param {THREE.Vector3} target - Desired end-effector position
+ * @param {Object} [options]
+ * @param {number} [options.maxIterations=200] - Maximum full CCD sweeps
+ * @param {number} [options.tolerance=0.5] - Position tolerance in model units
+ * @param {Function} [options.onStep] - Optional callback after a joint update:
+ *   {iteration, jointIndex, jointType, delta, values, error}.
+ *   Revolute delta is in degrees; prismatic delta is in model length units.
+ *   values contains theta for R and d for P. For backward compatibility,
+ *   callbacks also receive angles (all theta values) and deltaDegrees for R.
+ *   Each iteration denotes one full sweep from the last joint to the first.
+ *   No callbacks are emitted for joints that cannot move or have zero update.
+ *   The ideal prismatic joints have unrestricted travel in this version.
+ * @returns {{solved:boolean,status:string,iterations:number,error:number,initialError:number}}
  */
-export function solveIKPositionCCD(viewer, target, options = {}) {
-    const maxIterations = options.maxIterations || 100;
-    const tolerance = options.tolerance || 0.1;
-    let solved = false;
+export function solveIKPositionCCDDetailed(viewer, target, options = {}) {
+    const maxIterations = Number.isFinite(options.maxIterations)
+        ? Math.max(1, Math.floor(options.maxIterations)) : 200;
+    const tolerance = Number.isFinite(options.tolerance) && options.tolerance > 0
+        ? options.tolerance : 0.5;
+    const initialError = viewer.getEEPosition().distanceTo(target);
+    if (viewer.dhParams.some(joint => joint.type !== 'R' && joint.type !== 'P')) {
+        return { solved: false, status: 'unsupported_joint', iterations: 0,
+            error: initialError, initialError };
+    }
+
+    let bestError = initialError;
+    const getValues = () => viewer.dhParams.map(joint =>
+        joint.type === 'P' ? joint.d : joint.theta);
+    let bestValues = getValues();
+    if (initialError <= tolerance) {
+        return { solved: true, status: 'converged', iterations: 0,
+            error: initialError, initialError };
+    }
+
+    let iterations = 0;
+    let stallCount = 0;
+    let lastError = initialError;
+    let status = 'max_iterations';
 
     for (let iter = 0; iter < maxIterations; iter++) {
         for (let i = viewer.dhParams.length - 1; i >= 0; i--) {
+            const joint = viewer.dhParams[i];
             const eePos = viewer.getEEPosition();
-            const jointPos = viewer.getJointPosition(i);
-
-            if (eePos.distanceTo(target) < tolerance) {
-                solved = true;
-                break;
-            }
-
-            const jointToEE = new THREE.Vector3().subVectors(eePos, jointPos);
-            const jointToTarget = new THREE.Vector3().subVectors(target, jointPos);
-
             const { zAxes } = viewer.getJointStates(i);
-            const jointAxis = zAxes[i] || new THREE.Vector3(0, 0, 1);
+            const axis = zAxes[i];
+            let delta = 0;
 
-            jointToEE.projectOnPlane(jointAxis).normalize();
-            jointToTarget.projectOnPlane(jointAxis).normalize();
+            if (joint.type === 'P') {
+                // Moving d_i translates the end-effector along z_{i-1}.
+                // Projecting the current positional error onto this unit
+                // axis exactly minimizes the error with other joints fixed.
+                const error = new THREE.Vector3().subVectors(target, eePos);
+                delta = error.dot(axis); // model length units
+                if (Math.abs(delta) < 1e-12) continue;
+                joint.d += delta;
+            } else {
+                const jointPos = viewer.getJointPosition(i);
+                // R joint: align the two projected directions by rotating
+                // about z_{i-1}, leaving the axial component unchanged.
+                const toEE = new THREE.Vector3().subVectors(eePos, jointPos)
+                    .projectOnPlane(axis);
+                const toTarget = new THREE.Vector3().subVectors(target, jointPos)
+                    .projectOnPlane(axis);
+                if (toEE.lengthSq() < 1e-12 || toTarget.lengthSq() < 1e-12) continue;
 
-            let dot = jointToEE.dot(jointToTarget);
-            dot = Math.max(-1, Math.min(1, dot));
-            let deltaTheta = Math.acos(dot);
+                toEE.normalize();
+                toTarget.normalize();
+                const sine = new THREE.Vector3().crossVectors(toEE, toTarget).dot(axis);
+                const cosine = Math.max(-1, Math.min(1, toEE.dot(toTarget)));
+                const angle = Math.atan2(sine, cosine);
+                delta = THREE.MathUtils.radToDeg(angle);
+                if (Math.abs(angle) < 1e-12) continue;
 
-            const cross = new THREE.Vector3().crossVectors(jointToEE, jointToTarget);
-            if (cross.dot(jointAxis) < 0) {
-                deltaTheta = -deltaTheta;
+                const theta = joint.theta + delta;
+                joint.theta = ((theta + 180) % 360 + 360) % 360 - 180;
             }
 
-            const deltaDeg = THREE.MathUtils.radToDeg(deltaTheta);
-            if (!isNaN(deltaDeg)) {
-                let newTheta = viewer.dhParams[i].theta + deltaDeg;
-                if (newTheta > 360) newTheta -= 360;
-                if (newTheta < -360) newTheta += 360;
-                viewer.dhParams[i].theta = parseFloat(newTheta.toFixed(2));
+            if (typeof options.onStep === 'function') {
+                options.onStep({
+                    iteration: iter + 1,
+                    jointIndex: i,
+                    jointType: joint.type,
+                    delta,
+                    // A snapshot allows the interface to replay real CCD
+                    // updates, including the displacement of prismatic joints.
+                    values: getValues(),
+                    // Keep existing R-only animation callbacks compatible.
+                    angles: viewer.dhParams.map(joint => joint.theta),
+                    deltaDegrees: joint.type === 'R' ? delta : null,
+                    error: viewer.getEEPosition().distanceTo(target)
+                });
             }
         }
-        if (solved) break;
+
+        iterations = iter + 1;
+        const error = viewer.getEEPosition().distanceTo(target);
+        if (error < bestError) {
+            bestError = error;
+            bestValues = getValues();
+        }
+        if (bestError <= tolerance) {
+            status = 'converged';
+            break;
+        }
+        // Stop when full sweeps cease improving the position appreciably.
+        // This may be a stationary or numerically difficult configuration,
+        // not necessarily an unreachable target.
+        stallCount = Math.abs(lastError - error) < 1e-9 ? stallCount + 1 : 0;
+        if (stallCount >= 10) {
+            status = 'stalled';
+            break;
+        }
+        lastError = error;
     }
 
-    const finalEE = viewer.getEEPosition();
-    return finalEE.distanceTo(target);
+    viewer.dhParams.forEach((joint, index) => {
+        if (joint.type === 'P') joint.d = bestValues[index];
+        else joint.theta = bestValues[index];
+    });
+    return { solved: bestError <= tolerance, status, iterations,
+        error: bestError, initialError };
+}
+
+/**
+ * Backward-compatible position IK API returning only the final error.
+ * For convergence diagnostics use solveIKPositionCCDDetailed().
+ */
+export function solveIKPositionCCD(viewer, target, options = {}) {
+    return solveIKPositionCCDDetailed(viewer, target, options).error;
 }
 
 // ---------------------------------------------------------------------------
-// IK Solver: Full 6-DoF using Damped Least Squares (DLS)
+// IK Solver: Full pose (position + orientation) using Damped Least Squares
 // ---------------------------------------------------------------------------
+
 /**
- * Solves full 6-DoF inverse kinematics (position + orientation) using DLS.
- * @param {RobotViewer} viewer - The robot viewer instance
- * @param {THREE.Vector3} targetPos - Target position in world coordinates
- * @param {THREE.Quaternion} targetQuat - Target orientation as quaternion
- * @param {Object} [options] - Optional parameters
- * @param {number} [options.maxIterations=300] - Maximum DLS iterations
- * @param {number} [options.learningRate=0.25] - Step size factor (alpha)
- * @param {number} [options.damping=2.0] - Damping factor (lambda)
- * @param {number} [options.posTolerance=0.1] - Position convergence tolerance (mm)
- * @param {number} [options.rotTolerance=0.001] - Orientation convergence tolerance (rad)
- * @returns {Object} Result object with solved, pErr, rErr
+ * Pose error expressed in the base/world frame. The shortest quaternion
+ * difference gives a rotation vector with magnitude in [0, pi], including
+ * valid 180-degree rotations (unlike a sum of cross products of axes).
+ *
+ * The rotation vector is the axis-angle logarithm of
+ * q_target * inverse(q_current). Its norm is the angular discrepancy.
+ *
+ * @returns {{position:THREE.Vector3,rotation:THREE.Vector3,
+ *            pErr:number,rErr:number}}
+ */
+export function measureIKPoseError(eeMatrix, targetPos, targetQuat) {
+    const currentPos = new THREE.Vector3().setFromMatrixPosition(eeMatrix);
+    const position = new THREE.Vector3().subVectors(targetPos, currentPos);
+    const currentQuat = new THREE.Quaternion().setFromRotationMatrix(eeMatrix).normalize();
+    const difference = targetQuat.clone().normalize()
+        .multiply(currentQuat.invert()).normalize();
+    // q and -q represent the same orientation. Choose the shorter rotation.
+    if (difference.w < 0) {
+        difference.set(-difference.x, -difference.y, -difference.z, -difference.w);
+    }
+    const sineHalfAngle = Math.hypot(difference.x, difference.y, difference.z);
+    const angle = 2 * Math.atan2(sineHalfAngle, Math.max(0, difference.w));
+    const rotation = new THREE.Vector3(difference.x, difference.y, difference.z);
+    if (sineHalfAngle > 1e-12) rotation.multiplyScalar(angle / sineHalfAngle);
+    else rotation.set(0, 0, 0);
+    return { position, rotation, pErr: position.length(), rErr: angle };
+}
+
+/**
+ * Solve full pose IK for a chain of six or more revolute joints.
+ *
+ * Translation is divided by characteristicLength in both J_v and the
+ * position error to compare translation and rotation on a common scale.
+ * The damping and step limit are thus dimensionless/angular quantities.
+ * Backtracking accepts only improvements in the combined pose residual.
+ * No mechanical joint limits or collision avoidance are imposed.
+ *
+ * The solver updates viewer.dhParams and returns the best pose reached.
+ * A nonconverged status does not prove that the pose is unreachable.
+ *
+ * @param {RobotViewer} viewer
+ * @param {THREE.Vector3} targetPos
+ * @param {THREE.Quaternion} targetQuat
+ * @param {Object} [options]
+ * @param {number} [options.maxIterations=500]
+ * @param {number} [options.learningRate=0.8]
+ * @param {number} [options.damping=0.08]
+ * @param {number} [options.posTolerance=0.5] - Model length units
+ * @param {number} [options.rotTolerance=0.008726646259971648] - Radians (0.5 deg)
+ * @param {number} [options.characteristicLength] - Model length units
+ * @param {number} [options.maxStepDegrees=12] - Maximum change per joint per iteration
+ * @param {Function} [options.onStep] - Called after each ACCEPTED DLS update.
+ *   Receives {iteration, angles, pErr, rErr, residual, fraction}. Angle
+ *   values are degrees; rotation error is radians; position error uses
+ *   model units. Rejected line-search candidates are not recorded.
+ * @returns {{solved:boolean,status:string,iterations:number,pErr:number,
+ *            rErr:number,initialPErr:number,initialRErr:number}}
  */
 export function solveIKFull6DoF(viewer, targetPos, targetQuat, options = {}) {
-    const maxIterations = options.maxIterations || 300;
-    const learningRate = options.learningRate || 0.25;
-    const damping = options.damping || 2.0;
-    const posTolerance = options.posTolerance || 0.1;
-    const rotTolerance = options.rotTolerance || 0.001;
-
-    const T_target = new THREE.Matrix4().makeRotationFromQuaternion(targetQuat).setPosition(targetPos);
-
-    let pErr = 1000, rErr = 1000;
-    let solved = false;
+    const maxIterations = Number.isFinite(options.maxIterations)
+        ? Math.max(1, Math.floor(options.maxIterations)) : 500;
+    const learningRate = Number.isFinite(options.learningRate) && options.learningRate > 0
+        ? options.learningRate : 0.8;
+    const damping = Number.isFinite(options.damping) && options.damping > 0
+        ? options.damping : 0.08;
+    const posTolerance = Number.isFinite(options.posTolerance) && options.posTolerance > 0
+        ? options.posTolerance : 0.5;
+    const rotTolerance = Number.isFinite(options.rotTolerance) && options.rotTolerance > 0
+        ? options.rotTolerance : THREE.MathUtils.degToRad(0.5);
+    const characteristicLength = Number.isFinite(options.characteristicLength)
+        && options.characteristicLength > 0 ? options.characteristicLength
+        : Math.max(100, viewer.dhParams.reduce((sum, joint) =>
+            sum + Math.abs(joint.a) + Math.abs(joint.d), 0) / 3);
+    const maxStep = THREE.MathUtils.degToRad(
+        Number.isFinite(options.maxStepDegrees) && options.maxStepDegrees > 0
+            ? options.maxStepDegrees : 12
+    );
+    const targetOrientation = targetQuat.clone().normalize();
+    const evaluation = () => {
+        const { matrices, eeMatrix } = viewer.computeForwardKinematics();
+        const error = measureIKPoseError(eeMatrix, targetPos, targetOrientation);
+        const residual = Math.hypot(error.pErr / characteristicLength, error.rErr);
+        return { matrices, ...error, residual };
+    };
+    const initial = evaluation();
+    const baseResult = {
+        initialPErr: initial.pErr, initialRErr: initial.rErr
+    };
+    const N = viewer.dhParams.length;
+    if (viewer.dhParams.some(joint => joint.type !== 'R')) {
+        return { ...baseResult, solved: false, status: 'unsupported_joint',
+            iterations: 0, pErr: initial.pErr, rErr: initial.rErr };
+    }
+    if (N < 6) {
+        return { ...baseResult, solved: false, status: 'insufficient_dof',
+            iterations: 0, pErr: initial.pErr, rErr: initial.rErr };
+    }
+    let current = initial;
+    let best = initial;
+    let bestAngles = viewer.dhParams.map(joint => joint.theta);
+    let status = 'max_iterations';
+    let iterations = 0;
+    let stalled = 0;
 
     for (let iter = 0; iter < maxIterations; iter++) {
-        const { matrices, eeMatrix } = viewer.computeForwardKinematics();
-
-        // Position error
-        const currentPos = new THREE.Vector3().setFromMatrixPosition(eeMatrix);
-        const posError = new THREE.Vector3().subVectors(targetPos, currentPos);
-
-        // Orientation error using rotation vector cross product
-        const R_curr = new THREE.Matrix3().setFromMatrix4(eeMatrix);
-        const R_targ = new THREE.Matrix3().setFromMatrix4(T_target);
-
-        const nx = new THREE.Vector3(R_curr.elements[0], R_curr.elements[1], R_curr.elements[2]);
-        const ny = new THREE.Vector3(R_curr.elements[3], R_curr.elements[4], R_curr.elements[5]);
-        const nz = new THREE.Vector3(R_curr.elements[6], R_curr.elements[7], R_curr.elements[8]);
-        const dx = new THREE.Vector3(R_targ.elements[0], R_targ.elements[1], R_targ.elements[2]);
-        const dy = new THREE.Vector3(R_targ.elements[3], R_targ.elements[4], R_targ.elements[5]);
-        const dz = new THREE.Vector3(R_targ.elements[6], R_targ.elements[7], R_targ.elements[8]);
-
-        const rotError = new THREE.Vector3()
-            .crossVectors(nx, dx)
-            .add(new THREE.Vector3().crossVectors(ny, dy))
-            .add(new THREE.Vector3().crossVectors(nz, dz))
-            .multiplyScalar(0.5);
-
-        pErr = posError.length();
-        rErr = rotError.length();
-
-        if (pErr < posTolerance && rErr < rotTolerance) {
-            solved = true;
+        if (current.pErr <= posTolerance && current.rErr <= rotTolerance) {
+            status = 'converged';
             break;
         }
-
-        const dX = [posError.x, posError.y, posError.z, rotError.x, rotError.y, rotError.z];
-
-        // Build Jacobian
-        const N = viewer.dhParams.length;
-        const J = Array.from({ length: 6 }, () => new Array(N).fill(0));
-
-        for (let j = 0; j < N; j++) {
-            const p_j = j === 0 ? new THREE.Vector3(0, 0, 0) : new THREE.Vector3().setFromMatrixPosition(matrices[j - 1]);
-            const m = j === 0 ? (new THREE.Matrix4()).elements : matrices[j - 1].elements;
-            const z_j = new THREE.Vector3(m[8], m[9], m[10]).normalize();
-
-            const p_ee_minus_pj = new THREE.Vector3().subVectors(currentPos, p_j);
-            const linearVel = new THREE.Vector3().crossVectors(z_j, p_ee_minus_pj);
-
-            J[0][j] = linearVel.x; J[1][j] = linearVel.y; J[2][j] = linearVel.z;
-            J[3][j] = z_j.x; J[4][j] = z_j.y; J[5][j] = z_j.z;
+        // The viewer computes J in base coordinates with all revolute
+        // variables measured in radians.
+        const J = viewer.computeJacobian(current.matrices).map((row, r) =>
+            row.map(value => r < 3 ? value / characteristicLength : value));
+        const desired = [
+            current.position.x / characteristicLength,
+            current.position.y / characteristicLength,
+            current.position.z / characteristicLength,
+            current.rotation.x, current.rotation.y, current.rotation.z
+        ];
+        const JJt = Array.from({ length: 6 }, (_, r) =>
+            Array.from({ length: 6 }, (_, c) =>
+                J[r].reduce((sum, value, k) => sum + value * J[c][k], 0)
+                    + (r === c ? damping * damping : 0)
+            )
+        );
+        const weights = gaussianElimination6x6(JJt, desired);
+        if (!weights) {
+            status = 'numerical_failure';
+            break;
         }
-
-        // DLS: J * J^T with damping
-        const JJt = Array.from({ length: 6 }, () => new Array(6).fill(0));
-        for (let r = 0; r < 6; r++) {
-            for (let c = 0; c < 6; c++) {
-                let sum = 0;
-                for (let k = 0; k < N; k++) sum += J[r][k] * J[c][k];
-                JJt[r][c] = sum + (r === c ? damping * damping : 0);
+        const updates = Array.from({ length: N }, (_, j) =>
+            learningRate * J.reduce((sum, row, r) => sum + row[j] * weights[r], 0));
+        const largestStep = Math.max(...updates.map(Math.abs));
+        if (!Number.isFinite(largestStep)) {
+            status = 'numerical_failure';
+            break;
+        }
+        const stepScale = largestStep > maxStep ? maxStep / largestStep : 1;
+        const previous = viewer.dhParams.map(joint => joint.theta);
+        let accepted = false;
+        let acceptedFraction = null;
+        // Monotone line search: refuse numerical steps that worsen the
+        // combined error. A difficult target may still stall.
+        for (const fraction of [1, 0.5, 0.25, 0.125, 0.0625]) {
+            viewer.dhParams.forEach((joint, j) => {
+                const theta = previous[j] + THREE.MathUtils.radToDeg(
+                    updates[j] * stepScale * fraction);
+                joint.theta = ((theta + 180) % 360 + 360) % 360 - 180;
+            });
+            const candidate = evaluation();
+            if (candidate.residual < current.residual - 1e-11) {
+                current = candidate;
+                accepted = true;
+                acceptedFraction = fraction;
+                break;
             }
         }
-
-        const w = gaussianElimination6x6(JJt, dX);
-        if (!w) break;
-
-        for (let j = 0; j < N; j++) {
-            let delta = 0;
-            for (let r = 0; r < 6; r++) delta += J[r][j] * w[r];
-
-            const step = delta * learningRate;
-            let newTheta = viewer.dhParams[j].theta + THREE.MathUtils.radToDeg(step);
-            newTheta = ((newTheta + 180) % 360 + 360) % 360 - 180;
-            viewer.dhParams[j].theta = parseFloat(newTheta.toFixed(2));
+        iterations = iter + 1;
+        if (!accepted) {
+            viewer.dhParams.forEach((joint, j) => { joint.theta = previous[j]; });
+            stalled++;
+            if (stalled >= 6) { status = 'stalled'; break; }
+        } else {
+            stalled = 0;
+            if (current.residual < best.residual) {
+                best = current;
+                bestAngles = viewer.dhParams.map(joint => joint.theta);
+            }
+            if (typeof options.onStep === 'function') {
+                options.onStep({
+                    iteration: iterations,
+                    angles: viewer.dhParams.map(joint => joint.theta),
+                    pErr: current.pErr,
+                    rErr: current.rErr,
+                    residual: current.residual,
+                    fraction: acceptedFraction
+                });
+            }
         }
     }
-
-    return { solved, pErr, rErr };
+    viewer.dhParams.forEach((joint, j) => { joint.theta = bestAngles[j]; });
+    const final = evaluation();
+    const solved = final.pErr <= posTolerance && final.rErr <= rotTolerance;
+    if (solved) status = 'converged';
+    return { ...baseResult, solved, status, iterations,
+        pErr: final.pErr, rErr: final.rErr };
 }

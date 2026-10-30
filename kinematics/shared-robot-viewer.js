@@ -6,44 +6,7 @@
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
-// ---------------------------------------------------------------------------
-// Utility: solve a 6x6 linear system via Gaussian elimination with pivoting
-// ---------------------------------------------------------------------------
-function gaussianElimination6x6(A, b) {
-    const n = 6;
-    for (let i = 0; i < n; i++) {
-        let maxEl = Math.abs(A[i][i]);
-        let maxRow = i;
-        for (let k = i + 1; k < n; k++) {
-            if (Math.abs(A[k][i]) > maxEl) {
-                maxEl = Math.abs(A[k][i]);
-                maxRow = k;
-            }
-        }
-        for (let k = i; k < n; k++) {
-            const tmp = A[maxRow][k]; A[maxRow][k] = A[i][k]; A[i][k] = tmp;
-        }
-        let tmp = b[maxRow]; b[maxRow] = b[i]; b[i] = tmp;
-
-        if (Math.abs(A[i][i]) < 1e-6) return null; // singular
-
-        for (let k = i + 1; k < n; k++) {
-            const c = -A[k][i] / A[i][i];
-            for (let j = i; j < n; j++) {
-                if (i === j) A[k][j] = 0;
-                else A[k][j] += c * A[i][j];
-            }
-            b[k] += c * b[i];
-        }
-    }
-    const x = new Array(n).fill(0);
-    for (let i = n - 1; i >= 0; i--) {
-        x[i] = b[i] / A[i][i];
-        for (let k = i - 1; k >= 0; k--) b[k] -= A[k][i] * x[i];
-    }
-    return x;
-}
+import { solveIKPositionCCDDetailed, solveIKFull6DoF as solveFullPoseDLS } from './ik-solvers.js';
 
 // ---------------------------------------------------------------------------
 // RobotViewer class – shared 3D scene, DH table, and visualization
@@ -91,10 +54,12 @@ export class RobotViewer {
 
         // Bind event handlers
         this._onInputChange = this._onInputChange.bind(this);
+        this._onNumberBlur = this._onNumberBlur.bind(this);
         this._onDeleteRow = this._onDeleteRow.bind(this);
         this._onAddRow = this._onAddRow.bind(this);
         this._onWindowResize = this._onWindowResize.bind(this);
         this._animate = this._animate.bind(this);
+        this._tableControlsBound = false;
     }
 
     // ======================================================================
@@ -179,29 +144,34 @@ export class RobotViewer {
     // Camera View Presets
     // ======================================================================
     changeView(view) {
-        const d = 1800;
-        this.controls.target.set(0, 0, 0);
+        // Preserve the center and camera distance chosen by the student,
+        // including a previous "Encuadrar" action in the FK lab.
+        const target = this.controls.target.clone();
+        const distance = Math.max(this.camera.position.distanceTo(target), 1);
+        const direction = new THREE.Vector3();
 
         switch (view) {
             case 'top':
-                this.camera.position.set(0, 0, d);
+                direction.set(0, 0, 1);
                 this.camera.up.set(0, 1, 0);
                 break;
             case 'front':
-                this.camera.position.set(0, -d, 0);
+                direction.set(0, -1, 0);
                 this.camera.up.set(0, 0, 1);
                 break;
             case 'side':
-                this.camera.position.set(d, 0, 0);
+                direction.set(1, 0, 0);
                 this.camera.up.set(0, 0, 1);
                 break;
             case 'iso':
-                const isoVal = d / Math.sqrt(3);
-                this.camera.position.set(isoVal, -isoVal, isoVal);
+                direction.set(1, -1, 1).normalize();
                 this.camera.up.set(0, 0, 1);
                 break;
+            default:
+                return;
         }
-        this.camera.lookAt(0, 0, 0);
+        this.camera.position.copy(target).addScaledVector(direction, distance);
+        this.camera.lookAt(target);
         this.controls.update();
 
         document.querySelectorAll('.view-btn').forEach(btn => {
@@ -231,14 +201,22 @@ export class RobotViewer {
         this.tableBody.querySelectorAll('input, select').forEach(input =>
             input.addEventListener('input', this._onInputChange)
         );
+        // A temporarily empty/incomplete numeric field is allowed while
+        // typing. Restore the last valid model value when focus leaves.
+        this.tableBody.querySelectorAll('input[type="number"]').forEach(input =>
+            input.addEventListener('blur', this._onNumberBlur)
+        );
         this.tableBody.querySelectorAll('.delete-btn').forEach(btn =>
             btn.addEventListener('click', this._onDeleteRow)
         );
 
-        // Attach view button event listeners
-        this._attachViewButtonListeners();
-        // Attach add row listener
-        this.addRowBtn.addEventListener('click', this._onAddRow);
+        // Static controls must be bound only once. renderTable() is called
+        // repeatedly when adding/removing links or changing joint types.
+        if (!this._tableControlsBound) {
+            this._attachViewButtonListeners();
+            this.addRowBtn?.addEventListener('click', this._onAddRow);
+            this._tableControlsBound = true;
+        }
     }
 
     /**
@@ -287,7 +265,11 @@ export class RobotViewer {
         let value = e.target.value;
 
         if (prop !== 'type') {
-            value = parseFloat(value) || 0;
+            // Do not move the robot to zero while the student is replacing
+            // a number or entering an incomplete negative/scientific value.
+            if (value.trim() === '' || e.target.validity?.badInput) return;
+            value = Number(value);
+            if (!Number.isFinite(value)) return;
             if (prop === 'theta' || prop === 'alpha') {
                 if (value < -360) value = -360;
                 if (value > 360) value = 360;
@@ -301,6 +283,18 @@ export class RobotViewer {
         }
 
         this.updateRobotGeometry();
+    }
+
+    _onNumberBlur(e) {
+        const index = Number(e.target.dataset.index);
+        const prop = e.target.dataset.prop;
+        const param = this.dhParams[index];
+        if (!param || !['a', 'alpha', 'd', 'theta'].includes(prop)) return;
+        if (e.target.value.trim() === '' ||
+            e.target.validity?.badInput ||
+            !Number.isFinite(Number(e.target.value))) {
+            e.target.value = String(param[prop]);
+        }
     }
 
     _onDeleteRow(e) {
@@ -393,9 +387,27 @@ export class RobotViewer {
     // Override this method to provide custom rendering.
     // ======================================================================
     updateRobotGeometry() {
-        // Clear previous geometry
-        while (this.robotGroup.children.length > 0) {
-            this.robotGroup.remove(this.robotGroup.children[0]);
+        // Clear and dispose GPU resources from the previous robot drawing.
+        // Some link meshes share a material, so dispose each resource only once.
+        const disposedGeometries = new Set();
+        const disposedMaterials = new Set();
+        for (const child of [...this.robotGroup.children]) {
+            child.traverse(object => {
+                if (object.geometry && !disposedGeometries.has(object.geometry)) {
+                    object.geometry.dispose();
+                    disposedGeometries.add(object.geometry);
+                }
+                const materials = object.material
+                    ? (Array.isArray(object.material) ? object.material : [object.material])
+                    : [];
+                for (const material of materials) {
+                    if (!disposedMaterials.has(material)) {
+                        material.dispose();
+                        disposedMaterials.add(material);
+                    }
+                }
+            });
+            this.robotGroup.remove(child);
         }
 
         let currentMatrix = new THREE.Matrix4();
@@ -562,156 +574,19 @@ export class RobotViewer {
     }
 
     // ======================================================================
-    // IK Solver (CCD) – only position, no orientation
+    // Backward-compatible IK convenience methods.
+    // Current solvers and teaching traces are maintained in ik-solvers.js.
     // ======================================================================
+    /** @deprecated Prefer solveIKPositionCCDDetailed(viewer, target, options). */
     solveIKPosition(target) {
-        const maxIterations = 100;
-        const tolerance = 0.1;
-        let solved = false;
-
-        for (let iter = 0; iter < maxIterations; iter++) {
-            for (let i = this.dhParams.length - 1; i >= 0; i--) {
-                const eePos = this._getEEPosition();
-                const jointPos = this._getJointPosition(i);
-
-                if (eePos.distanceTo(target) < tolerance) {
-                    solved = true;
-                    break;
-                }
-
-                const jointToEE = new THREE.Vector3().subVectors(eePos, jointPos);
-                const jointToTarget = new THREE.Vector3().subVectors(target, jointPos);
-
-                const { zAxes } = this.getJointStates(i);
-                const jointAxis = zAxes[i] || new THREE.Vector3(0, 0, 1);
-
-                jointToEE.projectOnPlane(jointAxis).normalize();
-                jointToTarget.projectOnPlane(jointAxis).normalize();
-
-                let dot = jointToEE.dot(jointToTarget);
-                dot = Math.max(-1, Math.min(1, dot));
-                let deltaTheta = Math.acos(dot);
-
-                const cross = new THREE.Vector3().crossVectors(jointToEE, jointToTarget);
-                if (cross.dot(jointAxis) < 0) {
-                    deltaTheta = -deltaTheta;
-                }
-
-                const deltaDeg = THREE.MathUtils.radToDeg(deltaTheta);
-                if (!isNaN(deltaDeg)) {
-                    let newTheta = this.dhParams[i].theta + deltaDeg;
-                    if (newTheta > 360) newTheta -= 360;
-                    if (newTheta < -360) newTheta += 360;
-                    this.dhParams[i].theta = parseFloat(newTheta.toFixed(2));
-                }
-            }
-            if (solved) break;
-        }
-
-        const finalEE = this._getEEPosition();
-        return finalEE.distanceTo(target);
+        return solveIKPositionCCDDetailed(this, target, {
+            maxIterations: 100, tolerance: 0.1
+        }).error;
     }
 
-    getEEPosition() {
-        const { eeMatrix } = this.computeForwardKinematics();
-        return new THREE.Vector3().setFromMatrixPosition(eeMatrix);
-    }
-
-    getJointPosition(k) {
-        const { positions } = this.getJointStates(k);
-        return positions[k] || new THREE.Vector3(0, 0, 0);
-    }
-
-    // ======================================================================
-    // IK Solver (Full 6-DoF) – Damped Least Squares (DLS)
-    // ======================================================================
+    /** @deprecated Prefer solveIKFull6DoF(viewer, targetPos, targetQuat, options). */
     solveIKFull6DoF(targetPos, targetQuat, options = {}) {
-        const maxIterations = options.maxIterations || 300;
-        const learningRate = options.learningRate || 0.25;
-        const damping = options.damping || 2.0;
-        const posTolerance = options.posTolerance || 0.1;
-        const rotTolerance = options.rotTolerance || 0.001;
-
-        const T_target = new THREE.Matrix4().makeRotationFromQuaternion(targetQuat).setPosition(targetPos);
-
-        let pErr = 1000, rErr = 1000;
-        let solved = false;
-
-        for (let iter = 0; iter < maxIterations; iter++) {
-            const { matrices, eeMatrix } = this.computeForwardKinematics();
-
-            // Position error
-            const currentPos = new THREE.Vector3().setFromMatrixPosition(eeMatrix);
-            const posError = new THREE.Vector3().subVectors(targetPos, currentPos);
-
-            // Orientation error using rotation vector cross product
-            const R_curr = new THREE.Matrix3().setFromMatrix4(eeMatrix);
-            const R_targ = new THREE.Matrix3().setFromMatrix4(T_target);
-
-            const nx = new THREE.Vector3(R_curr.elements[0], R_curr.elements[1], R_curr.elements[2]);
-            const ny = new THREE.Vector3(R_curr.elements[3], R_curr.elements[4], R_curr.elements[5]);
-            const nz = new THREE.Vector3(R_curr.elements[6], R_curr.elements[7], R_curr.elements[8]);
-            const dx = new THREE.Vector3(R_targ.elements[0], R_targ.elements[1], R_targ.elements[2]);
-            const dy = new THREE.Vector3(R_targ.elements[3], R_targ.elements[4], R_targ.elements[5]);
-            const dz = new THREE.Vector3(R_targ.elements[6], R_targ.elements[7], R_targ.elements[8]);
-
-            const rotError = new THREE.Vector3()
-                .crossVectors(nx, dx)
-                .add(new THREE.Vector3().crossVectors(ny, dy))
-                .add(new THREE.Vector3().crossVectors(nz, dz))
-                .multiplyScalar(0.5);
-
-            pErr = posError.length();
-            rErr = rotError.length();
-
-            if (pErr < posTolerance && rErr < rotTolerance) {
-                solved = true;
-                break;
-            }
-
-            const dX = [posError.x, posError.y, posError.z, rotError.x, rotError.y, rotError.z];
-
-            // Build Jacobian
-            const N = this.dhParams.length;
-            const J = Array.from({ length: 6 }, () => new Array(N).fill(0));
-
-            for (let j = 0; j < N; j++) {
-                const p_j = j === 0 ? new THREE.Vector3(0, 0, 0) : new THREE.Vector3().setFromMatrixPosition(matrices[j - 1]);
-                const m = j === 0 ? (new THREE.Matrix4()).elements : matrices[j - 1].elements;
-                const z_j = new THREE.Vector3(m[8], m[9], m[10]).normalize();
-
-                const p_ee_minus_pj = new THREE.Vector3().subVectors(currentPos, p_j);
-                const linearVel = new THREE.Vector3().crossVectors(z_j, p_ee_minus_pj);
-
-                J[0][j] = linearVel.x; J[1][j] = linearVel.y; J[2][j] = linearVel.z;
-                J[3][j] = z_j.x; J[4][j] = z_j.y; J[5][j] = z_j.z;
-            }
-
-            // DLS: J * J^T with damping
-            const JJt = Array.from({ length: 6 }, () => new Array(6).fill(0));
-            for (let r = 0; r < 6; r++) {
-                for (let c = 0; c < 6; c++) {
-                    let sum = 0;
-                    for (let k = 0; k < N; k++) sum += J[r][k] * J[c][k];
-                    JJt[r][c] = sum + (r === c ? damping * damping : 0);
-                }
-            }
-
-            const w = gaussianElimination6x6(JJt, dX);
-            if (!w) break;
-
-            for (let j = 0; j < N; j++) {
-                let delta = 0;
-                for (let r = 0; r < 6; r++) delta += J[r][j] * w[r];
-
-                const step = delta * learningRate;
-                let newTheta = this.dhParams[j].theta + THREE.MathUtils.radToDeg(step);
-                newTheta = ((newTheta + 180) % 360 + 360) % 360 - 180;
-                this.dhParams[j].theta = parseFloat(newTheta.toFixed(2));
-            }
-        }
-
-        return { solved, pErr, rErr };
+        return solveFullPoseDLS(this, targetPos, targetQuat, options);
     }
 
     // ======================================================================
