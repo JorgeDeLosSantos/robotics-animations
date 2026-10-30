@@ -2,11 +2,12 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Homogeneous Transformations - Fixed Frame Pure</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; display: flex; background: #0f172a; }
         #ui-panel {
-            width: 350px; height: 100vh; background: rgba(255,255,255,0.95);
+            width: 350px; max-width: 100%; height: 100vh; height: 100dvh; background: rgba(255,255,255,0.95);
             position: absolute; left: 0; top: 0; z-index: 10;
             padding: 20px; box-shadow: 5px 0 15px rgba(0,0,0,0.5);
             overflow-y: auto; box-sizing: border-box;
@@ -31,6 +32,9 @@
         }
         button:hover { background: #4f46e5; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
         span.val { float: right; color: #6366f1; font-weight: bold; }
+        @media (max-width: 720px) {
+            #ui-panel { width: min(350px, 100%); height: auto; max-height: 52dvh; padding: 14px; }
+        }
     </style>
 </head>
 <body>
@@ -87,16 +91,23 @@
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0f172a);
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(12, 12, 12);
+    camera.position.set(12, -12, 12);
+    camera.up.set(0, 0, 1); // Z-up matches other robotics labs
+    camera.lookAt(0, 0, 0);
 
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
     const controls = new OrbitControls(camera, renderer.domElement);
+    controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
+    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
 
     // Ayudas visuales - Rejilla del Mundo
-    scene.add(new THREE.GridHelper(20, 20, 0x334155, 0x1e293b));
+    const groundGrid = new THREE.GridHelper(20, 20, 0x334155, 0x1e293b);
+    groundGrid.rotation.x = Math.PI / 2;
+    scene.add(groundGrid);
     const worldAxes = new THREE.AxesHelper(6);
     scene.add(worldAxes); 
 
