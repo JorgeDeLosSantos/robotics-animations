@@ -182,8 +182,8 @@
       if (colors) {
         for (let i = 0; i < colors.count; i++) {
           const c = new THREE.Color(light
-            ? (Math.floor(i / 4) === 10 ? 0xcbd5e1 : 0x94a3b8)
-            : (Math.floor(i / 4) === 10 ? 0x334155 : 0x475569));
+            ? (Math.floor(i / 4) === 10 ? 0x94a3b8 : 0xcbd5e1)
+            : (Math.floor(i / 4) === 10 ? 0x475569 : 0x334155));
           colors.setXYZ(i, c.r, c.g, c.b);
         }
         colors.needsUpdate = true;
