@@ -59,6 +59,7 @@
       #ui-panel { max-height: 66dvh; }
     }
   </style>
+<link rel="stylesheet" href="../shared/navigation.css">
 </head>
 <body>
   <aside id="ui-panel">
@@ -247,5 +248,6 @@
     setCameraView('isometric');
     function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); } animate();
   </script>
+<script type="module" src="../shared/navigation.js"></script>
 </body>
 </html>
