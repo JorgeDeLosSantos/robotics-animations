@@ -95,30 +95,65 @@
                 <button id="dls-final" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Ir directamente al resultado</button>
                 <p id="dls-step-description" class="text-xs text-slate-200">Configuración inicial.</p>
                 <div class="rounded bg-slate-950/70 border border-slate-800 p-2 flex flex-col gap-2">
-                    <div class="flex items-center justify-between gap-2 text-xs">
+<div class="flex items-center justify-between gap-2 text-xs">
                         <span class="text-amber-300 font-semibold">Error de posición</span>
                         <output id="dls-position-value" class="text-amber-300 font-mono">—</output>
                     </div>
-                    <svg viewBox="0 0 320 80" role="img" aria-label="Evolución del error de posición durante las iteraciones DLS" class="w-full">
-                        <line x1="16" y1="64" x2="304" y2="64" stroke="#64748b" stroke-width="1"/>
-                        <polyline id="dls-position-curve" points="" fill="none" stroke="#fbbf24" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-                        <circle id="dls-position-cursor" cx="16" cy="16" r="4.5" fill="#fbbf24" stroke="#0f172a" stroke-width="1.5"/>
-                        <text x="16" y="77" font-size="10" fill="#94a3b8">Inicio</text>
-                        <text x="304" y="77" font-size="10" fill="#94a3b8" text-anchor="end">Final</text>
+                    <svg viewBox="0 0 360 122" role="img" aria-label="Evolución del error de posición en unidades del modelo y su tolerancia durante las actualizaciones DLS" class="w-full">
+                        <line x1="51" y1="92" x2="342" y2="92" stroke="#64748b" stroke-width="1"/>
+                        <line x1="51" y1="16" x2="51" y2="92" stroke="#64748b" stroke-width="1"/>
+                        <line x1="51" y1="54" x2="342" y2="54" stroke="#64748b" stroke-opacity=".22" stroke-dasharray="3 4"/>
+                        <line id="dls-position-threshold" x1="51" y1="92" x2="342" y2="92" stroke="#4ade80" stroke-width="1.7" stroke-dasharray="5 4"/>
+                        <text id="dls-position-ymax" x="44" y="19" fill="#94a3b8" font-size="10" text-anchor="end">—</text>
+                        <text id="dls-position-ymid" x="44" y="57" fill="#94a3b8" font-size="10" text-anchor="end">—</text>
+                        <text x="44" y="95" fill="#94a3b8" font-size="10" text-anchor="end">0</text>
+                        <polyline id="dls-position-curve" points="" fill="none" stroke="#fbbf24" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+                        <line id="dls-position-selector" x1="51" y1="16" x2="51" y2="92" stroke="#fbbf24" stroke-width="1" stroke-opacity=".5" stroke-dasharray="3 4"/>
+                        <circle id="dls-position-cursor" cx="51" cy="16" r="4.2" fill="#fbbf24" stroke="#0f172a" stroke-width="1.5"/>
+                        <text x="51" y="108" font-size="10" fill="#94a3b8">Inicio</text>
+                        <text x="342" y="108" font-size="10" fill="#94a3b8" text-anchor="end">Resultado</text>
+                        <text x="196" y="120" font-size="9.5" fill="#94a3b8" text-anchor="middle">Pasos registrados</text>
                     </svg>
                     <div class="flex items-center justify-between gap-2 text-xs">
                         <span class="text-violet-300 font-semibold">Error de orientación</span>
                         <output id="dls-orientation-value" class="text-violet-300 font-mono">—</output>
                     </div>
-                    <svg viewBox="0 0 320 80" role="img" aria-label="Evolución del error angular durante las iteraciones DLS" class="w-full">
-                        <line x1="16" y1="64" x2="304" y2="64" stroke="#64748b" stroke-width="1"/>
-                        <polyline id="dls-orientation-curve" points="" fill="none" stroke="#c084fc" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-                        <circle id="dls-orientation-cursor" cx="16" cy="16" r="4.5" fill="#c084fc" stroke="#0f172a" stroke-width="1.5"/>
-                        <text x="16" y="77" font-size="10" fill="#94a3b8">Inicio</text>
-                        <text x="304" y="77" font-size="10" fill="#94a3b8" text-anchor="end">Final</text>
+                    <svg viewBox="0 0 360 122" role="img" aria-label="Evolución del error de orientación en grados y su tolerancia durante las actualizaciones DLS" class="w-full">
+                        <line x1="51" y1="92" x2="342" y2="92" stroke="#64748b" stroke-width="1"/>
+                        <line x1="51" y1="16" x2="51" y2="92" stroke="#64748b" stroke-width="1"/>
+                        <line x1="51" y1="54" x2="342" y2="54" stroke="#64748b" stroke-opacity=".22" stroke-dasharray="3 4"/>
+                        <line id="dls-orientation-threshold" x1="51" y1="92" x2="342" y2="92" stroke="#4ade80" stroke-width="1.7" stroke-dasharray="5 4"/>
+                        <text id="dls-orientation-ymax" x="44" y="19" fill="#94a3b8" font-size="10" text-anchor="end">—</text>
+                        <text id="dls-orientation-ymid" x="44" y="57" fill="#94a3b8" font-size="10" text-anchor="end">—</text>
+                        <text x="44" y="95" fill="#94a3b8" font-size="10" text-anchor="end">0</text>
+                        <polyline id="dls-orientation-curve" points="" fill="none" stroke="#c084fc" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>
+                        <line id="dls-orientation-selector" x1="51" y1="16" x2="51" y2="92" stroke="#c084fc" stroke-width="1" stroke-opacity=".5" stroke-dasharray="3 4"/>
+                        <circle id="dls-orientation-cursor" cx="51" cy="16" r="4.2" fill="#c084fc" stroke="#0f172a" stroke-width="1.5"/>
+                        <text x="51" y="108" font-size="10" fill="#94a3b8">Inicio</text>
+                        <text x="342" y="108" font-size="10" fill="#94a3b8" text-anchor="end">Resultado</text>
+                        <text x="196" y="120" font-size="9.5" fill="#94a3b8" text-anchor="middle">Pasos registrados</text>
                     </svg>
                 </div>
-                <p class="text-[11px] text-slate-500">Gráficas con escalas verticales independientes: unidades del modelo y grados. Los errores individuales pueden aumentar temporalmente, aunque el residual combinado disminuya.</p>
+                <p class="text-[11px] text-slate-500">Las curvas muestran valores con escalas verticales independientes. <span class="text-green-400">Línea verde discontinua</span> = tolerancia de convergencia (0.5 unidades para posición, 0.5° para orientación). La marca vertical sigue el paso seleccionado; una métrica puede subir aunque mejore el residual conjunto.</p>
+            </section>
+
+            <section id="dls-summary" class="hidden bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Resumen de la solución DLS">
+                <h3 class="text-sm font-semibold text-indigo-300">Resumen de convergencia</h3>
+                <p id="dls-summary-status" class="text-sm font-semibold" role="status">—</p>
+                <p id="dls-summary-counts" class="text-xs text-slate-300">—</p>
+                <div class="grid grid-cols-2 gap-2 text-xs">
+                    <div class="rounded bg-slate-950 border border-slate-800 p-2">
+                        <div class="font-semibold text-amber-300 mb-1">Posición</div>
+                        <p id="dls-summary-position" class="font-mono text-slate-200">—</p>
+                        <p class="text-slate-500 mt-1">Tolerancia ≤ 0.5 unid.</p>
+                    </div>
+                    <div class="rounded bg-slate-950 border border-slate-800 p-2">
+                        <div class="font-semibold text-violet-300 mb-1">Orientación</div>
+                        <p id="dls-summary-orientation" class="font-mono text-slate-200">—</p>
+                        <p class="text-slate-500 mt-1">Tolerancia ≤ 0.5°</p>
+                    </div>
+                </div>
+                <p id="dls-summary-note" class="text-xs text-slate-400">—</p>
             </section>
 
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Error de pose">
@@ -542,6 +577,7 @@
             dlsFrameIndex = 0;
             lastDLSResult = null;
             playbackPanel.classList.add('hidden');
+            document.getElementById('dls-summary').classList.add('hidden');
         }
 
         function showSolveOutcome(result) {
@@ -565,10 +601,18 @@
             }
         }
 
+        // The vertical axes are independent, measured in model length units
+        // and degrees respectively. Both thresholds are drawn at their true
+        // vertical positions, even for already-converged initial poses.
+        const chartOrigin = { left: 51, right: 342, top: 16, bottom: 92 };
+        const chartTolerance = { position: 0.5, orientation: 0.5 };
+
         function historyPoint(index, value, scale) {
-            const x = 16 + 288 * (dlsFrames.length > 1
-                ? index / (dlsFrames.length - 1) : 0);
-            const y = 64 - 48 * Math.max(0, Math.min(1, value / scale));
+            const x = chartOrigin.left +
+                (chartOrigin.right - chartOrigin.left) * (dlsFrames.length > 1
+                    ? index / (dlsFrames.length - 1) : 0);
+            const y = chartOrigin.bottom - (chartOrigin.bottom - chartOrigin.top)
+                * Math.max(0, Math.min(1, value / scale));
             return [x, y];
         }
 
@@ -578,14 +622,56 @@
                 { key: 'orientation', value: frame => THREE.MathUtils.radToDeg(frame.rErr) }
             ];
             plots.forEach(plot => {
-                chartScale[plot.key] = Math.max(1e-9,
-                    ...dlsFrames.map(frame => plot.value(frame)));
+                chartScale[plot.key] = Math.max(
+                    chartTolerance[plot.key] * 1.25,
+                    1e-9,
+                    ...dlsFrames.map(frame => plot.value(frame) * 1.08)
+                );
                 const coords = dlsFrames.map((frame, i) =>
                     historyPoint(i, plot.value(frame), chartScale[plot.key]));
-                document.getElementById('dls-' + plot.key + '-curve').setAttribute(
+                const rootId = 'dls-' + plot.key;
+                document.getElementById(rootId + '-curve').setAttribute(
                     'points', coords.map(pair => pair.join(',')).join(' ')
                 );
+                document.getElementById(rootId + '-ymax').textContent =
+                    format(chartScale[plot.key]);
+                document.getElementById(rootId + '-ymid').textContent =
+                    format(chartScale[plot.key] / 2);
+                const toleranceY = historyPoint(0,
+                    chartTolerance[plot.key], chartScale[plot.key])[1];
+                const threshold = document.getElementById(rootId + '-threshold');
+                threshold.setAttribute('y1', String(toleranceY));
+                threshold.setAttribute('y2', String(toleranceY));
             });
+        }
+
+        function displaySummary(result, acceptedUpdates) {
+            const summary = document.getElementById('dls-summary');
+            summary.classList.remove('hidden');
+            const label = document.getElementById('dls-summary-status');
+            const reasons = {
+                converged: 'Convergencia alcanzada',
+                stalled: 'Sin convergencia: estancamiento',
+                max_iterations: 'Sin convergencia: límite de iteraciones',
+                numerical_failure: 'Sin convergencia: dificultad numérica',
+                insufficient_dof: 'Sin convergencia: grados de libertad insuficientes',
+                unsupported_joint: 'Sin convergencia: tipo de junta no admitido'
+            };
+            label.textContent = reasons[result.status] || 'Solución no convergente';
+            label.className = result.solved
+                ? 'text-sm font-semibold text-emerald-400'
+                : 'text-sm font-semibold text-amber-300';
+            document.getElementById('dls-summary-counts').textContent =
+                'Iteraciones intentadas: ' + result.iterations +
+                ' · actualizaciones aceptadas: ' + acceptedUpdates;
+            document.getElementById('dls-summary-position').textContent =
+                format(result.initialPErr) + ' → ' + format(result.pErr) + ' unid.';
+            document.getElementById('dls-summary-orientation').textContent =
+                format(THREE.MathUtils.radToDeg(result.initialRErr)) + '° → ' +
+                format(THREE.MathUtils.radToDeg(result.rErr)) + '°';
+            document.getElementById('dls-summary-note').textContent = result.solved
+                ? 'Ambos errores cumplen sus tolerancias. La solución no considera límites articulares ni colisiones.'
+                : 'La mejor configuración encontrada no cumple ambas tolerancias. Esto no demuestra que la pose sea inalcanzable.';
         }
 
         function showDLSFrame(index) {
@@ -620,6 +706,9 @@
                 const cursor = document.getElementById('dls-' + key + '-cursor');
                 cursor.setAttribute('cx', String(x));
                 cursor.setAttribute('cy', String(y));
+                const selector = document.getElementById('dls-' + key + '-selector');
+                selector.setAttribute('x1', String(x));
+                selector.setAttribute('x2', String(x));
             }
             document.getElementById('dls-step-description').textContent =
                 dlsFrameIndex === 0
@@ -731,6 +820,7 @@
             dlsFrames = frames;
             lastDLSResult = result;
             playbackPanel.classList.remove('hidden');
+            displaySummary(result, frames.filter((frame, i) => i > 0 && !frame.restored).length);
             buildErrorHistory();
             showDLSFrame(0);
             if (frames.length > 1 &&
