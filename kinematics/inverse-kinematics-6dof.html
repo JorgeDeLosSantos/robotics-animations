@@ -231,7 +231,7 @@
                 <button id="btn-view-side" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all">Side (YZ)</button>
                 <button id="btn-view-iso" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all">Isometric</button>
                 <span class="hidden sm:block h-6 w-px mx-0.5 bg-slate-600/70"></span>
-                <button id="fit-robot" type="button" title="Centrar y ajustar la vista" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded">Fit View</button>
+                <button id="fit-robot" type="button" title="Center and fit view" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded">Fit View</button>
             </div>
         </div>
     </main>
@@ -426,13 +426,13 @@
                 'Target Position: ' + coordinateText(lastValidTarget.position);
             document.getElementById('position-error').textContent = target
                 ? 'Position Error: ' + format(errors.pErr) + ' units'
-                : 'Position Error: — (objetivo incompleto)';
+                : 'Position Error: — (incomplete target)';
             document.getElementById('orientation-error').textContent = target
                 ? 'Orientation Error: '
                     + format(THREE.MathUtils.radToDeg(errors.rErr)) + '°'
-                : 'Orientation Error: — (objetivo incompleto)';
+                : 'Orientation Error: — (incomplete target)';
             document.getElementById('orientation-axis').textContent = target && errors.rErr > 1e-5
-                ? 'Correction Axis en {0}: ' + coordinateText(errors.rotation.clone().normalize())
+                ? 'Correction Axis in {0}: ' + coordinateText(errors.rotation.clone().normalize())
                 : 'Correction Axis: —';
             document.getElementById('solution-angles').textContent =
                 viewer.dhParams.map((j,i)=> (j.type === 'R' ? 'θ' : 'd')+(i+1)+' = '

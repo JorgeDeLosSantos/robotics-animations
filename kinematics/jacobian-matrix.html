@@ -632,8 +632,8 @@
             katex.render(formula, document.getElementById('selected-column-formula'),
                 { throwOnError: false, displayMode: true });
             const desc = revolute
-                ? 'Revolute: the joint's z axis produces linear velocity perpendicular to the lever arm from its origin to the end effector, as well as angular velocity.'
-                : 'Prismatic: linear motion follows the joint's z axis and produces no angular velocity.';
+                ? "Revolute: the joint's z axis produces linear velocity perpendicular to the lever arm from its origin to the end effector, as well as angular velocity."
+                : "Prismatic: linear motion follows the joint's z axis and produces no angular velocity.";
             document.getElementById('selected-column-description').textContent = desc;
             const vector = start => [0, 1, 2].map(k => {
                 const v = J[start + k][index];
@@ -671,7 +671,7 @@
             }
             document.getElementById('column-visual-note').textContent = linearArrow.visible
                 ? 'Arrows indicate directions, not magnitudes. Yellow: joint axis; green: linear contribution at the end effector.'
-                : 'This joint's linear contribution is zero in the current configuration, so the green arrow is hidden.';
+                : "This joint's linear contribution is zero in the current configuration, so the green arrow is hidden.";
         }
 
         function renderJacobian() {
