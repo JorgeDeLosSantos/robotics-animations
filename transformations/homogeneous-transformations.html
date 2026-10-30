@@ -108,7 +108,7 @@
     <h2>Transformation History</h2><ol id="history"></ol>
   </aside>
 
-  <nav id="view-controls" aria-label="Vistas de cámara">
+  <nav id="view-controls" aria-label="Camera views">
     <button type="button" data-view="top">Top</button>
     <button type="button" data-view="front">Front</button>
     <button type="button" data-view="side">Side</button>
@@ -193,8 +193,8 @@
     function updateModeUI() {
       const world = frameMode.value === 'world';
       document.getElementById('mode-help').textContent = world
-        ? 'El incremento se expresa en los axiss fijos del mundo y se multiplica por la izquierda.'
-        : 'El incremento se expresa en los axiss actuales del cuerpo y se multiplica por la derecha.';
+        ? 'The increment is expressed in the fixed world axes and left-multiplied.'
+        : 'The increment is expressed in the current body axes and right-multiplied.';
       document.querySelectorAll('.frame-symbol').forEach(el => { el.textContent = world ? 'W' : 'B'; });
       renderMath(world
         ? String.raw`\mathbf{T}_{B,k+1}^{W}=\mathbf{T}_{\Delta}^{W}\,\mathbf{T}_{B,k}^{W}`

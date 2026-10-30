@@ -65,11 +65,11 @@
                     <button id="target-from-current" type="button" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-1.5">Use Current Pose as Target</button>
                     <button id="reset-target" type="button" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-1.5">Reset Target</button>
                 </div>
-                <p id="ik-status" role="status" aria-live="polite" class="text-xs text-slate-400">Modifica la pose objetivo y pulsa Resolver.</p>
+                <p id="ik-status" role="status" aria-live="polite" class="text-xs text-slate-400">Adjust the target pose and click Solve.</p>
                 <p id="ik-limit-note" class="text-[11px] text-slate-500">DLS requires at least six revolute joints; no joint limits or collision checks.</p>
             </section>
 
-            <section id="dls-playback-panel" class="hidden bg-slate-800/60 border border-indigo-500/30 rounded-lg p-3 flex flex-col gap-3" aria-label="Reproducción de iterations DLS">
+            <section id="dls-playback-panel" class="hidden bg-slate-800/60 border border-indigo-500/30 rounded-lg p-3 flex flex-col gap-3" aria-label="DLS iteration playback">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                     <h3 class="text-sm font-semibold text-indigo-300">Step-by-Step Execution · DLS</h3>
                     <label for="dls-speed" class="flex items-center gap-2 text-xs text-slate-400">Speed
@@ -88,10 +88,10 @@
                 <input id="dls-progress" type="range" min="0" max="1" step="1" value="0"
                     aria-label="Recorrer iterations DLS" class="w-full accent-indigo-500">
                 <div class="grid grid-cols-4 gap-2">
-                    <button type="button" id="dls-first" title="Ir a la configuración inicial" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs">Start</button>
-                    <button type="button" id="dls-prev" title="Retroceder una actualización" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs">‹ Previous</button>
+                    <button type="button" id="dls-first" title="Go to initial configuration" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs">Start</button>
+                    <button type="button" id="dls-prev" title="Go back one update" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs">‹ Previous</button>
                     <button type="button" id="dls-play" class="rounded bg-indigo-600 hover:bg-indigo-500 px-2 py-2 text-xs font-semibold">Play</button>
-                    <button type="button" id="dls-next" title="Avanzar una actualización" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs">Next ›</button>
+                    <button type="button" id="dls-next" title="Go forward one update" class="rounded bg-slate-700 hover:bg-slate-600 px-2 py-2 text-xs">Next ›</button>
                 </div>
                 <button id="dls-final" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Jump to Result</button>
                 <p id="dls-step-description" class="text-xs text-slate-200">Initial configuration.</p>
@@ -100,7 +100,7 @@
                         <span class="text-amber-300 font-semibold">Position Error</span>
                         <output id="dls-position-value" class="text-amber-300 font-mono">—</output>
                     </div>
-                    <svg viewBox="0 0 360 122" role="img" aria-label="Evolución del error de posición en model units y su tolerancia durante las actualizaciones DLS" class="w-full">
+                    <svg viewBox="0 0 360 122" role="img" aria-label="Position error in model units and its tolerance over DLS updates" class="w-full">
                         <line x1="51" y1="92" x2="342" y2="92" stroke="#64748b" stroke-width="1"/>
                         <line x1="51" y1="16" x2="51" y2="92" stroke="#64748b" stroke-width="1"/>
                         <line x1="51" y1="54" x2="342" y2="54" stroke="#64748b" stroke-opacity=".22" stroke-dasharray="3 4"/>
@@ -119,7 +119,7 @@
                         <span class="text-violet-300 font-semibold">Orientation Error</span>
                         <output id="dls-orientation-value" class="text-violet-300 font-mono">—</output>
                     </div>
-                    <svg viewBox="0 0 360 122" role="img" aria-label="Evolución del error de orientación en grados y su tolerancia durante las actualizaciones DLS" class="w-full">
+                    <svg viewBox="0 0 360 122" role="img" aria-label="Orientation error in degrees and its tolerance over DLS updates" class="w-full">
                         <line x1="51" y1="92" x2="342" y2="92" stroke="#64748b" stroke-width="1"/>
                         <line x1="51" y1="16" x2="51" y2="92" stroke="#64748b" stroke-width="1"/>
                         <line x1="51" y1="54" x2="342" y2="54" stroke="#64748b" stroke-opacity=".22" stroke-dasharray="3 4"/>
@@ -586,7 +586,7 @@
                 status.className = 'text-xs text-emerald-400 font-medium';
                 status.textContent = 'Convergencia en ' + result.iterations
                     + ' iterations. Position: ' + format(result.pErr)
-                    + ' units; orientación: '
+                    + ' units; orientation: '
                     + format(THREE.MathUtils.radToDeg(result.rErr)) + '°.';
             } else {
                 status.className = 'text-xs text-amber-300';
@@ -596,7 +596,7 @@
                         ? 'A numerical difficulty occurred.'
                         : 'The maximum iteration count was reached.';
                 status.textContent = cause + ' Position Error: ' + format(result.pErr)
-                    + ' units; orientación: '
+                    + ' units; orientation: '
                     + format(THREE.MathUtils.radToDeg(result.rErr))
                     + '°. Esto no demuestra que la pose sea inalcanzable.';
             }
@@ -655,7 +655,7 @@
                 stalled: 'No convergence: estancamiento',
                 max_iterations: 'No convergence: iteration limit',
                 numerical_failure: 'No convergence: numerical difficulty',
-                insufficient_dof: 'No convergence: grados de libertad insuficientes',
+                insufficient_dof: 'No convergence: insufficient degrees of freedom',
                 unsupported_joint: 'No convergence: unsupported joint type'
             };
             label.textContent = reasons[result.status] || 'Non-convergent solution';

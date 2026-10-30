@@ -76,7 +76,7 @@
                 <p id="ik-limit-note" class="text-xs text-slate-500">CCD supports R and P joints; prismatic travel is unrestricted. Final orientation is not constrained.</p>
             </section>
 
-            <section id="ccd-playback-panel" class="hidden bg-slate-800/60 border border-indigo-500/30 rounded-lg p-3 flex flex-col gap-3" aria-label="Reproducción del algoritmo CCD">
+            <section id="ccd-playback-panel" class="hidden bg-slate-800/60 border border-indigo-500/30 rounded-lg p-3 flex flex-col gap-3" aria-label="CCD algorithm playback">
                 <div class="flex items-center justify-between gap-2">
                     <h3 class="text-sm font-semibold text-indigo-300">Step-by-Step Execution · CCD</h3>
                     <label class="text-xs text-slate-400 flex items-center gap-2" for="ccd-speed">Speed
@@ -93,9 +93,9 @@
                     <output id="ccd-step-error" class="text-amber-300">Error: —</output>
                 </div>
                 <input id="ccd-progress" type="range" min="0" max="1" value="0" step="1"
-                    class="w-full accent-indigo-500" aria-label="Ir a un step de la axiscución CCD">
+                    class="w-full accent-indigo-500" aria-label="Go to a CCD execution step">
                 <div class="grid grid-cols-4 gap-2">
-                    <button id="ccd-first" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-2 text-xs" title="Volver a la configuración inicial">Start</button>
+                    <button id="ccd-first" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-2 text-xs" title="Return to the initial configuration">Start</button>
                     <button id="ccd-prev" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-2 text-xs" title="Retroceder un step">‹ Previous</button>
                     <button id="ccd-play" type="button" class="bg-indigo-600 hover:bg-indigo-500 rounded px-2 py-2 text-xs font-semibold">Play</button>
                     <button id="ccd-next" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-2 text-xs" title="Avanzar un step">Next ›</button>
@@ -105,7 +105,7 @@
                 <p class="text-[11px] text-slate-500">The yellow marker identifies the adjusted joint; for prismatic joints, the turquoise arrow shows displacement direction. The target line shows the error after each step.</p>
             </section>
 
-            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Result de posición">
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Position result">
                 <h3 class="text-sm font-semibold text-indigo-400">Position and Error</h3>
                 <div class="rounded bg-slate-950 border border-slate-800 p-3 flex flex-col gap-2 text-xs font-mono">
                     <p id="current-position" class="text-cyan-300">Current: —</p>
@@ -185,7 +185,7 @@
                     Isometric
                 </button>
                 <span aria-hidden="true" class="hidden sm:block h-6 w-px mx-0.5 bg-slate-600/70"></span>
-                <button id="fit-robot" type="button" title="Centrar y ajustar la vista al manipulador" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded transition-all border border-indigo-400/30">
+                <button id="fit-robot" type="button" title="Center and fit manipulator in view" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded transition-all border border-indigo-400/30">
                     Fit View
                 </button>
             </div>
@@ -569,7 +569,7 @@
             } else {
                 status.className = 'text-xs text-slate-300';
                 status.textContent = ccdFrameIndex === 0
-                    ? 'Listo para observar los steps del algoritmo CCD.'
+                    ? 'Ready to inspect the steps of the CCD algorithm.'
                     : frame.jointIndex === null
                         ? 'Best configuration restored.'
                         : 'Step CCD · sweep ' + frame.iteration

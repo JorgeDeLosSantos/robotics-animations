@@ -128,14 +128,14 @@
                 </div>
                 <p id="frame-description" class="text-xs text-slate-400"></p>
                 <p id="system-position" class="text-xs font-mono text-slate-300"></p>
-                <button id="show-dh-row" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Ver parámetros DH de este frame</button>
+                <button id="show-dh-row" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">View DH parameters for this frame</button>
                 <p class="text-xs text-slate-400">Click near a frame origin to select it. Use ‹ › to cycle through overlapping frames.</p>
             </section>
 
             <!-- Homogeneous Transformation Matrix Display -->
             <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
                 <h3 class="text-sm font-semibold text-indigo-400">Frame Transformation</h3>
-                <div class="grid grid-cols-2 gap-2" role="group" aria-label="Type de transformación">
+                <div class="grid grid-cols-2 gap-2" role="group" aria-label="Transformation type">
                     <button type="button" data-matrix-mode="cumulative" aria-pressed="true" class="matrix-mode-btn active text-xs rounded border border-slate-600 bg-slate-700 px-2 py-2">Acumulada</button>
                     <button type="button" data-matrix-mode="local" aria-pressed="false" class="matrix-mode-btn text-xs rounded border border-slate-600 bg-slate-700 px-2 py-2">Local</button>
                 </div>
@@ -167,7 +167,7 @@
                     Isometric
                 </button>
                 <span aria-hidden="true" class="hidden sm:block h-6 w-px mx-0.5 bg-slate-600/70"></span>
-                <button id="fit-robot" type="button" title="Centrar y ajustar la vista al manipulador" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded transition-all border border-indigo-400/30">
+                <button id="fit-robot" type="button" title="Center and fit manipulator in view" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded transition-all border border-indigo-400/30">
                     Fit View
                 </button>
             </div>
@@ -512,14 +512,14 @@
                 formula = String.raw`\mathbf{T}_{${systemIndex}}^{${systemIndex - 1}}`
                     + String.raw`=R_z(\theta_{${systemIndex}})\,T_z(d_{${systemIndex}})`
                     + String.raw`\,T_x(a_{${systemIndex}})\,R_x(\alpha_{${systemIndex}})`;
-                description = `Frame Transformation {${systemIndex}} respecto al frame {${systemIndex - 1}}.`;
+                description = `Frame Transformation {${systemIndex}} relative to frame {${systemIndex - 1}}.`;
             } else if (systemIndex > 0) {
                 const factors = Array.from({ length: systemIndex }, (_, i) =>
                     String.raw`\mathbf{T}_{${i + 1}}^{${i}}`);
                 formula = systemIndex === 1
                     ? factors[0]
                     : String.raw`\mathbf{T}_{${systemIndex}}^{0}=` + factors.join(String.raw`\,`);
-                description = `Frame Transformation {${systemIndex}} respecto al frame base {0}.`;
+                description = `Frame Transformation {${systemIndex}} relative to frame base {0}.`;
             }
 
             katex.render(formula, document.getElementById('transform-equation'),
