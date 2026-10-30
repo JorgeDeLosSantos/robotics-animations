@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { orthographicFrustumForCenter } from './orthographic-frustum.js';
 
 /**
  * Fit an orthographic view around selected world-space objects.
@@ -78,10 +79,14 @@ export function fitOrthographicObjects({ camera, controls, canvas, objects, poin
   // Move the projection center into the visible area without changing orbit target.
   const ndcX = (left + right) / Math.max(rect.width, 1) - 1;
   const ndcY = 1 - (top + bottom) / Math.max(rect.height, 1);
-  camera.left = -width * (1 + ndcX) / 2;
-  camera.right = width * (1 - ndcX) / 2;
-  camera.bottom = -height * (1 + ndcY) / 2;
-  camera.top = height * (1 - ndcY) / 2;
+  // Keep the visual center in the unobstructed viewport at every zoom level.
+  // Offsetting the frustum without compensating for zoom moves the image
+  // beyond the viewport (e.g. 0.25 NDC at 6× becomes 1.5 NDC).
+  const frustum = orthographicFrustumForCenter(width, height, camera.zoom, ndcX, ndcY);
+  camera.left = frustum.left;
+  camera.right = frustum.right;
+  camera.top = frustum.top;
+  camera.bottom = frustum.bottom;
   camera.updateProjectionMatrix();
   controls.update();
   return true;
