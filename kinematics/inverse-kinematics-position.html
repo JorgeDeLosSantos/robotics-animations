@@ -51,6 +51,7 @@
                 <select id="robot-preset" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2">
                     <option value="spatial3r">3R espacial</option>
                     <option value="planar2r">2R plano</option>
+                    <option value="mixedRRP">RRP mixto</option>
                     <option value="custom" disabled>Configuración personalizada</option>
                 </select>
                 <p id="preset-description" class="text-xs text-slate-400"></p>
@@ -71,7 +72,7 @@
                 </div>
                 <button type="button" id="solve-ik-btn" class="w-full bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 disabled:cursor-not-allowed text-white text-sm font-semibold py-2.5 rounded transition-all">Resolver cinemática inversa</button>
                 <p id="ik-status" class="text-xs text-slate-400" role="status" aria-live="polite">Modifica el objetivo y pulsa Resolver para obtener una configuración articular.</p>
-                <p id="ik-limit-note" class="text-xs text-slate-500">Método CCD para juntas revolutas (R). La orientación final no se impone.</p>
+                <p id="ik-limit-note" class="text-xs text-slate-500">CCD admite juntas R y P; las juntas prismáticas se consideran sin límites de recorrido. La orientación final no se impone.</p>
             </section>
 
             <section id="ccd-playback-panel" class="hidden bg-slate-800/60 border border-indigo-500/30 rounded-lg p-3 flex flex-col gap-3" aria-label="Reproducción del algoritmo CCD">
@@ -100,7 +101,7 @@
                 </div>
                 <button id="ccd-final" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Ir directamente al resultado</button>
                 <p id="ccd-step-description" class="text-xs text-slate-200" aria-live="off">Configuración inicial.</p>
-                <p class="text-[11px] text-slate-500">El marcador amarillo identifica la junta ajustada. La línea entre el extremo y el objetivo muestra el error después de cada paso.</p>
+                <p class="text-[11px] text-slate-500">El marcador amarillo identifica la junta ajustada; en las prismáticas, la flecha turquesa indica el sentido del desplazamiento. La línea al objetivo muestra el error tras cada paso.</p>
             </section>
 
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Resultado de posición">
@@ -145,7 +146,7 @@
                             <tbody id="dh-table-body"></tbody>
                         </table>
                     </div>
-                    <p class="text-xs text-slate-400">Parámetros DH estándar. El solver CCD de esta versión admite únicamente juntas R.</p>
+                    <p class="text-xs text-slate-400">Parámetros DH estándar. CCD admite juntas R y P ideales, sin límites de recorrido prismático en esta versión.</p>
                 </div>
             </details>
 
@@ -228,6 +229,15 @@
                     { type: 'R', theta: -45, d: 0, a: 160, alpha: 0 }
                 ],
                 target: [210, 220, 0]
+            },
+            mixedRRP: {
+                description: 'Dos juntas revolutas y una prismática. Observa cómo CCD alterna Δθ y Δd.',
+                params: [
+                    { type: 'R', theta: 0, d: 140, a: 0, alpha: 90 },
+                    { type: 'R', theta: 30, d: 0, a: 170, alpha: 0 },
+                    { type: 'P', theta: 0, d: 130, a: 0, alpha: 0 }
+                ],
+                target: [212, -115, 198]
             }
         };
         const copyDH = params => params.map(param => ({ ...param }));
@@ -276,7 +286,11 @@
         );
         activeJointMarker.visible = false;
         activeJointMarker.renderOrder = 20;
-        markers.add(targetMarker, currentMarker, errorLine, activeJointMarker);
+        const prismaticMotionArrow = new THREE.ArrowHelper(
+            new THREE.Vector3(0, 0, 1), new THREE.Vector3(), 90, 0x2dd4bf, 20, 10
+        );
+        prismaticMotionArrow.visible = false;
+        markers.add(targetMarker, currentMarker, errorLine, activeJointMarker, prismaticMotionArrow);
 
         // A trace records actual per-joint CCD updates, not interpolated
         // poses or a fabricated motion. Playback is entirely local to this page.
@@ -311,18 +325,19 @@
 
         function updateSolveAvailability() {
             const valid = readTarget() !== null;
-            const revoluteOnly = viewer.dhParams.every(param => param.type === 'R');
-            solveButton.disabled = !valid || !revoluteOnly;
+            const supportedTypes = viewer.dhParams.every(param =>
+                param.type === 'R' || param.type === 'P');
+            solveButton.disabled = !valid || !supportedTypes;
             const note = document.getElementById('ik-limit-note');
-            if (!revoluteOnly) {
+            if (!supportedTypes) {
                 note.className = 'text-xs text-amber-400';
-                note.textContent = 'CCD admite únicamente juntas revolutas (R). Cambia las juntas P a R para resolver.';
+                note.textContent = 'CCD de posición admite solamente juntas R y P.';
             } else if (!valid) {
                 note.className = 'text-xs text-amber-400';
                 note.textContent = 'Completa las tres coordenadas objetivo con valores numéricos válidos.';
             } else {
                 note.className = 'text-xs text-slate-500';
-                note.textContent = 'Método CCD para juntas revolutas (R). La orientación final no se impone.';
+                note.textContent = 'CCD admite juntas R y P ideales; sin límites de recorrido prismático. La orientación final no se impone.';
             }
         }
 
@@ -477,6 +492,7 @@
             lastCCDResult = null;
             playbackPanel.classList.add('hidden');
             activeJointMarker.visible = false;
+            prismaticMotionArrow.visible = false;
         }
 
         function showSolveOutcome(result) {
@@ -498,8 +514,10 @@
             if (!ccdFrames.length) return;
             ccdFrameIndex = Math.max(0, Math.min(index, ccdFrames.length - 1));
             const frame = ccdFrames[ccdFrameIndex];
-            frame.angles.forEach((theta, i) => {
-                viewer.dhParams[i].theta = theta;
+            frame.values.forEach((value, i) => {
+                const joint = viewer.dhParams[i];
+                if (joint.type === 'P') joint.d = value;
+                else joint.theta = value;
             });
             viewer.renderTable();
             viewer.updateRobotGeometry();
@@ -508,6 +526,17 @@
             activeJointMarker.visible = frame.jointIndex !== null;
             if (activeJointMarker.visible) {
                 activeJointMarker.position.copy(viewer.getJointPosition(frame.jointIndex));
+            }
+            prismaticMotionArrow.visible = frame.jointIndex !== null
+                && frame.jointType === 'P' && Math.abs(frame.delta) > 1e-12;
+            if (prismaticMotionArrow.visible) {
+                const axis = viewer.getJointStates(frame.jointIndex).zAxes[frame.jointIndex].clone();
+                if (frame.delta < 0) axis.negate();
+                prismaticMotionArrow.position.copy(viewer.getJointPosition(frame.jointIndex));
+                prismaticMotionArrow.setDirection(axis);
+                const length = Math.min(110, Math.max(45, Math.abs(frame.delta)));
+                prismaticMotionArrow.setLength(length, Math.min(22, length * 0.3),
+                    Math.min(10, length * 0.15));
             }
             [...viewer.tableBody.rows].forEach((row, i) => {
                 row.classList.toggle('bg-amber-500/20', i === frame.jointIndex);
@@ -526,9 +555,10 @@
                 ccdFrameIndex === 0 ? 'Configuración inicial antes del primer barrido.'
                     : frame.jointIndex === null
                         ? 'Configuración final: la mejor encontrada durante la búsqueda.'
-                        : 'Barrido ' + frame.iteration + ' · ajuste de articulación '
-                            + (frame.jointIndex + 1) + ' (Δθ = '
-                            + format(frame.deltaDegrees) + '°).';
+                        : 'Barrido ' + frame.iteration + ' · articulación '
+                            + (frame.jointIndex + 1) + ' (' + frame.jointType + ') · '
+                            + (frame.jointType === 'P' ? 'Δd = ' + format(frame.delta)
+                                + ' unidades del modelo' : 'Δθ = ' + format(frame.delta) + '°') + '.';
             document.getElementById('ccd-first').disabled = ccdFrameIndex === 0;
             document.getElementById('ccd-prev').disabled = ccdFrameIndex === 0;
             document.getElementById('ccd-next').disabled = isLast;
@@ -539,8 +569,10 @@
                 status.className = 'text-xs text-slate-300';
                 status.textContent = ccdFrameIndex === 0
                     ? 'Listo para observar los pasos del algoritmo CCD.'
-                    : 'Paso CCD · barrido ' + frame.iteration
-                        + ', articulación ' + (frame.jointIndex + 1) + '.';
+                    : frame.jointIndex === null
+                        ? 'Configuración óptima restaurada.'
+                        : 'Paso CCD · barrido ' + frame.iteration
+                            + ', articulación ' + (frame.jointIndex + 1) + '.';
             }
         }
 
@@ -595,45 +627,50 @@
 
         function solvePosition() {
             const target = readTarget();
-            if (!target || viewer.dhParams.some(param => param.type !== 'R')) {
+            if (!target || viewer.dhParams.some(param => param.type !== 'R' && param.type !== 'P')) {
                 updateSolveAvailability();
                 return;
             }
             invalidatePlayback();
-            const initialAngles = viewer.dhParams.map(param => param.theta);
+            const jointValues = () => viewer.dhParams.map(param =>
+                param.type === 'P' ? param.d : param.theta);
+            const initialValues = jointValues();
             const initialError = viewer.getEEPosition().distanceTo(target);
             const frames = [{
-                angles: initialAngles,
+                values: initialValues,
                 error: initialError,
                 iteration: 0,
                 jointIndex: null,
-                deltaDegrees: 0
+                jointType: null,
+                delta: 0
             }];
             const result = solveIKPositionCCDDetailed(viewer, target, {
                 maxIterations: 200,
                 tolerance: 0.5,
                 onStep: step => frames.push({
-                    angles: step.angles,
+                    values: step.values,
                     error: step.error,
                     iteration: step.iteration,
                     jointIndex: step.jointIndex,
-                    deltaDegrees: step.deltaDegrees
+                    jointType: step.jointType,
+                    delta: step.delta
                 })
             });
             // The solver keeps the best sweep, which can precede its final
             // attempted pose. Show that restoration explicitly if it occurs.
-            const bestAngles = viewer.dhParams.map(param => param.theta);
-            if (frames.some(frame => frame.angles.length !== bestAngles.length)) {
+            const bestValues = jointValues();
+            if (frames.some(frame => frame.values.length !== bestValues.length)) {
                 throw new Error('CCD trace has incompatible joint counts.');
             }
-            if (bestAngles.some((theta, i) =>
-                Math.abs(theta - frames[frames.length - 1].angles[i]) > 1e-8)) {
+            if (bestValues.some((value, i) =>
+                Math.abs(value - frames[frames.length - 1].values[i]) > 1e-8)) {
                 frames.push({
-                    angles: bestAngles,
+                    values: bestValues,
                     error: result.error,
                     iteration: result.iterations,
                     jointIndex: null,
-                    deltaDegrees: 0
+                    jointType: null,
+                    delta: 0
                 });
             }
             ccdFrames = frames;
