@@ -46,6 +46,13 @@
   border-color: var(--ui-border) !important;
 }
 .robotics-theme-toggle {
+  /* Protect the shared control from lab-wide button styles (e.g., width:100%). */
+  box-sizing: border-box;
+  width: auto;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   margin-left: auto;
   padding: 5px 10px;
   min-width: 76px;
