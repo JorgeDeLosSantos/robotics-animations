@@ -1,12 +1,13 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Laboratorios interactivos para explorar transformaciones, cinemática directa, Jacobianas y cinemática inversa de robots.">
-  <title>Laboratorios interactivos de robótica</title>
+  <meta name="description" content="Interactive laboratories for transformations, forward kinematics, Jacobians, and robot inverse kinematics.">
+  <title>Interactive Robotics Labs</title>
+<script src="shared/theme.js"></script>
   <style>
-    :root { color-scheme: dark; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    :root { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
     * { box-sizing: border-box; }
     body { margin: 0; background: #0f172a; color: #e2e8f0; line-height: 1.55; }
     a { color: inherit; }
@@ -30,77 +31,57 @@
     footer a { color: #a5b4fc; }
     @media (prefers-reduced-motion: reduce) { .card { transition: none; } }
   </style>
+<link rel="stylesheet" href="shared/navigation.css">
+<link rel="stylesheet" href="shared/theme.css">
 </head>
-<body>
+<body class="lab-index">
   <header>
     <div class="wrap">
-      <h1>Laboratorios interactivos de robótica</h1>
-      <p>Explora las transformaciones espaciales y la cinemática de robots seriales a través de manipuladores 3D, controles articulares y cálculos que puedes modificar directamente.</p>
+      <h1>Interactive Robotics Labs</h1>
+      <p>Explore spatial transformations and serial robot kinematics through interactive 3D manipulators, joint controls, and calculations.</p>
     </div>
   </header>
   <main class="wrap">
     <section aria-labelledby="transforms-title">
-      <h2 id="transforms-title">Transformaciones y orientación</h2>
-      <p class="section-intro">Sistemas de coordenadas, composición de transformaciones y secuencias de rotación.</p>
-      <div class="cards">
-        <a class="card" href="transformations/homogeneous-transformations.html">
-          <span class="meta">Transformaciones homogéneas</span>
-          <h3>Sistemas fijo y móvil</h3>
-          <p>Compara la composición de incrementos respecto al mundo y respecto al cuerpo.</p>
-          <span class="go">Abrir laboratorio</span>
-        </a>
-        <a class="card" href="transformations/euler-angles.html">
-          <span class="meta">Rotaciones</span>
-          <h3>Ángulos de Euler</h3>
-          <p>Explora secuencias intrínsecas y observa cada giro antes de la orientación final.</p>
-          <span class="go">Abrir laboratorio</span>
-        </a>
-        <a class="card" href="transformations/transformations-fixed-frame.html">
-          <span class="meta">Actividad complementaria</span>
-          <h3>Transformaciones en el sistema fijo</h3>
-          <p>Aplica incrementos respecto a los ejes del sistema de referencia global.</p>
-          <span class="go">Abrir laboratorio</span>
-        </a>
-        <a class="card" href="transformations/transformations-body-frame.html">
-          <span class="meta">Actividad complementaria</span>
-          <h3>Transformaciones en el sistema móvil</h3>
-          <p>Aplica incrementos locales y observa cómo dependen de la orientación del cuerpo.</p>
-          <span class="go">Abrir laboratorio</span>
-        </a>
-      </div>
-    </section>
+<h2 id="transforms-title">Transformations and Orientation</h2>
+<p class="section-intro">Coordinate frames, transformation composition, and rotation sequences.</p>
+<div class="cards">
+<a class="card" href="transformations/homogeneous-transformations.html"><span class="meta">Homogeneous Transformations</span><h3>Fixed and Moving Frames</h3><p>Compare transformations relative to fixed and moving coordinate frames.</p><span class="go">Open lab</span></a>
+<a class="card" href="transformations/euler-angles.html"><span class="meta">Rotations</span><h3>Euler Angles</h3><p>Explore intrinsic rotation sequences and their intermediate steps.</p><span class="go">Open lab</span></a>
+</div></section>
     <section aria-labelledby="kinematics-title">
-      <h2 id="kinematics-title">Cinemática de robots seriales</h2>
-      <p class="section-intro">Modelo DH, velocidades y resolución numérica de posición y pose.</p>
+      <h2 id="kinematics-title">Serial Robot Kinematics</h2>
+      <p class="section-intro">DH models, velocities, and numerical position and pose solutions.</p>
       <div class="cards">
         <a class="card" href="kinematics/forward-kinematics.html">
-          <span class="meta">Cinemática directa</span>
+          <span class="meta">Forward Kinematics</span>
           <h3>Denavit–Hartenberg</h3>
-          <p>Modifica juntas y geometría, inspecciona sistemas de referencia y transformaciones.</p>
-          <span class="go">Abrir laboratorio</span>
+          <p>Adjust joints and geometry; inspect reference frames and transformations.</p>
+          <span class="go">Open lab</span>
         </a>
         <a class="card" href="kinematics/jacobian-matrix.html">
-          <span class="meta">Cinemática diferencial</span>
-          <h3>Matriz Jacobiana</h3>
-          <p>Examina las columnas de la Jacobiana y sus contribuciones a la velocidad.</p>
-          <span class="go">Abrir laboratorio</span>
+          <span class="meta">Differential Kinematics</span>
+          <h3>Jacobian Matrix</h3>
+          <p>Inspect Jacobian columns and their contributions to velocity.</p>
+          <span class="go">Open lab</span>
         </a>
         <a class="card" href="kinematics/inverse-kinematics-position.html">
-          <span class="meta">Cinemática inversa · CCD</span>
-          <h3>Posición del efector final</h3>
-          <p>Resuelve cadenas con juntas R y P y reproduce las correcciones articulación por articulación.</p>
-          <span class="go">Abrir laboratorio</span>
+          <span class="meta">Inverse Kinematics · CCD</span>
+          <h3>End-Effector Position</h3>
+          <p>Solve chains with R and P joints and replay joint-by-joint corrections.</p>
+          <span class="go">Open lab</span>
         </a>
         <a class="card" href="kinematics/inverse-kinematics-6dof.html">
-          <span class="meta">Cinemática inversa · DLS</span>
-          <h3>Pose completa (6 GDL)</h3>
-          <p>Ajusta posición y orientación y estudia la convergencia de las iteraciones numéricas.</p>
-          <span class="go">Abrir laboratorio</span>
+          <span class="meta">Inverse Kinematics · DLS</span>
+          <h3>Full Pose (6 DoF)</h3>
+          <p>Adjust position and orientation, and examine numerical convergence.</p>
+          <span class="go">Open lab</span>
         </a>
       </div>
     </section>
-    <p class="note">Convención visual: Z es el eje vertical y la cuadrícula de referencia está en el plano XY. En los laboratorios con cámara orbital, arrastra con el botón izquierdo para rotar, el derecho para desplazar y usa la rueda para acercar o alejar.</p>
+    <p class="note">Visual convention: Z is vertical and the reference grid lies in the XY plane. In orbit-enabled labs, left-drag to rotate, right-drag to pan, and scroll to zoom.</p>
   </main>
-  <footer>Material didáctico de <a href="https://github.com/JorgeDeLosSantos" target="_blank" rel="noopener noreferrer">P. J. De Los Santos</a></footer>
+  <footer>Educational material by <a href="https://github.com/JorgeDeLosSantos" target="_blank" rel="noopener noreferrer">P. J. De Los Santos</a></footer>
+<script type="module" src="shared/navigation.js"></script>
 </body>
 </html>

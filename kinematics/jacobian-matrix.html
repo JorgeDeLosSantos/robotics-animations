@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Matriz Jacobiana — Manipuladores seriales</title>
+    <title>Jacobian Matrix — Serial Manipulators</title>
+<script src="../shared/theme.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 
     <!-- Three.js via import map -->
@@ -33,49 +34,52 @@
         .jac-mode-btn[aria-pressed="true"] { background: #4f46e5; color: white; border-color: #818cf8; }
         .jac-mode-btn:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
     </style>
+<link rel="stylesheet" href="../shared/navigation.css">
+<link rel="stylesheet" href="../shared/theme.css">
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen md:min-h-[560px] md:h-dvh flex flex-col font-sans">
 
     <!-- Header -->
-    <header class="shrink-0 bg-slate-800 border-b border-slate-700 p-4 shadow-md">
-        <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-indigo-400">
-            Matriz Jacobiana
-        </h1>
-    </header>
-
     <!-- Main Container -->
     <main class="flex-none md:flex-1 md:min-h-0 flex flex-col md:flex-row md:overflow-hidden">
         
         <!-- Independently scrollable on desktop; regular document flow on mobile. -->
         <div id="controls-panel" class="w-full md:w-5/12 md:min-h-0 p-4 md:overflow-y-auto md:overscroll-contain border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
+            
+            <div class="lab-sidebar-heading">
+                <p class="lab-sidebar-category">Kinematics</p>
+                <h1>Jacobian Matrix</h1>
+                <p class="lab-sidebar-description">Explore differential kinematics and each joint&#39;s velocity contribution.</p>
+            </div>
+
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Manipulador de ejemplo</label>
+                <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Example Manipulator</label>
                 <select id="robot-preset" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2">
-                    <option value="spatial3r">3R espacial</option>
-                    <option value="planar2r">2R plano</option>
-                    <option value="mixedRRP">RRP mixto</option>
-                    <option value="custom" disabled>Configuración personalizada</option>
+                    <option value="spatial3r">Spatial 3R</option>
+                    <option value="planar2r">Planar 2R</option>
+                    <option value="mixedRRP">Mixed RRP</option>
+                    <option value="custom" disabled>Custom Configuration</option>
                 </select>
                 <p id="preset-description" class="text-xs text-slate-400"></p>
             </section>
 
             <!-- Joint variables are separate from the editable DH model. -->
-            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Variables articulares">
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Joint Variables">
                 <div class="flex justify-between items-center gap-2">
-                    <h3 class="text-sm font-semibold text-indigo-400">Variables articulares</h3>
-                    <button id="reset-joints" class="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1">Restablecer</button>
+                    <h3 class="text-sm font-semibold text-indigo-400">Joint Variables</h3>
+                    <button id="reset-joints" class="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1">Reset</button>
                 </div>
                 <div id="joint-controls" class="flex flex-col gap-3"></div>
-                <p class="text-xs text-slate-400">Para juntas R se modifica θ; para juntas P se modifica d. Los parámetros también se actualizan en la tabla DH.</p>
+                <p class="text-xs text-slate-400">For revolute joints (R), adjust θ; for prismatic joints (P), adjust d. The DH table updates accordingly.</p>
             </section>
 
             <details id="dh-details" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
-                <summary class="cursor-pointer font-semibold text-sm text-indigo-400">Configuración DH · editar geometría</summary>
+                <summary class="cursor-pointer font-semibold text-sm text-indigo-400">DH Configuration · Edit Geometry</summary>
                 <div class="pt-3 flex flex-col gap-3">
                 <div class="flex justify-between items-center">
-                    <h2 class="text-lg font-semibold text-slate-200">Parámetros DH</h2>
+                    <h2 class="text-lg font-semibold text-slate-200">DH Parameters</h2>
                     <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all flex items-center gap-1">
-                        &#x2795; Agregar eslabón
+                        &#x2795; Add Link
                     </button>
                 </div>
     
@@ -85,7 +89,7 @@
                         <thead>
                             <tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
                                 <th class="p-2.5 text-center w-10">#</th>
-                                <th class="p-2.5 text-center w-10">Tipo</th>
+                                <th class="p-2.5 text-center w-10">Type</th>
                                 <th class="p-2.5 text-center w-16">\(a\)</th>
                                 <th class="p-2.5 text-center w-16">\(\alpha\) (deg)</th>
                                 <th class="p-2.5 text-center w-16">\(d\)</th>
@@ -98,31 +102,31 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="text-xs text-slate-400">Parámetros DH estándar: longitudes en unidades del modelo y ángulos en grados.</p>
+                <p class="text-xs text-slate-400">Standard DH parameters: lengths in model units and angles in degrees.</p>
                 </div>
             </details>
 
-            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Matriz Jacobiana">
-                <h3 class="text-sm font-semibold text-indigo-400">Matriz Jacobiana geométrica</h3>
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Jacobian Matrix">
+                <h3 class="text-sm font-semibold text-indigo-400">Geometric Jacobian Matrix</h3>
                 <div class="text-center text-slate-200 overflow-x-auto py-2">
                     \(\begin{bmatrix}\mathbf v\\\boldsymbol\omega\end{bmatrix}
                     =\underbrace{\begin{bmatrix}J_v\\J_\omega\end{bmatrix}}_{J(\mathbf q)}
                     \dot{\mathbf q}\)
                 </div>
-                <p class="text-xs text-slate-400">Cada columna expresa la contribución de una articulación a la velocidad lineal y angular del efector final.</p>
+                <p class="text-xs text-slate-400">Each column represents one joint's contribution to end-effector linear and angular velocity.</p>
                 <div class="rounded-lg border border-slate-700 overflow-x-auto bg-slate-950">
-                    <table id="jacobian-table" class="w-full border-collapse text-xs text-center whitespace-nowrap" aria-label="Matriz Jacobiana con componentes lineales y angulares"></table>
+                    <table id="jacobian-table" class="w-full border-collapse text-xs text-center whitespace-nowrap" aria-label="Jacobian matrix with linear and angular components"></table>
                 </div>
-                <div class="grid grid-cols-2 gap-2" role="group" aria-label="Modo de exploración de la Jacobiana">
-                    <button type="button" data-jacobian-mode="column" aria-pressed="true" class="jac-mode-btn rounded border border-slate-600 bg-slate-700 px-2 py-2 text-xs font-semibold">Por articulación</button>
-                    <button type="button" data-jacobian-mode="velocity" aria-pressed="false" class="jac-mode-btn rounded border border-slate-600 bg-slate-700 px-2 py-2 text-xs font-semibold">Velocidad resultante</button>
+                <div class="grid grid-cols-2 gap-2" role="group" aria-label="Jacobian exploration mode">
+                    <button type="button" data-jacobian-mode="column" aria-pressed="true" class="jac-mode-btn rounded border border-slate-600 bg-slate-700 px-2 py-2 text-xs font-semibold">By Joint</button>
+                    <button type="button" data-jacobian-mode="velocity" aria-pressed="false" class="jac-mode-btn rounded border border-slate-600 bg-slate-700 px-2 py-2 text-xs font-semibold">Resultant Velocity</button>
                 </div>
                 <div id="column-exploration-panel" class="bg-slate-900/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
                     <div class="flex items-center justify-between gap-2 flex-wrap">
-                        <label for="jacobian-joint-select" class="text-xs font-semibold text-amber-300">Explorar columna</label>
-                        <select id="jacobian-joint-select" class="bg-slate-800 border border-slate-600 text-slate-100 text-xs rounded px-2 py-1.5" aria-label="Articulación cuya columna se estudia"></select>
+                        <label for="jacobian-joint-select" class="text-xs font-semibold text-amber-300">Explore Column</label>
+                        <select id="jacobian-joint-select" class="bg-slate-800 border border-slate-600 text-slate-100 text-xs rounded px-2 py-1.5" aria-label="Joint cuya columna se estudia"></select>
                     </div>
-                    <p class="text-xs text-slate-400">También puedes seleccionar una columna pulsando su encabezado o el nombre de una articulación.</p>
+                    <p class="text-xs text-slate-400">You can also select a column by clicking its header or a joint name.</p>
                     <div id="selected-column-formula" class="text-sm text-slate-100 text-center overflow-x-auto py-2"></div>
                     <p id="selected-column-description" class="text-xs text-slate-300"></p>
                     <div class="grid grid-cols-1 gap-1 text-xs font-mono">
@@ -130,46 +134,46 @@
                         <p id="selected-angular-values" class="text-teal-300"></p>
                     </div>
                     <div class="flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-400">
-                        <span><span class="text-amber-300 font-bold">●</span> Eje positivo de la junta</span>
-                        <span><span class="text-green-400 font-bold">➜</span> Dirección de contribución lineal</span>
+                        <span><span class="text-amber-300 font-bold">●</span> Positive Joint Axis</span>
+                        <span><span class="text-green-400 font-bold">➜</span> Linear Contribution Direction</span>
                     </div>
-                    <p id="column-visual-note" class="text-[11px] text-slate-500">Las flechas indican direcciones; su longitud es ilustrativa, no la magnitud de la velocidad.</p>
+                    <p id="column-visual-note" class="text-[11px] text-slate-500">Arrows indicate directions; their lengths are illustrative, not actual velocity magnitudes.</p>
                 </div>
                 <div id="velocity-panel" class="hidden bg-slate-900/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3">
                     <div class="text-center overflow-x-auto text-slate-100 text-sm">
                         \(\mathbf v_e=\sum_{i=1}^{n}J_{v,i}\dot q_i\)
                     </div>
-                    <p class="text-xs text-slate-400">Ajusta las velocidades articulares para sumar sus contribuciones a la velocidad instantánea del efector final.</p>
+                    <p class="text-xs text-slate-400">Adjust joint rates to combine their contributions to instantaneous end-effector velocity.</p>
                     <div class="flex items-center justify-between gap-2">
-                        <h4 class="text-xs font-semibold text-indigo-300">Velocidades articulares</h4>
-                        <button id="zero-joint-rates" type="button" class="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1">Todas a 0</button>
+                        <h4 class="text-xs font-semibold text-indigo-300">Joint Rates</h4>
+                        <button id="zero-joint-rates" type="button" class="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1">Set All to 0</button>
                     </div>
                     <div id="joint-rate-controls" class="flex flex-col gap-3"></div>
                     <label class="text-xs text-slate-300 flex items-center gap-2 cursor-pointer">
                         <input id="show-velocity-chain" type="checkbox" class="accent-indigo-500">
-                        Mostrar suma punta-cola en el visor
+                        Show Tip-to-Tail Addition in Viewer
                     </label>
                     <div class="bg-slate-950 rounded border border-slate-800 p-3 flex flex-col gap-1">
                         <p id="velocity-result" class="font-mono text-sm text-green-400"></p>
                         <p id="velocity-magnitude" class="font-mono text-xs text-slate-300"></p>
                     </div>
                     <div id="velocity-contributions" class="flex flex-col gap-1 text-xs text-slate-300"></div>
-                    <p id="velocity-visual-note" class="text-[11px] text-slate-400">La flecha verde representa la resultante.</p>
-                    <p class="text-[11px] text-slate-500">Las flechas utilizan una escala visual común que se ajusta automáticamente al modelo. Su dirección y proporción son significativas; las unidades de velocidad son unidades del modelo/s.</p>
+                    <p id="velocity-visual-note" class="text-[11px] text-slate-400">The green arrow shows the resultant.</p>
+                    <p class="text-[11px] text-slate-500">The arrows share a visual scale that adapts to the model. Their directions and relative lengths are meaningful; velocity is measured in model units/s.</p>
                 </div>
                 <div class="flex flex-wrap gap-3 text-xs text-slate-400">
-                    <span><span class="text-sky-400 font-semibold">Jv</span>: velocidad lineal</span>
-                    <span><span class="text-teal-400 font-semibold">Jω</span>: velocidad angular</span>
+                    <span><span class="text-sky-400 font-semibold">Jv</span>: linear velocity</span>
+                    <span><span class="text-teal-400 font-semibold">Jω</span>: angular velocity</span>
                 </div>
-                <p class="text-xs text-slate-400">La Jacobiana utiliza velocidades revolutas en rad/s y prismáticas en unidades del modelo/s. Los ángulos DH se editan en grados.</p>
+                <p class="text-xs text-slate-400">The Jacobian uses revolute rates in rad/s and prismatic rates in model units/s. DH angles are edited in degrees.</p>
             </section>
             <!-- Reference material, collapsed by default to prioritize the Jacobian. -->
             <details id="ee-transform-details" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
                 <summary class="cursor-pointer text-sm font-semibold text-indigo-400">
-                    Transformación del efector final \(T_n^0\)
+                    End-Effector Transformation \(T_n^0\)
                 </summary>
                 <div class="pt-3 flex flex-col gap-2">
-                    <p class="text-xs text-slate-400">Posición y orientación del efector final respecto al sistema base.</p>
+                    <p class="text-xs text-slate-400">End-effector position and orientation relative to the base frame.</p>
                     <div id="matrix-container" class="grid grid-cols-4 gap-1.5 font-mono text-[11px] bg-slate-950 p-2.5 rounded border border-slate-800 text-center text-emerald-400"></div>
                 </div>
             </details>
@@ -179,25 +183,25 @@
         <div class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950">
             <div id="canvas-container" class="w-full h-full"></div>
             
-            <p class="absolute bottom-2 left-3 text-[11px] text-slate-400/80 pointer-events-none select-none z-10">Arrastrar: rotar · botón derecho: desplazar · rueda: zoom</p>
+            <p class="absolute bottom-2 left-3 text-[11px] text-slate-400/80 pointer-events-none select-none z-10">Drag: rotate · right-click drag: pan · scroll: zoom</p>
 
             <!-- Camera Preset Controls -->
-            <div class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Controles de cámara">
+            <div class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Camera Controls">
                 <button id="btn-view-top" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Superior (XY)
+                    Top (XY)
                 </button>
                 <button id="btn-view-front" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Frontal (XZ)
+                    Front (XZ)
                 </button>
                 <button id="btn-view-side" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Lateral (YZ)
+                    Side (YZ)
                 </button>
                 <button id="btn-view-iso" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Isométrica
+                    Isometric
                 </button>
                 <span aria-hidden="true" class="hidden sm:block h-6 w-px mx-0.5 bg-slate-600/70"></span>
-                <button id="fit-robot" type="button" title="Centrar y ajustar la vista al manipulador" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded transition-all border border-indigo-400/30">
-                    Encuadrar
+                <button id="fit-robot" type="button" title="Center and fit manipulator in view" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded transition-all border border-indigo-400/30">
+                    Fit View
                 </button>
             </div>
         </div>
@@ -226,7 +230,7 @@
         // They illustrate different joint structures rather than physical CAD models.
         const examples = {
             spatial3r: {
-                description: 'Tres juntas revolutas; permite estudiar orientación y posición en el espacio.',
+                description: 'Three revolute joints for exploring spatial position and orientation.',
                 params: [
                     { type: 'R', theta: 0, d: 200, a: 0, alpha: 90 },
                     { type: 'R', theta: 0, d: 0, a: 200, alpha: 0 },
@@ -234,14 +238,14 @@
                 ]
             },
             planar2r: {
-                description: 'Dos juntas revolutas coplanares: observa cómo se determina la posición del extremo.',
+                description: 'Two coplanar revolute joints: explore how end-effector position is determined.',
                 params: [
                     { type: 'R', theta: 30, d: 0, a: 220, alpha: 0 },
                     { type: 'R', theta: -45, d: 0, a: 160, alpha: 0 }
                 ]
             },
             mixedRRP: {
-                description: 'Dos juntas revolutas y una prismática; compara el efecto de θ y d.',
+                description: 'Two revolute joints and one prismatic joint: compare the effects of θ and d.',
                 params: [
                     { type: 'R', theta: 0, d: 140, a: 0, alpha: 90 },
                     { type: 'R', theta: 30, d: 0, a: 170, alpha: 0 },
@@ -295,7 +299,7 @@
         }
         seedPresetRates();
 
-        // Kept outside robotGroup: geometry redraws and "Encuadrar" ignore
+        // Kept outside robotGroup: geometry redraws and "Fit View" ignore
         // the teaching overlays. Both arrows indicate direction, not scale.
         const teachingOverlay = new THREE.Group();
         const jointMarker = new THREE.Mesh(
@@ -361,7 +365,7 @@
             } else {
                 presetSelect.value = 'custom';
                 presetDescription.textContent =
-                    'Modelo editado. Seleccionar otro ejemplo reemplazará los parámetros DH actuales.';
+                    'Model edited. Selecting another example will replace the current DH parameters.';
             }
         }
         function refreshJointControls() {
@@ -377,7 +381,7 @@
                 name.type = 'button';
                 name.dataset.jointSelect = String(index);
                 name.className = 'text-left hover:text-amber-200 underline-offset-2 hover:underline';
-                name.textContent = `Articulación ${index + 1} · ${isRevolute ? 'R (θ)' : 'P (d)'}`;
+                name.textContent = `Joint ${index + 1} · ${isRevolute ? 'R (θ)' : 'P (d)'}`;
                 name.addEventListener('click', () => selectJoint(index));
                 const amount = document.createElement('output');
                 amount.className = 'text-indigo-300 font-mono';
@@ -415,14 +419,14 @@
             viewer.dhParams.forEach((param, index) => {
                 const rate = getJointRate(param);
                 const isRevolute = param.type !== 'P';
-                const units = isRevolute ? '°/s' : 'unid./s';
+                const units = isRevolute ? '°/s' : 'units/s';
                 const row = document.createElement('div');
                 const heading = document.createElement('div');
                 heading.className = 'flex justify-between text-xs gap-2';
                 const name = document.createElement('label');
                 const id = 'joint-rate-' + index;
                 name.htmlFor = id;
-                name.textContent = 'Articulación ' + (index + 1) + ' · ' + param.type;
+                name.textContent = 'Joint ' + (index + 1) + ' · ' + param.type;
                 const amount = document.createElement('output');
                 amount.className = 'text-indigo-300 font-mono';
                 amount.textContent = String(rate) + ' ' + units;
@@ -516,19 +520,19 @@
 
             const note = document.getElementById('velocity-visual-note');
             note.textContent = maxMagnitude <= 1e-10
-                ? 'Todas las contribuciones son nulas: no hay velocidad lineal instantánea.'
+                ? 'All contributions are zero: there is no instantaneous linear velocity.'
                 : !resultArrow.visible
-                    ? 'Las contribuciones se cancelan: la velocidad resultante es nula.'
-                    : 'Verde: velocidad resultante en el extremo.'
+                    ? 'The contributions cancel: the resultant velocity is zero.'
+                    : 'Green: resultant end-effector velocity.'
                         + (document.getElementById('show-velocity-chain').checked
-                            ? ' Flechas de colores: suma punta-cola de las contribuciones.'
-                            : ' Activa la suma punta-cola para mostrar las contribuciones.');
+                            ? ' Colored arrows: tip-to-tail sum of contributions.'
+                            : ' Enable tip-to-tail addition to display the contributions.');
         }
 
         function refreshVelocityResults() {
             if (!latestJacobian || !latestMatrices) return;
             const { contributions, total } = calculateLinearVelocity(latestJacobian);
-            const unit = ' unidades/s';
+            const unit = ' units/s';
             document.getElementById('velocity-result').textContent =
                 'vₑ = ' + velocityComponents(total) + unit;
             document.getElementById('velocity-magnitude').textContent =
@@ -586,7 +590,7 @@
             viewer.dhParams.forEach((param, index) => {
                 const option = document.createElement('option');
                 option.value = String(index);
-                option.textContent = `Articulación ${index + 1} · ${param.type}`;
+                option.textContent = `Joint ${index + 1} · ${param.type}`;
                 select.appendChild(option);
             });
             updateSelectionHighlights();
@@ -631,8 +635,8 @@
             katex.render(formula, document.getElementById('selected-column-formula'),
                 { throwOnError: false, displayMode: true });
             const desc = revolute
-                ? 'Revoluta: el eje z de la junta produce una velocidad lineal perpendicular al brazo desde su origen hasta el extremo, además de velocidad angular.'
-                : 'Prismática: el movimiento lineal sigue el eje z de la junta y no genera velocidad angular.';
+                ? "Revolute: the joint's z axis produces linear velocity perpendicular to the lever arm from its origin to the end effector, as well as angular velocity."
+                : "Prismatic: linear motion follows the joint's z axis and produces no angular velocity.";
             document.getElementById('selected-column-description').textContent = desc;
             const vector = start => [0, 1, 2].map(k => {
                 const v = J[start + k][index];
@@ -669,8 +673,8 @@
                 linearArrow.setLength(length, length * .24, length * .10);
             }
             document.getElementById('column-visual-note').textContent = linearArrow.visible
-                ? 'Las flechas indican direcciones, no magnitudes. Amarillo: eje de la junta; verde: contribución lineal en el extremo.'
-                : 'La contribución lineal de esta junta es nula en la configuración actual; por eso no se muestra la flecha verde.';
+                ? 'Arrows indicate directions, not magnitudes. Yellow: joint axis; green: linear contribution at the end effector.'
+                : "This joint's linear contribution is zero in the current configuration, so the green arrow is hidden.";
         }
 
         function renderJacobian() {
@@ -698,7 +702,7 @@
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.className = 'w-full px-2 py-1.5 rounded hover:text-amber-200';
-                button.setAttribute('aria-label', 'Seleccionar columna de articulación ' + (index + 1));
+                button.setAttribute('aria-label', 'Select column for joint ' + (index + 1));
                 button.setAttribute('aria-pressed', String(index === selectedJointIndex));
                 const tex = param.type === 'P'
                     ? "\\dot{d}_{" + (index + 1) + "}"
@@ -710,7 +714,7 @@
                     // keyboard focus to the newly rendered header button.
                     table.querySelectorAll('thead button')[index]?.focus({ preventScroll: true });
                 });
-                th.title = 'Articulación ' + (index + 1) + ' (' + param.type + ')';
+                th.title = 'Joint ' + (index + 1) + ' (' + param.type + ')';
                 th.appendChild(button);
                 header.appendChild(th);
             });
@@ -858,5 +862,6 @@
             fitRobot();
         };
     </script>
+<script type="module" src="../shared/navigation.js"></script>
 </body>
 </html>

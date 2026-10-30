@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cinemática directa — Denavit–Hartenberg</title>
+    <title>Forward Kinematics — Denavit–Hartenberg</title>
+<script src="../shared/theme.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 
     <!-- Three.js via import map -->
@@ -47,49 +48,52 @@
         /* Each control card keeps its natural height; only the panel scrolls. */
         #controls-panel > * { flex-shrink: 0; }
     </style>
+<link rel="stylesheet" href="../shared/navigation.css">
+<link rel="stylesheet" href="../shared/theme.css">
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen md:min-h-[560px] md:h-dvh flex flex-col font-sans">
 
     <!-- Header -->
-    <header class="shrink-0 bg-slate-800 border-b border-slate-700 p-4 shadow-md">
-        <h1 class="text-xl font-bold tracking-wide flex items-center gap-2 text-indigo-400">
-            Cinemática directa
-        </h1>
-    </header>
-
     <!-- Main Container -->
     <main class="flex-none md:flex-1 md:min-h-0 flex flex-col md:flex-row md:overflow-hidden">
         
         <!-- Independently scrollable on desktop; regular document flow on mobile. -->
         <div id="controls-panel" class="w-full md:w-5/12 md:min-h-0 p-4 md:overflow-y-auto md:overscroll-contain border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
+            
+            <div class="lab-sidebar-heading">
+                <p class="lab-sidebar-category">Kinematics</p>
+                <h1>Forward Kinematics</h1>
+                <p class="lab-sidebar-description">Explore joint variables, DH parameters, and reference-frame transformations.</p>
+            </div>
+
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Manipulador de ejemplo</label>
+                <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Example Manipulator</label>
                 <select id="robot-preset" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2">
-                    <option value="spatial3r">3R espacial</option>
-                    <option value="planar2r">2R plano</option>
-                    <option value="mixedRRP">RRP mixto</option>
-                    <option value="custom" disabled>Configuración personalizada</option>
+                    <option value="spatial3r">Spatial 3R</option>
+                    <option value="planar2r">Planar 2R</option>
+                    <option value="mixedRRP">Mixed RRP</option>
+                    <option value="custom" disabled>Custom Configuration</option>
                 </select>
                 <p id="preset-description" class="text-xs text-slate-400"></p>
             </section>
 
             <!-- Joint variables are separate from the editable DH model. -->
-            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Variables articulares">
+            <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Joint Variables">
                 <div class="flex justify-between items-center gap-2">
-                    <h3 class="text-sm font-semibold text-indigo-400">Variables articulares</h3>
-                    <button id="reset-joints" class="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1">Restablecer</button>
+                    <h3 class="text-sm font-semibold text-indigo-400">Joint Variables</h3>
+                    <button id="reset-joints" class="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1">Reset</button>
                 </div>
                 <div id="joint-controls" class="flex flex-col gap-3"></div>
-                <p class="text-xs text-slate-400">Para juntas R se modifica θ; para juntas P se modifica d. Los parámetros también se actualizan en la tabla DH.</p>
+                <p class="text-xs text-slate-400">For revolute joints (R), adjust θ; for prismatic joints (P), adjust d. The DH table updates accordingly.</p>
             </section>
 
             <details id="dh-details" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
-                <summary class="cursor-pointer font-semibold text-sm text-indigo-400">Configuración DH · editar geometría</summary>
+                <summary class="cursor-pointer font-semibold text-sm text-indigo-400">DH Configuration · Edit Geometry</summary>
                 <div class="pt-3 flex flex-col gap-3">
                 <div class="flex justify-between items-center">
-                    <h2 class="text-lg font-semibold text-slate-200">Parámetros DH</h2>
+                    <h2 class="text-lg font-semibold text-slate-200">DH Parameters</h2>
                     <button id="add-row-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-all flex items-center gap-1">
-                        &#x2795; Agregar eslabón
+                        &#x2795; Add Link
                     </button>
                 </div>
     
@@ -99,7 +103,7 @@
                         <thead>
                             <tr class="bg-slate-800 text-slate-400 text-xs font-semibold border-b border-slate-700">
                                 <th class="p-2.5 text-center w-10">#</th>
-                                <th class="p-2.5 text-center w-10">Tipo</th>
+                                <th class="p-2.5 text-center w-10">Type</th>
                                 <th class="p-2.5 text-center w-16">\(a\)</th>
                                 <th class="p-2.5 text-center w-16">\(\alpha\) (deg)</th>
                                 <th class="p-2.5 text-center w-16">\(d\)</th>
@@ -112,29 +116,29 @@
                         </tbody>
                     </table>
                 </div>
-                <p class="text-xs text-slate-400">Parámetros DH estándar: longitudes en unidades del modelo y ángulos en grados.</p>
+                <p class="text-xs text-slate-400">Standard DH parameters: lengths in model units and angles in degrees.</p>
                 </div>
             </details>
 
             <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <h3 class="text-sm text-indigo-400 font-semibold">Sistema de referencia</h3>
+                <h3 class="text-sm text-indigo-400 font-semibold">Reference Frame</h3>
                 <div class="system-nav flex items-center gap-2">
-                    <button id="previous-system" type="button" aria-label="Sistema anterior" title="Sistema anterior"
+                    <button id="previous-system" type="button" aria-label="Frame anterior" title="Frame anterior"
                         class="shrink-0 bg-slate-700 hover:bg-slate-600 rounded px-3 py-2">‹</button>
-                    <div id="selected-system-label" class="flex-1 text-center font-semibold text-sm bg-slate-900 rounded px-2 py-2" aria-live="polite">Sistema {3}</div>
-                    <button id="next-system" type="button" aria-label="Sistema siguiente" title="Sistema siguiente"
+                    <div id="selected-system-label" class="flex-1 text-center font-semibold text-sm bg-slate-900 rounded px-2 py-2" aria-live="polite">Frame {3}</div>
+                    <button id="next-system" type="button" aria-label="Frame siguiente" title="Frame siguiente"
                         class="shrink-0 bg-slate-700 hover:bg-slate-600 rounded px-3 py-2">›</button>
                 </div>
                 <p id="frame-description" class="text-xs text-slate-400"></p>
                 <p id="system-position" class="text-xs font-mono text-slate-300"></p>
-                <button id="show-dh-row" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">Ver parámetros DH de este sistema</button>
-                <p class="text-xs text-slate-400">Haz clic cerca del origen de un sistema para seleccionarlo. Los botones ‹ › permiten recorrer sistemas coincidentes.</p>
+                <button id="show-dh-row" type="button" class="self-start text-xs text-indigo-300 hover:text-indigo-200 hover:underline">View DH parameters for this frame</button>
+                <p class="text-xs text-slate-400">Click near a frame origin to select it. Use ‹ › to cycle through overlapping frames.</p>
             </section>
 
             <!-- Homogeneous Transformation Matrix Display -->
             <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
-                <h3 class="text-sm font-semibold text-indigo-400">Transformación del sistema</h3>
-                <div class="grid grid-cols-2 gap-2" role="group" aria-label="Tipo de transformación">
+                <h3 class="text-sm font-semibold text-indigo-400">Frame Transformation</h3>
+                <div class="grid grid-cols-2 gap-2" role="group" aria-label="Transformation type">
                     <button type="button" data-matrix-mode="cumulative" aria-pressed="true" class="matrix-mode-btn active text-xs rounded border border-slate-600 bg-slate-700 px-2 py-2">Acumulada</button>
                     <button type="button" data-matrix-mode="local" aria-pressed="false" class="matrix-mode-btn text-xs rounded border border-slate-600 bg-slate-700 px-2 py-2">Local</button>
                 </div>
@@ -149,25 +153,25 @@
         <div class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950">
             <div id="canvas-container" class="w-full h-full"></div>
             
-            <p class="absolute bottom-2 left-3 text-[11px] text-slate-400/80 pointer-events-none select-none z-10">Arrastrar: rotar · botón derecho: desplazar · rueda: zoom</p>
+            <p class="absolute bottom-2 left-3 text-[11px] text-slate-400/80 pointer-events-none select-none z-10">Drag: rotate · right-click drag: pan · scroll: zoom</p>
 
             <!-- Camera Preset Controls -->
-            <div class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Controles de cámara">
+            <div class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Camera Controls">
                 <button id="btn-view-top" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Superior (XY)
+                    Top (XY)
                 </button>
                 <button id="btn-view-front" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Frontal (XZ)
+                    Front (XZ)
                 </button>
                 <button id="btn-view-side" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Lateral (YZ)
+                    Side (YZ)
                 </button>
                 <button id="btn-view-iso" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded transition-all border border-slate-600/30">
-                    Isométrica
+                    Isometric
                 </button>
                 <span aria-hidden="true" class="hidden sm:block h-6 w-px mx-0.5 bg-slate-600/70"></span>
-                <button id="fit-robot" type="button" title="Centrar y ajustar la vista al manipulador" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded transition-all border border-indigo-400/30">
-                    Encuadrar
+                <button id="fit-robot" type="button" title="Center and fit manipulator in view" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1 px-2.5 rounded transition-all border border-indigo-400/30">
+                    Fit View
                 </button>
             </div>
         </div>
@@ -196,7 +200,7 @@
         // They illustrate different joint structures rather than physical CAD models.
         const examples = {
             spatial3r: {
-                description: 'Tres juntas revolutas; permite estudiar orientación y posición en el espacio.',
+                description: 'Three revolute joints for exploring spatial position and orientation.',
                 params: [
                     { type: 'R', theta: 0, d: 200, a: 0, alpha: 90 },
                     { type: 'R', theta: 0, d: 0, a: 200, alpha: 0 },
@@ -204,14 +208,14 @@
                 ]
             },
             planar2r: {
-                description: 'Dos juntas revolutas coplanares: observa cómo se determina la posición del extremo.',
+                description: 'Two coplanar revolute joints: explore how end-effector position is determined.',
                 params: [
                     { type: 'R', theta: 30, d: 0, a: 220, alpha: 0 },
                     { type: 'R', theta: -45, d: 0, a: 160, alpha: 0 }
                 ]
             },
             mixedRRP: {
-                description: 'Dos juntas revolutas y una prismática; compara el efecto de θ y d.',
+                description: 'Two revolute joints and one prismatic joint: compare the effects of θ and d.',
                 params: [
                     { type: 'R', theta: 0, d: 140, a: 0, alpha: 90 },
                     { type: 'R', theta: 30, d: 0, a: 170, alpha: 0 },
@@ -285,7 +289,7 @@
             } else {
                 presetSelect.value = 'custom';
                 presetDescription.textContent =
-                    'Modelo editado. Seleccionar otro ejemplo reemplazará los parámetros DH actuales.';
+                    'Model edited. Selecting another example will replace the current DH parameters.';
             }
         }
         let selectedFrame = 'end';
@@ -503,7 +507,7 @@
 
             let matrix = cumulative;
             let formula = String.raw`\mathbf{T}_{0}^{0}=\mathbf{I}`;
-            let description = 'Sistema base: transformación identidad.';
+            let description = 'Base frame: identity transformation.';
             if (systemIndex > 0 && matrixMode === 'local') {
                 const previous = systemIndex === 1
                     ? new THREE.Matrix4() : matrices[systemIndex - 2];
@@ -511,14 +515,14 @@
                 formula = String.raw`\mathbf{T}_{${systemIndex}}^{${systemIndex - 1}}`
                     + String.raw`=R_z(\theta_{${systemIndex}})\,T_z(d_{${systemIndex}})`
                     + String.raw`\,T_x(a_{${systemIndex}})\,R_x(\alpha_{${systemIndex}})`;
-                description = `Transformación del sistema {${systemIndex}} respecto al sistema {${systemIndex - 1}}.`;
+                description = `Frame Transformation {${systemIndex}} relative to frame {${systemIndex - 1}}.`;
             } else if (systemIndex > 0) {
                 const factors = Array.from({ length: systemIndex }, (_, i) =>
                     String.raw`\mathbf{T}_{${i + 1}}^{${i}}`);
                 formula = systemIndex === 1
                     ? factors[0]
                     : String.raw`\mathbf{T}_{${systemIndex}}^{0}=` + factors.join(String.raw`\,`);
-                description = `Transformación del sistema {${systemIndex}} respecto al sistema base {0}.`;
+                description = `Frame Transformation {${systemIndex}} relative to frame base {0}.`;
             }
 
             katex.render(formula, document.getElementById('transform-equation'),
@@ -534,15 +538,15 @@
             katex.render(latex, document.getElementById('matrix-container'),
                 { displayMode: true, throwOnError: false });
             systemLabel.textContent = systemIndex === 0
-                ? 'Sistema {0} · base'
+                ? 'Frame {0} · base'
                 : systemIndex === viewer.dhParams.length
-                    ? `Sistema {${systemIndex}} · efector final`
-                    : `Sistema {${systemIndex}}`;
+                    ? `Frame {${systemIndex}} · end effector`
+                    : `Frame {${systemIndex}}`;
             previousSystemButton.disabled = systemIndex === 0;
             nextSystemButton.disabled = systemIndex === viewer.dhParams.length;
-            frameDescription.textContent = `Sistema seleccionado: {${systemIndex}}.`;
+            frameDescription.textContent = `Selected frame: {${systemIndex}}.`;
             document.getElementById('system-position').textContent =
-                `Posición en {0}: (${fmt(cumulative.elements[12])}, ${fmt(cumulative.elements[13])}, ${fmt(cumulative.elements[14])})`;
+                `Position in {0}: (${fmt(cumulative.elements[12])}, ${fmt(cumulative.elements[13])}, ${fmt(cumulative.elements[14])})`;
             document.getElementById('transform-description').textContent = description;
         }
         function refreshSystemNavigation() {
@@ -563,7 +567,7 @@
                 const title = document.createElement('div');
                 title.className = 'flex justify-between gap-2 text-xs';
                 const name = document.createElement('span');
-                name.textContent = `Articulación ${index + 1} · ${isRevolute ? 'R (θ)' : 'P (d)'}`;
+                name.textContent = `Joint ${index + 1} · ${isRevolute ? 'R (θ)' : 'P (d)'}`;
                 const amount = document.createElement('output');
                 amount.className = 'text-indigo-300 font-mono';
                 const formatValue = number => String(Number(Number(number).toFixed(1)));
@@ -606,7 +610,7 @@
             refreshSystemNavigation();
             refreshPresetIdentity();
             [...viewer.tableBody.rows].forEach((row, index) => {
-                row.cells[0].title = `Seleccionar sistema {${index + 1}}`;
+                row.cells[0].title = `Select frame {${index + 1}}`;
             });
         };
         viewer.tableBody.addEventListener('input', event => {
@@ -724,5 +728,6 @@
             viewer.updateRobotGeometry();
         };
     </script>
+<script type="module" src="../shared/navigation.js"></script>
 </body>
 </html>

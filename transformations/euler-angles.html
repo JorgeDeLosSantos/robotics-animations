@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-<html lang="es">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ángulos de Euler — secuencias intrínsecas</title>
+    <title>Euler Angles — Intrinsic Sequences</title>
+<script src="../shared/theme.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; display: flex; background: #0a0a0a; }
@@ -23,19 +24,6 @@
         }
         .matrix-display .katex { font-size: .95em; }
         .step-formula .katex { font-size: 1.02em; }
-        #view-controls {
-            position: fixed; top: 16px; right: 16px; z-index: 11;
-            display: flex; gap: 6px; padding: 6px;
-            border: 1px solid rgba(148,163,184,.55); border-radius: 9px;
-            background: rgba(255,255,255,.94);
-            box-shadow: 0 4px 16px rgba(15,23,42,.16);
-        }
-        #view-controls button {
-            width: auto; min-width: 70px; padding: 8px 10px;
-            background: #e2e8f0; color: #1e3a8a; font-size: 12px;
-        }
-        #view-controls button:hover { background: #cbd5e1; }
-        #view-controls button.active { background: #2563eb; color: #fff; }
         .step-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 10px; }
         .step-controls button { padding: 9px 4px; font-size: 12px; background: #e2e8f0; color: #1e293b; border: 1px solid #cbd5e1; }
         .step-controls button.active { background: #2563eb; color: white; border-color: #2563eb; }
@@ -52,74 +40,79 @@
         .legend { font-size: 12px; margin: 8px 0 0; color: #475569; }
         @media (max-width: 720px) {
             #ui-panel { width: min(380px, 100%); max-height: 52dvh; height: auto; padding: 14px; }
-            #view-controls { top: auto; right: 8px; bottom: 8px; left: 8px; }
-            #view-controls button { flex: 1; min-width: 0; padding: 8px 3px; }
         }
         @media (max-height: 480px) and (max-width: 900px) {
             #ui-panel { max-height: 66dvh; }
         }
         .val { float: right; color: #2563eb; font-weight: bold; }
-        button { 
+        :where(#ui-panel) button { 
             width: 100%; padding: 12px; background: #1e293b; color: white; 
             border: none; border-radius: 6px; cursor: pointer; font-weight: bold;
         }
     </style>
+<link rel="stylesheet" href="../shared/navigation.css">
+<link rel="stylesheet" href="../shared/theme.css">
 </head>
-<body>
+<body class="robotics-fullscreen">
 
 <div id="ui-panel">
-    <h2>Ángulos de Euler — secuencias intrínsecas</h2>
-    <p class="note">Las rotaciones se aplican sucesivamente sobre los ejes móviles. Cambia los ángulos y selecciona un paso para observar cómo se compone la orientación.</p>
+    <div class="lab-sidebar-heading">
+        <p class="lab-sidebar-category">Transformations</p>
+        <h1>Euler Angles — Intrinsic Sequences</h1>
+        <p class="lab-sidebar-description">Rotations are applied successively about moving axes. Adjust the angles and select a step to observe the orientation composition.</p>
+    </div>
 
     <div class="control-group">
-        <label for="sequence">Secuencia</label>
+        <label for="sequence">Sequence</label>
         <select id="sequence">
-            <option value="ZYX">ZYX (guiñada, cabeceo, alabeo)</option>
+            <option value="ZYX">ZYX (yaw, pitch, roll)</option>
             <option value="XYZ">XYZ</option>
-            <option value="ZYZ">ZYZ (robótica industrial)</option>
-            <option value="ZXZ">ZXZ (mecánica clásica)</option>
+            <option value="ZYZ">ZYZ (industrial robotics)</option>
+            <option value="ZXZ">ZXZ (classical mechanics)</option>
         </select>
     </div>
 
     <div class="control-group">
-        <label for="a1">Ángulo 1 · eje <span class="axis-label" id="axis1">Z</span>: <span id="a1-val" class="val">0</span>°</label>
+        <label for="a1">Angle 1 · axis <span class="axis-label" id="axis1">Z</span>: <span id="a1-val" class="val">0</span>°</label>
         <input type="range" id="a1" min="-180" max="180" step="1" value="0">
-        <label for="a2">Ángulo 2 · eje <span class="axis-label" id="axis2">Y</span>: <span id="a2-val" class="val">0</span>°</label>
+        <label for="a2">Angle 2 · axis <span class="axis-label" id="axis2">Y</span>: <span id="a2-val" class="val">0</span>°</label>
         <input type="range" id="a2" min="-180" max="180" step="1" value="0">
-        <label for="a3">Ángulo 3 · eje <span class="axis-label" id="axis3">X</span>: <span id="a3-val" class="val">0</span>°</label>
+        <label for="a3">Angle 3 · axis <span class="axis-label" id="axis3">X</span>: <span id="a3-val" class="val">0</span>°</label>
         <input type="range" id="a3" min="-180" max="180" step="1" value="0">
     </div>
 
     <div class="control-group">
-        <label>Construcción paso a paso</label>
-        <div class="step-controls" aria-label="Pasos de la secuencia">
-            <button type="button" data-step="0">Inicio</button>
-            <button type="button" data-step="1">Paso 1</button>
-            <button type="button" data-step="2">Paso 2</button>
+        <label>Step-by-Step Construction</label>
+        <div class="step-controls" aria-label="Steps de la secuencia">
+            <button type="button" data-step="0">Start</button>
+            <button type="button" data-step="1">Step 1</button>
+            <button type="button" data-step="2">Step 2</button>
             <button type="button" data-step="3" class="active">Final</button>
         </div>
-        <button type="button" id="play-sequence" aria-pressed="false">▶ Reproducir secuencia</button>
+        <button type="button" id="play-sequence" aria-pressed="false">▶ Play Sequence</button>
         <p id="playback-status" class="note" role="status" aria-live="polite"></p>
         <div class="info-box">
-            <strong id="step-title">Orientación final</strong>
+            <strong id="step-title">Final Orientation</strong>
             <div id="step-formula" class="step-formula"></div>
             <div id="step-description"></div>
         </div>
-        <p class="note">Al modificar un ángulo se muestra automáticamente su paso. «Reproducir secuencia» anima los tres giros y el arco naranja. Los controles manuales interrumpen la reproducción.</p>
+        <p class="note">Changing an angle automatically selects its step. “Play Sequence” animates all three rotations and the orange arc. Manual controls interrupt playback.</p>
     </div>
 
-    <button id="reset">Restablecer ángulos</button>
+    <button id="reset">Reset Angles</button>
 
-    <label style="margin-top:20px">Matriz de rotación · R ∈ SO(3)</label>
-    <div class="matrix-display" id="matrix-ui" aria-label="Matriz de rotación de la etapa seleccionada"></div>
-    <p class="legend">Ejes: X rojo · Y verde · Z azul. Los ejes largos permanecen fijos; los cortos acompañan al cuerpo.</p>
+    <label style="margin-top:20px">Rotation Matrix · R ∈ SO(3)</label>
+    <div class="matrix-display" id="matrix-ui" aria-label="Rotation Matrix de la etapa seleccionada"></div>
+    <p class="legend">Axes: X red · Y green · Z blue. Long axes remain fixed; short axes move with the body.</p>
 </div>
 
-<nav id="view-controls" aria-label="Vistas de cámara">
-    <button type="button" data-view="top">Superior</button>
-    <button type="button" data-view="front">Frontal</button>
-    <button type="button" data-view="side">Lateral</button>
-    <button type="button" data-view="isometric" class="active">Isométrica</button>
+<nav id="view-controls" class="robotics-view-toolbar" aria-label="Camera Controls">
+    <button type="button" id="btn-view-top" class="robotics-view-btn" data-view="top" aria-pressed="false">Top (XY)</button>
+    <button type="button" id="btn-view-front" class="robotics-view-btn" data-view="front" aria-pressed="false">Front (XZ)</button>
+    <button type="button" id="btn-view-side" class="robotics-view-btn" data-view="side" aria-pressed="false">Side (YZ)</button>
+    <button type="button" id="btn-view-iso" class="robotics-view-btn active" data-view="isometric" aria-pressed="true">Isometric</button>
+    <span class="robotics-view-divider" aria-hidden="true"></span>
+    <button type="button" id="fit-robot" class="robotics-view-btn robotics-view-fit" title="Center and fit the scene geometry in view">Fit View</button>
 </nav>
 
 <script type="importmap">
@@ -135,6 +128,7 @@
 <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { fitOrthographicObjects } from '../shared/camera-fit.js';
 
     // Scene Initialization
     const scene = new THREE.Scene();
@@ -186,7 +180,22 @@
         camera.updateProjectionMatrix();
         controls.update();
 
-        document.querySelectorAll('#view-controls [data-view]').forEach(button => {
+    
+    let fitIsActive = false;
+    function fitView() {
+        fitIsActive = fitOrthographicObjects({
+            camera, controls, canvas: renderer.domElement,
+            // Fit the actual body and rotation arc, not positive-only AxesHelpers.
+            // Those helpers would shift planar views away from the origin.
+            objects: [mesh, rotationIndicator],
+            points: [new THREE.Vector3(0, 0, 0)],
+            sidebar: document.getElementById('ui-panel'),
+            toolbar: document.getElementById('view-controls'),
+        });
+    }
+    document.getElementById('fit-robot').addEventListener('click', fitView);
+
+    document.querySelectorAll('#view-controls [data-view]').forEach(button => {
             const selected = button.dataset.view === viewName;
             button.classList.toggle('active', selected);
             button.setAttribute('aria-pressed', String(selected));
@@ -198,9 +207,25 @@
     });
 
     // GridHelper is created in XZ by Three.js. Rotate it into XY at Z = 0.
-    const groundGrid = new THREE.GridHelper(10, 10, 0xDADADA, 0xDADADA);
+    const groundGrid = new THREE.GridHelper(10, 10, 0x94a3b8, 0xcbd5e1);
     groundGrid.rotation.x = Math.PI / 2;
     scene.add(groundGrid);
+    const applySceneTheme = () => {
+      const light = window.RoboticsTheme?.getTheme() === 'light';
+      scene.background.setHex(light ? 0xF0F0F0 : 0x0f172a);
+      const colors = groundGrid.geometry.attributes.color;
+      if (colors) {
+        for (let i = 0; i < colors.count; i++) {
+          const c = new THREE.Color(light
+            ? (Math.floor(i / 4) === 5 ? 0x94a3b8 : 0xcbd5e1)
+            : (Math.floor(i / 4) === 5 ? 0x475569 : 0x334155));
+          colors.setXYZ(i, c.r, c.g, c.b);
+        }
+        colors.needsUpdate = true;
+      }
+    };
+    document.addEventListener('robotics:themechange', applySceneTheme);
+    applySceneTheme();
 
     // World Axes (Fixed)
     const worldAxes = new THREE.AxesHelper(5);
@@ -307,7 +332,7 @@
     function stopPlayback() {
         if (!playback) return;
         playback = null;
-        playButton.textContent = '▶ Reproducir secuencia';
+        playButton.textContent = '▶ Play Sequence';
         playButton.classList.remove('is-playing');
         playButton.setAttribute('aria-pressed', 'false');
         playbackStatus.textContent = '';
@@ -315,12 +340,12 @@
 
     function startPlayback() {
         playback = { startedAt: null, lastStage: 0 };
-        playButton.textContent = '■ Detener secuencia';
+        playButton.textContent = '■ Stop Sequence';
         playButton.classList.add('is-playing');
         playButton.setAttribute('aria-pressed', 'true');
         activeStep = 1;
         updateRotation(0);
-        playbackStatus.textContent = 'Reproduciendo giro 1 de 3';
+        playbackStatus.textContent = 'Playing rotation 1 de 3';
     }
 
     // Reuse the existing rendering loop instead of introducing another RAF loop.
@@ -343,7 +368,7 @@
         activeStep = index + 1;
         if (playback.lastStage !== activeStep) {
             playback.lastStage = activeStep;
-            playbackStatus.textContent = `Reproduciendo giro ${activeStep} de 3`;
+            playbackStatus.textContent = `Playing rotation ${activeStep} de 3`;
         }
         updateRotation(progress);
     }
@@ -391,10 +416,10 @@
         katex.render(formula, document.getElementById('step-formula'),
             { displayMode: false, throwOnError: false });
         document.getElementById('step-title').textContent =
-            activeStep === 0 ? 'Configuración inicial' : activeStep === 3 ? 'Orientación final' : `Después del paso ${activeStep}`;
+            activeStep === 0 ? 'Initial Configuration' : activeStep === 3 ? 'Final Orientation' : `After step ${activeStep}`;
         document.getElementById('step-description').textContent = activeStep === 0
-            ? 'El cuerpo coincide con el sistema fijo; todavía no se ha aplicado ninguna rotación.'
-            : `Paso ${activeStep}: girar ${Number(currentValues[activeStep - 1].toFixed(1))}° alrededor del eje ${axes[activeStep - 1]} del sistema móvil correspondiente al paso anterior.`;
+            ? 'The body is aligned with the fixed frame; no rotations have been applied yet.'
+            : `Step ${activeStep}: rotate ${Number(currentValues[activeStep - 1].toFixed(1))}° about the axis ${axes[activeStep - 1]} of the moving frame from the previous step.`;
 
         document.querySelectorAll('[data-step]').forEach(button => {
             const selected = Number(button.dataset.step) === activeStep;
@@ -481,6 +506,7 @@
         camera.bottom = -d;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
+        if (fitIsActive) fitView();
     });
 
     function animate(timestamp) {
@@ -494,5 +520,6 @@
     updateRotation();
     animate();
 </script>
+<script type="module" src="../shared/navigation.js"></script>
 </body>
 </html>

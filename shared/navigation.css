@@ -1,0 +1,66 @@
+/* Shared navigation for independently loaded robotics labs. */
+:root { --robotics-nav-height: 46px; }
+.robotics-nav-mount {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+  width: 100%; color: #e2e8f0;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.robotics-nav {
+  box-sizing: border-box; min-height: 46px; padding: 7px 14px;
+  display: flex; gap: 14px; align-items: center;
+  background: #0f172a; border-bottom: 1px solid #475569;
+}
+.robotics-nav a { color: inherit; text-decoration: none; }
+.robotics-nav-home {
+  font-weight: 700; color: #c7d2fe !important; white-space: nowrap;
+}
+.robotics-nav details { position: relative; font-size: 13px; }
+.robotics-nav summary {
+  cursor: pointer; padding: 5px 8px; border-radius: 5px;
+  list-style: none;
+}
+.robotics-nav summary::-webkit-details-marker { display: none; }
+.robotics-nav summary::after { content: " ▾"; }
+.robotics-nav summary:hover { background: #334155; }
+.robotics-nav-menu {
+  position: absolute; left: 0; top: 100%; min-width: 240px;
+  display: grid; padding: 6px; background: #1e293b;
+  border: 1px solid #475569; border-radius: 7px;
+  box-shadow: 0 12px 24px #0005;
+}
+.robotics-nav-menu a { padding: 9px; border-radius: 5px; }
+.robotics-nav-menu a:hover,
+.robotics-nav-menu a[aria-current="page"] {
+  background: #334155; color: #c7d2fe;
+}
+body:not(.robotics-fullscreen) {
+  padding-top: var(--robotics-nav-height) !important;
+  box-sizing: border-box !important;
+}
+body.robotics-fullscreen #ui-panel {
+  top: var(--robotics-nav-height) !important;
+  height: calc(100dvh - var(--robotics-nav-height)) !important;
+}
+@media (min-width: 721px) {
+  body.robotics-fullscreen #view-controls {
+    top: calc(var(--robotics-nav-height) + 16px) !important;
+  }
+}
+@media (max-width: 720px) {
+  body.robotics-fullscreen #ui-panel {
+    height: auto !important;
+    max-height: calc(52dvh - 20px) !important;
+  }
+  body.robotics-fullscreen #view-controls { top: auto !important; }
+}
+@media (max-height: 480px) and (max-width: 900px) {
+  body.robotics-fullscreen #ui-panel {
+    max-height: min(66dvh, calc(100dvh - var(--robotics-nav-height))) !important;
+  }
+}
+@media (max-width: 560px) {
+  .robotics-nav { gap: 4px; padding: 6px; flex-wrap: wrap; }
+  .robotics-nav-home { font-size: 12px; }
+  .robotics-nav details { font-size: 12px; }
+  .robotics-nav-menu { left: auto; right: 0; min-width: min(240px, 85vw); }
+}
