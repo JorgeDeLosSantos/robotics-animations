@@ -6,7 +6,7 @@ import * as THREE from 'three';
  * Account for sidebar and toolbar overlays on full-viewport transformation labs.
  * Returns false when there is nothing to fit.
  */
-export function fitOrthographicObjects({ camera, controls, canvas, objects, sidebar, toolbar, padding = 1.3 }) {
+export function fitOrthographicObjects({ camera, controls, canvas, objects, points = [], sidebar, toolbar, padding = 1.3 }) {
   const bounds = new THREE.Box3();
   bounds.makeEmpty();
   for (const object of objects) {
@@ -14,6 +14,9 @@ export function fitOrthographicObjects({ camera, controls, canvas, objects, side
     object.updateWorldMatrix(true, true);
     bounds.union(new THREE.Box3().setFromObject(object));
   }
+  // Explicit frame origins are useful for translated bodies, but reference-axis
+  // helpers should not bias the camera toward their positive endpoints.
+  for (const point of points) bounds.expandByPoint(point);
   if (bounds.isEmpty()) return false;
 
   const center = bounds.getCenter(new THREE.Vector3());

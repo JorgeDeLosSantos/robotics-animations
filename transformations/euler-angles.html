@@ -185,7 +185,10 @@
     function fitView() {
         fitIsActive = fitOrthographicObjects({
             camera, controls, canvas: renderer.domElement,
-            objects: [worldAxes, bodyGroup, rotationIndicator],
+            // Fit the actual body and rotation arc, not positive-only AxesHelpers.
+            // Those helpers would shift planar views away from the origin.
+            objects: [mesh, rotationIndicator],
+            points: [new THREE.Vector3(0, 0, 0)],
             sidebar: document.getElementById('ui-panel'),
             toolbar: document.getElementById('view-controls'),
         });

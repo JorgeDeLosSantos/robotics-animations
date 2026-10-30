@@ -168,7 +168,10 @@
     function fitView() {
       fitIsActive = fitOrthographicObjects({
         camera, controls, canvas: renderer.domElement,
-        objects: [worldAxes, body],
+        // Frame axes are visual references, not part of the fit bounds.
+        // Keep both the fixed origin and the transformed body in view.
+        objects: [cube, marker, arrow],
+        points: [new THREE.Vector3(0, 0, 0)],
         sidebar: document.getElementById('ui-panel'),
         toolbar: document.getElementById('view-controls'),
       });
