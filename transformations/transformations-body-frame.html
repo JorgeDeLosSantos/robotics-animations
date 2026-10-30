@@ -9,7 +9,7 @@
     :root { color-scheme: light; font-family: "Segoe UI", sans-serif; }
     body { margin: 0; overflow: hidden; background: #111827; }
     canvas { display: block; }
-    #ui-panel { width: 365px; height: 100vh; position: fixed; z-index: 2; box-sizing: border-box; padding: 18px; overflow-y: auto; background: rgba(255,255,255,.97); box-shadow: 2px 0 18px rgba(0,0,0,.28); }
+    #ui-panel { width: 365px; max-width: 100%; height: 100vh; height: 100dvh; position: fixed; z-index: 2; box-sizing: border-box; padding: 18px; overflow-y: auto; background: rgba(255,255,255,.97); box-shadow: 2px 0 18px rgba(0,0,0,.28); }
     h1 { margin: 0 0 8px; color: #172554; font-size: 21px; }
     h2 { margin: 0 0 10px; color: #1e3a8a; font-size: 15px; }
     .info-box { margin-bottom: 15px; padding: 10px; border-left: 4px solid #0284c7; background: #e0f2fe; color: #075985; font-size: 12px; line-height: 1.4; }
@@ -42,6 +42,7 @@
     #view-controls button:hover { background: #cbd5e1; }
     #view-controls button.active { background: #2563eb; color: #fff; }
     @media (max-width: 720px) {
+      #ui-panel { width: min(365px, 100%); height: auto; max-height: 52dvh; padding: 14px; }
       #view-controls { top: auto; right: 8px; bottom: 8px; left: 8px; }
       #view-controls button { flex: 1; min-width: 0; padding: 8px 3px; }
     }
@@ -77,7 +78,7 @@
     <div id="pose" class="pose"></div>
     <div id="matrix-ui" class="matrix-display"></div>
     <p class="legend"><span class="axis-x">X red</span> · <span class="axis-y">Y green</span> · <span class="axis-z">Z blue</span>. The world frame {W} remains at the origin; the body frame {B} moves with the object.</p>
-    <div class="info-box"><strong>CAD-style view controls</strong><br>Middle-drag: rotate · Left/right-drag: pan · Wheel: zoom</div>
+    <div class="info-box"><strong>Camera controls</strong><br>Left-drag: rotate · Right-drag: pan · Wheel: zoom</div>
     <h2>Transformation history</h2><ol id="history"></ol>
   </aside>
 
@@ -95,22 +96,26 @@
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
     const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf8fafc);
-    const camera = new THREE.OrthographicCamera(-12, 12, 8, -8, .1, 1000); camera.position.set(11, 9, 11); camera.lookAt(0, 0, 0);
+    const aspect = innerWidth / innerHeight;
+    const camera = new THREE.OrthographicCamera(-8 * aspect, 8 * aspect, 8, -8, .1, 1000);
+    camera.position.set(11, -11, 11);
+    camera.up.set(0, 0, 1); // Z-up, same as the kinematics labs
+    camera.lookAt(0, 0, 0);
     const renderer = new THREE.WebGLRenderer({ antialias: true }); renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); renderer.setSize(innerWidth, innerHeight); document.body.appendChild(renderer.domElement);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enablePan = true;
     controls.screenSpacePanning = true;
-    controls.mouseButtons.LEFT = THREE.MOUSE.PAN;
-    controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
+    controls.mouseButtons.LEFT = THREE.MOUSE.ROTATE;
+    controls.mouseButtons.MIDDLE = THREE.MOUSE.DOLLY;
     controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
     controls.target.set(0, 0, 0);
     renderer.domElement.addEventListener('contextmenu', event => event.preventDefault());
 
     const viewDirections = {
-      top: { direction: new THREE.Vector3(0, 1, 0), up: new THREE.Vector3(0, 0, -1) },
-      front: { direction: new THREE.Vector3(0, 0, 1), up: new THREE.Vector3(0, 1, 0) },
-      side: { direction: new THREE.Vector3(1, 0, 0), up: new THREE.Vector3(0, 1, 0) },
-      isometric: { direction: new THREE.Vector3(1, 1, 1), up: new THREE.Vector3(0, 1, 0) }
+      top: { direction: new THREE.Vector3(0, 0, 1), up: new THREE.Vector3(0, 1, 0) },
+      front: { direction: new THREE.Vector3(0, -1, 0), up: new THREE.Vector3(0, 0, 1) },
+      side: { direction: new THREE.Vector3(1, 0, 0), up: new THREE.Vector3(0, 0, 1) },
+      isometric: { direction: new THREE.Vector3(1, -1, 1), up: new THREE.Vector3(0, 0, 1) }
     };
 
     function setCameraView(viewName) {
@@ -136,7 +141,9 @@
       button.addEventListener('click', () => setCameraView(button.dataset.view));
     });
 
-    scene.add(new THREE.GridHelper(20, 20, 0xcbd5e1, 0xe2e8f0)); scene.add(new THREE.AxesHelper(4));
+    const groundGrid = new THREE.GridHelper(20, 20, 0xcbd5e1, 0xe2e8f0);
+    groundGrid.rotation.x = Math.PI / 2;
+    scene.add(groundGrid, new THREE.AxesHelper(4));
     scene.add(new THREE.AmbientLight(0xffffff, .65)); const light = new THREE.DirectionalLight(0xffffff, 1.1); light.position.set(5, 10, 7); scene.add(light);
 
     const body = new THREE.Group();
@@ -179,6 +186,7 @@
     addEventListener('resize', () => { const a = innerWidth / innerHeight, d = 8; camera.left = -d * a; camera.right = d * a; camera.top = d; camera.bottom = -d; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
     renderMath(String.raw`{}^{W}\mathbf{T}_{B,n+1}={}^{W}\mathbf{T}_{B,n}\,{}^{B}\mathbf{T}_{\Delta}`, document.getElementById('composition-equation'));
     refreshInputs(); updateUI();
+    setCameraView('isometric');
     function animate() { requestAnimationFrame(animate); controls.update(); renderer.render(scene, camera); } animate();
   </script>
 </body>
