@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Euler Angles — Intrinsic Sequences</title>
-<script src="../shared/theme.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; display: flex; background: #0a0a0a; }
@@ -66,7 +65,6 @@
         }
     </style>
 <link rel="stylesheet" href="../shared/navigation.css">
-<link rel="stylesheet" href="../shared/theme.css">
 </head>
 <body class="robotics-fullscreen">
 
@@ -201,9 +199,25 @@
     });
 
     // GridHelper is created in XZ by Three.js. Rotate it into XY at Z = 0.
-    const groundGrid = new THREE.GridHelper(10, 10, 0xDADADA, 0xDADADA);
+    const groundGrid = new THREE.GridHelper(10, 10, 0x94a3b8, 0xcbd5e1);
     groundGrid.rotation.x = Math.PI / 2;
     scene.add(groundGrid);
+    const applySceneTheme = () => {
+      const light = window.RoboticsTheme?.getTheme() === 'light';
+      scene.background.setHex(light ? 0xF0F0F0 : 0x0f172a);
+      const colors = groundGrid.geometry.attributes.color;
+      if (colors) {
+        for (let i = 0; i < colors.count; i++) {
+          const c = new THREE.Color(light
+            ? (Math.floor(i / 4) % 2 ? 0xcbd5e1 : 0x94a3b8)
+            : (Math.floor(i / 4) % 2 ? 0x334155 : 0x475569));
+          colors.setXYZ(i, c.r, c.g, c.b);
+        }
+        colors.needsUpdate = true;
+      }
+    };
+    document.addEventListener('robotics:themechange', applySceneTheme);
+    applySceneTheme();
 
     // World Axes (Fixed)
     const worldAxes = new THREE.AxesHelper(5);
