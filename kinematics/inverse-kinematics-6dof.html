@@ -159,6 +159,12 @@
         ];
         const exampleTargetAngles = [15, 85, -12, 12, -15, 10];
         const copyDH = params => params.map(param => ({ ...param }));
+        const examples = {
+            spatial6r: {
+                description: 'Manipulador 6R espacial para estudiar posición y orientación.',
+                params: initialDHParams
+            }
+        };
         let activePreset = 'spatial6r';
         let presetBaseline = copyDH(initialDHParams);
         const jointDefaults = new WeakMap();
