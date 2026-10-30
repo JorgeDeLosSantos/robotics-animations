@@ -115,6 +115,10 @@ export class RobotViewer {
         const gridHelper = new THREE.GridHelper(2000, 40, 0x475569, 0x334155);
         gridHelper.rotation.x = Math.PI / 2;
         this.scene.add(gridHelper);
+        this._themeGrid = gridHelper;
+        this._onThemeChange = () => this.applyTheme(window.RoboticsTheme?.getTheme() || 'dark');
+        document.addEventListener('robotics:themechange', this._onThemeChange);
+        this.applyTheme(window.RoboticsTheme?.getTheme() || 'dark');
 
         // Robot group
         this.robotGroup = new THREE.Group();
@@ -122,6 +126,23 @@ export class RobotViewer {
 
         window.addEventListener('resize', this._onWindowResize);
         requestAnimationFrame(this._animate);
+    }
+
+    applyTheme(theme) {
+        if (!this.scene) return;
+        const light = theme === 'light';
+        this.scene.background.setHex(light ? 0xf1f5f9 : 0x0f172a);
+        if (this._themeGrid) {
+            const palette = light ? [0x94a3b8, 0xcbd5e1] : [0x475569, 0x334155];
+            const colors = this._themeGrid.geometry.attributes.color;
+            if (colors) {
+                for (let i = 0; i < colors.count; i++) {
+                    const c = new THREE.Color(palette[Math.floor(i / 4) === 20 ? 0 : 1]);
+                    colors.setXYZ(i, c.r, c.g, c.b);
+                }
+                colors.needsUpdate = true;
+            }
+        }
     }
 
     _animate() {
@@ -611,6 +632,7 @@ export class RobotViewer {
     // Lifecycle
     // ======================================================================
     destroy() {
+        if (this._onThemeChange) document.removeEventListener('robotics:themechange', this._onThemeChange);
         window.removeEventListener('resize', this._onWindowResize);
         if (this.renderer) {
             this.renderer.dispose();

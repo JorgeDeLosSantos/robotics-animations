@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Homogeneous Transformations — Fixed and Moving Frames</title>
+<script src="../shared/theme.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
   <style>
     :root { color-scheme: light; font-family: "Segoe UI", sans-serif; }
@@ -46,24 +47,23 @@
     #history .empty { color: #64748b; font-family: "Segoe UI", sans-serif; }
     .legend { margin: 8px 0 0; font-size: 11px; color: #475569; }
     .axis-x { color: #dc2626; } .axis-y { color: #16a34a; } .axis-z { color: #2563eb; }
-    #view-controls { position: fixed; top: 16px; right: 16px; z-index: 2; display: flex; gap: 6px; padding: 6px; border: 1px solid rgba(148,163,184,.55); border-radius: 9px; background: rgba(255,255,255,.94); box-shadow: 0 4px 16px rgba(15,23,42,.16); }
-    #view-controls button { min-width: 70px; padding: 8px 10px; background: #e2e8f0; color: #1e3a8a; font-size: 12px; }
-    #view-controls button:hover { background: #cbd5e1; }
-    #view-controls button.active { background: #2563eb; color: #fff; }
     @media (max-width: 720px) {
       #ui-panel { width: min(365px, 100%); height: auto; max-height: 52dvh; padding: 14px; }
-      #view-controls { top: auto; right: 8px; bottom: 8px; left: 8px; }
-      #view-controls button { flex: 1; min-width: 0; padding: 8px 3px; }
     }
     @media (max-height: 480px) and (max-width: 900px) {
       #ui-panel { max-height: 66dvh; }
     }
   </style>
 <link rel="stylesheet" href="../shared/navigation.css">
+<link rel="stylesheet" href="../shared/theme.css">
 </head>
 <body class="robotics-fullscreen">
   <aside id="ui-panel">
-    <h1>Homogeneous Transformations</h1>
+    <div class="lab-sidebar-heading">
+        <p class="lab-sidebar-category">Transformations</p>
+        <h1>Homogeneous Transformations</h1>
+        <p class="lab-sidebar-description">Compose translations and rotations in fixed or moving reference frames.</p>
+    </div>
     <div class="info-box">
       <label for="frame-mode">Increment Reference Frame</label>
       <select id="frame-mode">
@@ -108,18 +108,21 @@
     <h2>Transformation History</h2><ol id="history"></ol>
   </aside>
 
-  <nav id="view-controls" aria-label="Camera views">
-    <button type="button" data-view="top">Top</button>
-    <button type="button" data-view="front">Front</button>
-    <button type="button" data-view="side">Side</button>
-    <button type="button" data-view="isometric" class="active">Isometric</button>
-  </nav>
+  <nav id="view-controls" class="robotics-view-toolbar" aria-label="Camera Controls">
+    <button type="button" id="btn-view-top" class="robotics-view-btn" data-view="top" aria-pressed="false">Top (XY)</button>
+    <button type="button" id="btn-view-front" class="robotics-view-btn" data-view="front" aria-pressed="false">Front (XZ)</button>
+    <button type="button" id="btn-view-side" class="robotics-view-btn" data-view="side" aria-pressed="false">Side (YZ)</button>
+    <button type="button" id="btn-view-iso" class="robotics-view-btn active" data-view="isometric" aria-pressed="true">Isometric</button>
+    <span class="robotics-view-divider" aria-hidden="true"></span>
+    <button type="button" id="fit-robot" class="robotics-view-btn robotics-view-fit" title="Center and fit the scene geometry in view">Fit View</button>
+</nav>
 
   <script type="importmap">{"imports":{"three":"https://unpkg.com/three@0.160.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.160.0/examples/jsm/"}}</script>
   <script src="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.js"></script>
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { fitOrthographicObjects } from '../shared/camera-fit.js';
 
     const scene = new THREE.Scene(); scene.background = new THREE.Color(0xf8fafc);
     // Match the orthographic frustum to the viewport aspect ratio from the first frame.
@@ -160,7 +163,22 @@
       camera.updateProjectionMatrix();
       controls.update();
 
-      document.querySelectorAll('#view-controls [data-view]').forEach(button => {
+     
+    let fitIsActive = false;
+    function fitView() {
+      fitIsActive = fitOrthographicObjects({
+        camera, controls, canvas: renderer.domElement,
+        // Frame axes are visual references, not part of the fit bounds.
+        // Keep both the fixed origin and the transformed body in view.
+        objects: [cube, marker, arrow],
+        points: [new THREE.Vector3(0, 0, 0)],
+        sidebar: document.getElementById('ui-panel'),
+        toolbar: document.getElementById('view-controls'),
+      });
+    }
+    document.getElementById('fit-robot').addEventListener('click', fitView);
+
+    document.querySelectorAll('#view-controls [data-view]').forEach(button => {
         const selected = button.dataset.view === viewName;
         button.classList.toggle('active', selected);
         button.setAttribute('aria-pressed', String(selected));
@@ -172,10 +190,26 @@
     });
 
     // Place the ground grid in XY (Z = 0), not Three.js's default XZ plane.
-    const groundGrid = new THREE.GridHelper(20, 20, 0xcbd5e1, 0xe2e8f0);
+    const groundGrid = new THREE.GridHelper(20, 20, 0x94a3b8, 0xcbd5e1);
     groundGrid.rotation.x = Math.PI / 2;
     scene.add(groundGrid);
-    scene.add(new THREE.AxesHelper(4));
+    const applySceneTheme = () => {
+      const light = window.RoboticsTheme?.getTheme() === 'light';
+      scene.background.setHex(light ? 0xf8fafc : 0x0f172a);
+      const colors = groundGrid.geometry.attributes.color;
+      if (colors) {
+        for (let i = 0; i < colors.count; i++) {
+          const c = new THREE.Color(light
+            ? (Math.floor(i / 4) === 10 ? 0x94a3b8 : 0xcbd5e1)
+            : (Math.floor(i / 4) === 10 ? 0x475569 : 0x334155));
+          colors.setXYZ(i, c.r, c.g, c.b);
+        }
+        colors.needsUpdate = true;
+      }
+    };
+    document.addEventListener('robotics:themechange', applySceneTheme);
+    applySceneTheme();
+    const worldAxes = new THREE.AxesHelper(4); scene.add(worldAxes);
     scene.add(new THREE.AmbientLight(0xffffff, .65)); const light = new THREE.DirectionalLight(0xffffff, 1.1); light.position.set(5, 10, 7); scene.add(light);
 
     const body = new THREE.Group();
@@ -242,7 +276,7 @@
     document.getElementById('apply').onclick = applyTransform;
     document.getElementById('undo').onclick = () => { const last = history.pop(); if (!last) return; T.copy(last.matrix); updateUI(); };
     document.getElementById('reset').onclick = () => { T.identity(); history.length = 0; experimentReady = false; ids.forEach(id => params[id] = 0); refreshInputs(); updateUI(); };
-    addEventListener('resize', () => { const a = innerWidth / innerHeight, d = 8; camera.left = -d * a; camera.right = d * a; camera.top = d; camera.bottom = -d; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+    addEventListener('resize', () => { const a = innerWidth / innerHeight, d = 8; camera.left = -d * a; camera.right = d * a; camera.top = d; camera.bottom = -d; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); if (fitIsActive) fitView(); });
     updateModeUI();
     refreshInputs(); updateUI();
     setCameraView('isometric');

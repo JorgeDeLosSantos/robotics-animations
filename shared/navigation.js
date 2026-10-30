@@ -22,6 +22,21 @@ home.className = 'robotics-nav-home';
 home.textContent = 'Robotics Lab';
 nav.append(home);
 
+const themeToggle = document.createElement('button');
+themeToggle.type = 'button';
+themeToggle.className = 'robotics-theme-toggle';
+const refreshThemeToggle = () => {
+  const theme = window.RoboticsTheme.getTheme();
+  themeToggle.textContent = theme === 'dark' ? '☾ Dark' : '☀ Light';
+  themeToggle.setAttribute('aria-label', 'Switch to ' + (theme === 'dark' ? 'light' : 'dark') + ' theme');
+  themeToggle.title = themeToggle.getAttribute('aria-label');
+};
+themeToggle.addEventListener('click', () => {
+  window.RoboticsTheme.setTheme(window.RoboticsTheme.getTheme() === 'dark' ? 'light' : 'dark');
+});
+document.addEventListener('robotics:themechange', refreshThemeToggle);
+refreshThemeToggle();
+
 for (const section of sections) {
   const details = document.createElement('details');
   const summary = document.createElement('summary');
@@ -48,6 +63,8 @@ nav.addEventListener('keydown', (event) => {
     nav.querySelectorAll('details[open]').forEach((menu) => { menu.open = false; });
   }
 });
+
+nav.append(themeToggle);
 
 const mount = document.createElement('div');
 mount.className = 'robotics-nav-mount';

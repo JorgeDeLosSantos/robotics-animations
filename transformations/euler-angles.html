@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Euler Angles — Intrinsic Sequences</title>
+<script src="../shared/theme.js"></script>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.22/dist/katex.min.css">
     <style>
         body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; display: flex; background: #0a0a0a; }
@@ -23,19 +24,6 @@
         }
         .matrix-display .katex { font-size: .95em; }
         .step-formula .katex { font-size: 1.02em; }
-        #view-controls {
-            position: fixed; top: 16px; right: 16px; z-index: 11;
-            display: flex; gap: 6px; padding: 6px;
-            border: 1px solid rgba(148,163,184,.55); border-radius: 9px;
-            background: rgba(255,255,255,.94);
-            box-shadow: 0 4px 16px rgba(15,23,42,.16);
-        }
-        #view-controls button {
-            width: auto; min-width: 70px; padding: 8px 10px;
-            background: #e2e8f0; color: #1e3a8a; font-size: 12px;
-        }
-        #view-controls button:hover { background: #cbd5e1; }
-        #view-controls button.active { background: #2563eb; color: #fff; }
         .step-controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0 10px; }
         .step-controls button { padding: 9px 4px; font-size: 12px; background: #e2e8f0; color: #1e293b; border: 1px solid #cbd5e1; }
         .step-controls button.active { background: #2563eb; color: white; border-color: #2563eb; }
@@ -52,25 +40,27 @@
         .legend { font-size: 12px; margin: 8px 0 0; color: #475569; }
         @media (max-width: 720px) {
             #ui-panel { width: min(380px, 100%); max-height: 52dvh; height: auto; padding: 14px; }
-            #view-controls { top: auto; right: 8px; bottom: 8px; left: 8px; }
-            #view-controls button { flex: 1; min-width: 0; padding: 8px 3px; }
         }
         @media (max-height: 480px) and (max-width: 900px) {
             #ui-panel { max-height: 66dvh; }
         }
         .val { float: right; color: #2563eb; font-weight: bold; }
-        button { 
+        :where(#ui-panel) button { 
             width: 100%; padding: 12px; background: #1e293b; color: white; 
             border: none; border-radius: 6px; cursor: pointer; font-weight: bold;
         }
     </style>
 <link rel="stylesheet" href="../shared/navigation.css">
+<link rel="stylesheet" href="../shared/theme.css">
 </head>
 <body class="robotics-fullscreen">
 
 <div id="ui-panel">
-    <h2>Euler Angles — Intrinsic Sequences</h2>
-    <p class="note">Rotations are applied successively about moving axes. Adjust the angles and select a step to observe the orientation composition.</p>
+    <div class="lab-sidebar-heading">
+        <p class="lab-sidebar-category">Transformations</p>
+        <h1>Euler Angles — Intrinsic Sequences</h1>
+        <p class="lab-sidebar-description">Rotations are applied successively about moving axes. Adjust the angles and select a step to observe the orientation composition.</p>
+    </div>
 
     <div class="control-group">
         <label for="sequence">Sequence</label>
@@ -116,11 +106,13 @@
     <p class="legend">Axes: X red · Y green · Z blue. Long axes remain fixed; short axes move with the body.</p>
 </div>
 
-<nav id="view-controls" aria-label="Camera views">
-    <button type="button" data-view="top">Top</button>
-    <button type="button" data-view="front">Front</button>
-    <button type="button" data-view="side">Side</button>
-    <button type="button" data-view="isometric" class="active">Isometric</button>
+<nav id="view-controls" class="robotics-view-toolbar" aria-label="Camera Controls">
+    <button type="button" id="btn-view-top" class="robotics-view-btn" data-view="top" aria-pressed="false">Top (XY)</button>
+    <button type="button" id="btn-view-front" class="robotics-view-btn" data-view="front" aria-pressed="false">Front (XZ)</button>
+    <button type="button" id="btn-view-side" class="robotics-view-btn" data-view="side" aria-pressed="false">Side (YZ)</button>
+    <button type="button" id="btn-view-iso" class="robotics-view-btn active" data-view="isometric" aria-pressed="true">Isometric</button>
+    <span class="robotics-view-divider" aria-hidden="true"></span>
+    <button type="button" id="fit-robot" class="robotics-view-btn robotics-view-fit" title="Center and fit the scene geometry in view">Fit View</button>
 </nav>
 
 <script type="importmap">
@@ -136,6 +128,7 @@
 <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { fitOrthographicObjects } from '../shared/camera-fit.js';
 
     // Scene Initialization
     const scene = new THREE.Scene();
@@ -187,7 +180,22 @@
         camera.updateProjectionMatrix();
         controls.update();
 
-        document.querySelectorAll('#view-controls [data-view]').forEach(button => {
+    
+    let fitIsActive = false;
+    function fitView() {
+        fitIsActive = fitOrthographicObjects({
+            camera, controls, canvas: renderer.domElement,
+            // Fit the actual body and rotation arc, not positive-only AxesHelpers.
+            // Those helpers would shift planar views away from the origin.
+            objects: [mesh, rotationIndicator],
+            points: [new THREE.Vector3(0, 0, 0)],
+            sidebar: document.getElementById('ui-panel'),
+            toolbar: document.getElementById('view-controls'),
+        });
+    }
+    document.getElementById('fit-robot').addEventListener('click', fitView);
+
+    document.querySelectorAll('#view-controls [data-view]').forEach(button => {
             const selected = button.dataset.view === viewName;
             button.classList.toggle('active', selected);
             button.setAttribute('aria-pressed', String(selected));
@@ -199,9 +207,25 @@
     });
 
     // GridHelper is created in XZ by Three.js. Rotate it into XY at Z = 0.
-    const groundGrid = new THREE.GridHelper(10, 10, 0xDADADA, 0xDADADA);
+    const groundGrid = new THREE.GridHelper(10, 10, 0x94a3b8, 0xcbd5e1);
     groundGrid.rotation.x = Math.PI / 2;
     scene.add(groundGrid);
+    const applySceneTheme = () => {
+      const light = window.RoboticsTheme?.getTheme() === 'light';
+      scene.background.setHex(light ? 0xF0F0F0 : 0x0f172a);
+      const colors = groundGrid.geometry.attributes.color;
+      if (colors) {
+        for (let i = 0; i < colors.count; i++) {
+          const c = new THREE.Color(light
+            ? (Math.floor(i / 4) === 5 ? 0x94a3b8 : 0xcbd5e1)
+            : (Math.floor(i / 4) === 5 ? 0x475569 : 0x334155));
+          colors.setXYZ(i, c.r, c.g, c.b);
+        }
+        colors.needsUpdate = true;
+      }
+    };
+    document.addEventListener('robotics:themechange', applySceneTheme);
+    applySceneTheme();
 
     // World Axes (Fixed)
     const worldAxes = new THREE.AxesHelper(5);
@@ -482,6 +506,7 @@
         camera.bottom = -d;
         camera.updateProjectionMatrix();
         renderer.setSize(window.innerWidth, window.innerHeight);
+        if (fitIsActive) fitView();
     });
 
     function animate(timestamp) {
