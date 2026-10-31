@@ -486,6 +486,7 @@ function generate() {
     viewer.scene.add(cloud);
     lastGenerated = result;
     resetSampleSelection();
+    el('sample-index').max = String(result.sampleCount);
     generatedSignature = modelSignature();
     el('sample-summary').textContent =
       result.sampleCount.toLocaleString('en-US') + ' reachable samples · ' + result.jointCount + ' joints';
