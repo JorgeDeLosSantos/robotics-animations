@@ -5,7 +5,7 @@ Interactive **position-reachable** workspace built on W1's pure sampling core.
 - SPA: `kinematics/workspace.html`, controller: `workspace-lab.js`.
 - Robot presets: planar 2R, spatial 3R and mixed RRP (standard DH).
 - Editable DH table, pose sliders, optional mechanical limits, and **separate** finite sampling domains.
-- Deterministic Halton or joint-space grid samples; each result is rendered as a single `THREE.Points` geometry separate from `RobotViewer.robotGroup`.
+- Deterministic Halton or joint-space grid samples; the grid uses a numeric per-joint resolution, with a DOF-aware default near 25,000 total samples, a live total, and a 200,000-point ceiling. Each result is rendered as a single `THREE.Points` geometry separate from `RobotViewer.robotGroup`.
 - Samples are invalidated after geometry, topology, limits, domain or sampling-resolution changes; changing the *current pose* leaves the samples untouched.
 - The current pose is not silently clamped to mechanical limits. A warning appears if the pose violates them.
 - View presets and Fit View preserve the Z-up / XY-horizontal convention.
@@ -30,14 +30,19 @@ The reported XYZ values reflect Float32 drawing precision while the recovered jo
 2. Change joint pose only; samples should stay visible. Edit `a` or `alpha`; samples should clear until regenerated.
 3. Restrict a sampling domain; regenerate and observe the change.
 4. Toggle mechanical limits, change their values, and confirm invalid-domain errors without changing the model silently.
-5. Test spatial 3R and RRP; test both dark/light themes and a mobile-width viewport.
-6. Change joint type, add/delete DH rows, and confirm bounds are reinitialized with correct units.
-7. Click a point to move the robot. Confirm the recovered q, XYZ, sliders and DH table agree without regenerating the workspace.
-8. Click repeatedly on dense/overlapping regions; verify cycling, and try a numeric sample index and Enter.
-9. Rotate or pan the viewport (no point should be selected by a drag); hide/show the cloud, then change pose or geometry and confirm appropriate selection invalidation.
+5. Choose Grid: check 2R defaults to 158 per joint (24,964 points), 3R to 29 per joint (24,389 points), and the live count updates for custom values. Verify counts beyond the allowed budget are rejected.
+6. Test spatial 3R and RRP; test both dark/light themes and a mobile-width viewport.
+7. Change joint type, add/delete DH rows, and confirm bounds are reinitialized with correct units.
+8. Click a point to move the robot. Confirm the recovered q, XYZ, sliders and DH table agree without regenerating the workspace.
+9. Click repeatedly on dense/overlapping regions; verify cycling, and try a numeric sample index and Enter.
+10. Rotate or pan the viewport (no point should be selected by a drag); hide/show the cloud, then change pose or geometry and confirm appropriate selection invalidation.
 
 ## Scope/interpretation
 
 The points are **reachable by construction** within the configured finite sampling domains. Gaps are not evidence that a point is unreachable; denser sampling yields better coverage. Revolute defaults without declared mechanical limits cover one turn only. Prismatics without limits need a finite user-defined exploration range.
 
 W3 supports discrete point inspection and recovery. It does **not** calculate exact workspace boundaries, solve IK for arbitrary targets, consider collision, guarantee path feasibility, or enforce orientation constraints. These remain separate work.
+
+## Adaptive grid control
+
+Uniform grid cost is exponential in the joint count: for n joints and k samples per joint, the count is k^n. The Grid control now uses a numeric value instead of the earlier fixed options 4/6/8/10. When the number of joints changes, the default is recomputed to approximate 25,000 samples without exceeding the shared 200,000-sample ceiling. The displayed maximum is model-dependent. Users may choose a custom valid integer from 2 to that maximum; invalid input disables grid generation and shows a message rather than launching an oversized allocation. The point-count preview is updated while editing.
