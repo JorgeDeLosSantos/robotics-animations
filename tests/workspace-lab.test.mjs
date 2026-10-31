@@ -16,7 +16,14 @@ test('workspace HTML has unique IDs and all required control roots', () => {
     'domain-rows', 'robot-preset', 'sampling-method', 'sample-count',
     'grid-steps', 'grid-summary', 'generate-workspace', 'workspace-status', 'sample-summary',
     'sample-index', 'go-to-sample', 'clear-selected', 'selected-position',
-    'selected-joint-values', 'selection-empty', 'selection-details', 'selection-feedback'
+    'selected-joint-values', 'selection-empty', 'selection-details', 'selection-feedback',
+    'show-workspace', 'show-robot', 'point-size', 'point-size-value',
+    'point-opacity', 'point-opacity-value', 'metrics-rows', 'metrics-count',
+    'metrics-empty', 'metrics-details', 'section-panel',
+    'section-enabled', 'section-axis', 'section-position', 'section-position-value',
+    'section-thickness', 'section-thickness-value', 'section-context',
+    'section-count', 'section-empty', 'section-plot', 'section-canvas',
+    'section-marker', 'section-plane-label'
   ]) assert.ok(ids.includes(id), `Missing #${id}`);
 });
 
@@ -42,7 +49,7 @@ test('workspace is discoverable in homepage and shared navigation', () => {
 test('sample picking retains the generated buffers and does not call IK', () => {
   assert.match(lab, /from '\.\/workspace-selection\.js'/);
   assert.match(lab, /lastGenerated = result/);
-  assert.match(lab, /pickRaycaster\.intersectObject\(cloud, false\)/);
+  assert.match(lab, /pickRaycaster\.intersectObject\(activeCloud, false\)/);
   assert.match(lab, /rankProjectedSampleHits\(/);
   assert.match(lab, /selectionMarker\.visible/);
   assert.doesNotMatch(lab, /solveIKPosition|solveIKFull6DoF/);
@@ -62,4 +69,32 @@ test('view presets are registered by RobotViewer only, without duplicate lab han
 test('sampling resolution edits invalidate stale clouds immediately', () => {
   assert.match(lab, /el\('grid-steps'\)\.addEventListener\('input', \(\) => \{/);
   assert.match(lab, /clearWorkspace\('Sampling resolution changed/);
+});
+
+test('W4 display controls and metrics are wired independently of sampling', () => {
+  assert.match(lab, /from '\.\/workspace-metrics\.js'/);
+  assert.match(lab, /summarizeWorkspaceSamples\(result\)/);
+  assert.match(lab, /renderSampleMetrics\(metrics\)/);
+  assert.match(lab, /resetSampleMetrics\(\)/);
+  assert.match(lab, /el\('show-robot'\)\.addEventListener\('change', applyDisplaySettings\)/);
+  assert.match(lab, /cloud\.material\.size = size/);
+  assert.match(lab, /cloud\.material\.opacity = el\('section-enabled'\)\.checked/);
+  assert.match(lab, /viewer\.robotGroup\.visible = el\('show-robot'\)\.checked/);
+  assert.match(page, /id="metrics-panel"/);
+  assert.match(page, /id="display-panel"/);
+});
+
+test('W4 sampled sections replace redundant 3-view projections', () => {
+  assert.match(lab, /from '\.\/workspace-sections\.js'/);
+  assert.match(lab, /new WorkspaceSectionView\(/);
+  assert.match(lab, /sliceWorkspaceSamples\(lastGenerated, axis, center, thickness\)/);
+  assert.match(lab, /sectionView\.show\(lastGenerated, sampleMetrics, slice\)/);
+  assert.match(lab, /sectionView\.highlight\(index\)/);
+  assert.match(lab, /sectionView\.clear\(\)/);
+  assert.match(lab, /sectionCloud\.name = 'sampled-workspace-section'/);
+  assert.match(lab, /sectionPlane\.name = 'workspace-section-plane'/);
+  assert.match(lab, /const mappedHits = el\('section-enabled'\)\.checked/);
+  assert.match(page, /id="section-panel"/);
+  assert.match(page, /does not compute a continuous intersection/i);
+  assert.doesNotMatch(page, /id="projection-xy"/);
 });

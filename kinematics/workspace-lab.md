@@ -46,3 +46,52 @@ W3 supports discrete point inspection and recovery. It does **not** calculate ex
 ## Adaptive grid control
 
 Uniform grid cost is exponential in the joint count: for n joints and k samples per joint, the count is k^n. The Grid control now uses a numeric value instead of the earlier fixed options 4/6/8/10. When the number of joints changes, the default is recomputed to approximate 25,000 samples without exceeding the shared 200,000-sample ceiling. The displayed maximum is model-dependent. Users may choose a custom valid integer from 2 to that maximum; invalid input disables grid generation and shows a message rather than launching an oversized allocation. The point-count preview is updated while editing.
+
+## W4 — Visual refinement and sampled metrics (first iteration)
+
+The Display panel controls cloud visibility, independent robot visibility, point diameter (in screen pixels), and point opacity. Point size and opacity update the existing Three.js material without resampling or discarding the selected sample; hiding samples also hides the selected-sample marker, while the inspector remains available.
+
+The Sampled Extents panel reports observed minima, maxima and spans along the base-frame X, Y and Z axes, plus minimum and maximum XY radius `sqrt(x^2 + y^2)` and distance from the base origin `sqrt(x^2 + y^2 + z^2)`. Values come exclusively from the generated Float32 XYZ buffer and are cleared when that workspace is invalidated or cleared. Hiding either the robot or point cloud does not erase them.
+
+These are **sample statistics**, not certified workspace boundaries, volume, area, collision-free reach or global extrema. Sampling choice, density and joint-domain limits affect reported results. Avoid interpreting the bounding box as a reachable solid.
+
+### W4 manual checks
+
+- Generate 2R with Grid, toggle robot and points independently. Point appearance edits must not regenerate samples or reset the selected point.
+- Set size to 1 and 12 px, opacity to 10% and 100%, and confirm both themes retain contrast.
+- Inspect a sample by index, hide/show points, and confirm the marker follows visibility while the inspector remains populated.
+- Change a DH geometric parameter, sampling domain or method: the cloud, marker and stats must all clear.
+- Compare Halton and Grid observed ranges for equivalent domains; small differences are expected.
+- Check 3R and RRP in XY/XZ/YZ and mobile width. Bounds must refer to base-frame coordinates regardless of camera orientation.
+
+The analytic planar-2R comparison remains a **later W4 iteration**.
+
+## W4 — Sampled workspace sections (second iteration)
+
+The earlier three-view projection proposal was replaced by a **single interactive sectional tool**. It provides a genuinely different capability from choosing an orthographic camera.
+
+The user can activate sections and select a Cartesian normal **X, Y or Z**, placing a semitransparent plane inside the 3D workspace. A position slider moves the plane along that normal, and a thickness slider defines a symmetric sampled band:
+
+```text
+  |p_axis - plane_position| <= thickness / 2
+```
+
+The 3D display emphasizes only the sampled positions belonging to the band. An optional checkbox shows the complete sample cloud as faint context. The single 2D plot shows the corresponding **YZ**, **XZ**, or **XY** view, with equal Cartesian scale. It reports selected-sample count and percentage. It uses a fixed plot scale derived from the *full sampled extents* of the model so comparisons across plane positions are meaningful.
+
+Selecting a point in the 2D band updates the existing W3 inspector and robot pose by recovering the original sampled joint configuration. The 3D cloud's sectional vertices are also mapped back to their original sample indices, avoiding an incorrect q index for filtered subsets. Changing section position/normal/thickness may clear a previously selected sample if it falls outside the new band. The original W1 buffers are never mutated or resampled.
+
+### Interpretation and limitations
+
+These are **finite-thickness bands around section planes**, filtered from existing finite Grid/Halton samples—not exact mathematical intersections, boundaries, collision-free regions, or conditional samples generated on the requested plane. Sparse or empty sections can result from insufficient sampling density or a very small thickness.
+
+For planar 2R, Z has zero sampled range. The section control still supports a positive band thickness and plane motion to illustrate how samples enter and leave the band. For spatial 3R/RRP, sweeping the Z plane is especially informative.
+
+### Manual review checklist
+
+- Generate planar 2R, enable Z section and confirm XY includes all points when the band crosses z=0; sweep the plane away and confirm the count drops to zero.
+- Generate spatial 3R or RRP, choose X, Y and Z normal in turn; confirm the 3D plane rotates and the 2D labels change to YZ, XZ, XY, respectively.
+- Set a thin band, observe sample count, and widen it; no workspace samples should be regenerated.
+- Select one visible section sample in 2D and in 3D; both must recover the same original q and highlight the point.
+- Toggle full-cloud context and Show Samples independently; the plane and filtered results should remain conceptually consistent.
+- Edit the DH model, sampling domain or method: the old section, plane, 2D view and selection should disappear.
+- Check dark/light, responsive layout, and high-density inputs. Extremely rapid slider motion on a large cloud may require throttling in a subsequent optimization pass.
