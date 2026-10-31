@@ -76,3 +76,45 @@ test('rejects bad sampling options and excessive allocations',()=>{
   assert.throws(()=>generateWorkspaceSamples(twoR(),{sampleCount:200001}),RangeError);
   assert.throws(()=>generateWorkspaceSamples(twoR(),{method:'grid',samplesPerJoint:500}),RangeError);
 });
+
+test('spatial mixed R/P FK agrees with independently multiplied standard-DH matrices', () => {
+  const robot = [
+    { type: 'R', a: 90, alpha: 90, d: 110, theta: 40 },
+    { type: 'P', a: 140, alpha: -40, d: 20, theta: 30 },
+    { type: 'R', a: 70, alpha: 25, d: -30, theta: 80 },
+    { type: 'R', a: -80, alpha: 75, d: 200, theta: -75 }
+  ];
+  const multiply = (a, b) => {
+    const out = Array(16).fill(0);
+    for (let i = 0; i < 4; i++) {
+      for (let j = 0; j < 4; j++) {
+        for (let k = 0; k < 4; k++) out[4 * i + j] += a[4 * i + k] * b[4 * k + j];
+      }
+    }
+    return out;
+  };
+  const reference = q => {
+    let transform = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
+    robot.forEach((joint, i) => {
+      const theta = (joint.type === 'R' ? q[i] : joint.theta) * Math.PI / 180;
+      const alpha = joint.alpha * Math.PI / 180;
+      const d = joint.type === 'P' ? q[i] : joint.d;
+      const c = Math.cos(theta), s = Math.sin(theta);
+      const ca = Math.cos(alpha), sa = Math.sin(alpha);
+      const dh = [
+        c,-s*ca,s*sa,joint.a*c,
+        s,c*ca,-c*sa,joint.a*s,
+        0,sa,ca,d,
+        0,0,0,1
+      ];
+      transform = multiply(transform, dh);
+    });
+    return [transform[3], transform[7], transform[11]];
+  };
+  for (let i = 0; i < 60; i++) {
+    const q = [-180 + 6 * i, -45 + 1.5 * i, (i * 29) % 360 - 180, (i * 79) % 360 - 180];
+    const result = forwardKinematicsPosition(robot, q);
+    const expected = reference(q);
+    for (let k = 0; k < 3; k++) close(result[k], expected[k], 1e-9);
+  }
+});
