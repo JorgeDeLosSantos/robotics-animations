@@ -6,6 +6,7 @@ const sections = [
   ] },
   { name: 'Kinematics', items: [
     ['Forward Kinematics', 'kinematics/forward-kinematics.html'],
+    ['Workspace', 'kinematics/workspace.html'],
     ['Jacobian Matrix', 'kinematics/jacobian-matrix.html'],
     ['Position Inverse Kinematics', 'kinematics/inverse-kinematics-position.html'],
     ['Full-Pose Inverse Kinematics', 'kinematics/inverse-kinematics-6dof.html'],
