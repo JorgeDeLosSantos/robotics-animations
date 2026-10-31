@@ -49,7 +49,7 @@ test('workspace is discoverable in homepage and shared navigation', () => {
 test('sample picking retains the generated buffers and does not call IK', () => {
   assert.match(lab, /from '\.\/workspace-selection\.js'/);
   assert.match(lab, /lastGenerated = result/);
-  assert.match(lab, /pickRaycaster\.intersectObject\(cloud, false\)/);
+  assert.match(lab, /pickRaycaster\.intersectObject\(activeCloud, false\)/);
   assert.match(lab, /rankProjectedSampleHits\(/);
   assert.match(lab, /selectionMarker\.visible/);
   assert.doesNotMatch(lab, /solveIKPosition|solveIKFull6DoF/);
@@ -78,7 +78,7 @@ test('W4 display controls and metrics are wired independently of sampling', () =
   assert.match(lab, /resetSampleMetrics\(\)/);
   assert.match(lab, /el\('show-robot'\)\.addEventListener\('change', applyDisplaySettings\)/);
   assert.match(lab, /cloud\.material\.size = size/);
-  assert.match(lab, /cloud\.material\.opacity = opacity/);
+  assert.match(lab, /cloud\.material\.opacity = el\('section-enabled'\)\.checked/);
   assert.match(lab, /viewer\.robotGroup\.visible = el\('show-robot'\)\.checked/);
   assert.match(page, /id="metrics-panel"/);
   assert.match(page, /id="display-panel"/);
