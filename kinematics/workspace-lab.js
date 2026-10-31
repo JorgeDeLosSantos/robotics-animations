@@ -49,8 +49,6 @@ let knownJointType = new WeakMap();
 let homePose = new WeakMap();
 let cloud = null;
 let generatedSignature = null;
-let lastGenerated = null;
-let lastStatus = '';
 
 function defaultDomain(joint) {
   if (joint.limits) return { ...joint.limits };
@@ -107,7 +105,6 @@ function refreshPresetIdentity() {
 }
 
 function status(message, error = false) {
-  lastStatus = message;
   el('workspace-status').textContent = message;
   el('workspace-status').classList.toggle('text-rose-400', error);
   el('workspace-status').classList.toggle('text-slate-400', !error);
@@ -120,7 +117,6 @@ function clearWorkspace(message = 'Generate the workspace to see reachable posit
     cloud.material.dispose();
     cloud = null;
   }
-  lastGenerated = null;
   generatedSignature = null;
   el('sample-summary').textContent = 'No samples generated';
   status(message);
@@ -332,7 +328,6 @@ function generate() {
     cloud.name = 'reachable-workspace-samples';
     cloud.visible = el('show-workspace').checked;
     viewer.scene.add(cloud);
-    lastGenerated = result;
     generatedSignature = modelSignature();
     el('sample-summary').textContent =
       result.sampleCount.toLocaleString('en-US') + ' reachable samples · ' + result.jointCount + ' joints';
@@ -389,7 +384,13 @@ el('sampling-method').addEventListener('change', () => {
   const grid = el('sampling-method').value === 'grid';
   el('grid-controls').hidden = !grid;
   el('halton-controls').hidden = grid;
+  if (cloud) clearWorkspace('Sampling method changed. Generate a new workspace.');
 });
+for (const id of ['sample-count', 'grid-steps']) {
+  el(id).addEventListener('change', () => {
+    if (cloud) clearWorkspace('Sampling resolution changed. Generate a new workspace.');
+  });
+}
 el('generate-workspace').addEventListener('click', generate);
 el('clear-workspace').addEventListener('click', () => clearWorkspace());
 el('fit-view').addEventListener('click', fitView);
