@@ -5,7 +5,8 @@ import { workspaceSampleAt, rankProjectedSampleHits, nextSelectedSample } from '
 import { fitOrthographicObjects } from '../shared/camera-fit.js';
 import { gridResolutionSettings, gridPointCount } from './workspace-grid.js';
 import { summarizeWorkspaceSamples } from './workspace-metrics.js';
-import { WorkspaceProjectionViews } from './workspace-projection-view.js';
+import { WorkspaceSectionView } from './workspace-projection-view.js';
+import { SECTION_AXES, sectionSettings, sliceWorkspaceSamples } from './workspace-sections.js';
 
 const presets = {
   planar2r: {
@@ -60,19 +61,20 @@ let applyingPickedSample = false;
 let selectionMarker = null;
 let pointerStart = null;
 let lastPick = null;
+let sampleMetrics = null;
+let sectionSlice = null;
+let sectionCloud = null;
+let sectionPlane = null;
 const pickRaycaster = new THREE.Raycaster();
 const pickNdc = new THREE.Vector2();
-const projectionViews = new WorkspaceProjectionViews({
+const sectionView = new WorkspaceSectionView({
   getSelectedIndex: () => selectedSampleIndex,
-  onPick: (index, nearbyCount, plane) => {
-    // Keep 3D and 2D click cycling independent from each other.
+  onPick: (index, nearbyCount) => {
     lastPick = null;
     showSample(index, nearbyCount);
     el('selection-hint').textContent = nearbyCount > 1
-      ? plane.toUpperCase() + ' projection: ' + nearbyCount +
-        ' nearby samples. Click again in the same location to cycle.'
-      : 'Recovered from the ' + plane.toUpperCase() +
-        ' projection. This is a stored sample, not an IK solution.';
+      ? 'Multiple samples overlap in this section. Click again to cycle.'
+      : 'Configuration recovered from an existing section sample (not IK).';
   }
 });
 
@@ -180,7 +182,12 @@ function applyDisplaySettings() {
   if (viewer.robotGroup) viewer.robotGroup.visible = el('show-robot').checked;
   if (cloud) {
     cloud.material.size = size;
-    cloud.material.opacity = opacity;
+    cloud.material.opacity = el('section-enabled').checked && el('section-context').checked
+      ? Math.min(opacity, 0.12) : opacity;
+  }
+  if (sectionCloud) {
+    sectionCloud.material.size = Math.max(size, 3);
+    sectionCloud.material.opacity = opacity;
   }
 }
 
@@ -222,7 +229,7 @@ function renderSampleMetrics(stats) {
 
 function resetSampleSelection() {
   selectedSampleIndex = null;
-  projectionViews.highlight(null);
+  sectionView.highlight(null);
   lastPick = null;
   if (selectionMarker) selectionMarker.visible = false;
   el('selection-details').hidden = true;
@@ -288,9 +295,13 @@ function showSample(index, nearbyCount = 1) {
 
   if (selectionMarker) {
     selectionMarker.position.set(...sample.position);
-    selectionMarker.visible = cloud.visible;
+    selectionMarker.visible = selectedSampleIsVisible(index);
   }
-  projectionViews.highlight(index);
+  sectionView.highlight(index);
+  if (el('section-enabled').checked && sectionSlice &&
+      !sectionSlice.indices.includes(index)) {
+    el('selection-hint').textContent = 'This sample is outside the current section band.';
+  }
 }
 
 function cameraPickSignature() {
@@ -301,7 +312,8 @@ function cameraPickSignature() {
 }
 
 function pickWorkspaceSample(event) {
-  if (!lastGenerated || !cloud?.visible) return;
+  const activeCloud = el('section-enabled').checked ? sectionCloud : cloud;
+  if (!lastGenerated || !activeCloud?.visible) return;
   const canvas = viewer.renderer.domElement;
   const rect = canvas.getBoundingClientRect();
   if (!rect.width || !rect.height) return;
@@ -316,7 +328,12 @@ function pickWorkspaceSample(event) {
     (c.right - c.left) / (c.zoom * rect.width),
     (c.top - c.bottom) / (c.zoom * rect.height)
   );
-  const hits = pickRaycaster.intersectObject(cloud, false);
+  const hits = pickRaycaster.intersectObject(activeCloud, false);
+  // Section geometry is a compact buffer; map its vertex indices back
+  // to the stable sample indices stored in the complete workspace result.
+  const mappedHits = el('section-enabled').checked
+    ? hits.map(hit => ({ ...hit, index: sectionSlice.indices[hit.index] }))
+    : hits;
   const projection = index => {
     const pos = lastGenerated.positions;
     const p = new THREE.Vector3(pos[3 * index], pos[3 * index + 1], pos[3 * index + 2]);
@@ -324,16 +341,16 @@ function pickWorkspaceSample(event) {
     return { x: (p.x + 1) * rect.width / 2,
       y: (1 - p.y) * rect.height / 2, z: p.z };
   };
-  const candidates = rankProjectedSampleHits(hits, projection, pointer);
+  const candidates = rankProjectedSampleHits(mappedHits, projection, pointer);
   if (!candidates.length) return;
 
   const signature = cameraPickSignature();
-  const sameSpot = lastPick && lastPick.cloud === cloud &&
+  const sameSpot = lastPick && lastPick.cloud === activeCloud &&
     lastPick.signature === signature &&
     Math.hypot(lastPick.x - pointer.x, lastPick.y - pointer.y) <= 6;
   const chosen = nextSelectedSample(candidates, selectedSampleIndex, Boolean(sameSpot));
   showSample(chosen, candidates.length);
-  lastPick = { x: pointer.x, y: pointer.y, cloud, signature };
+  lastPick = { x: pointer.x, y: pointer.y, cloud: activeCloud, signature };
 }
 
 function attachWorkspacePicking() {
@@ -365,6 +382,143 @@ function initSampleMarker() {
   viewer.scene.add(selectionMarker);
 }
 
+
+function clearSectionGeometry() {
+  if (sectionCloud) {
+    viewer.scene.remove(sectionCloud);
+    sectionCloud.geometry.dispose();
+    sectionCloud.material.dispose();
+    sectionCloud = null;
+  }
+  if (sectionPlane) {
+    viewer.scene.remove(sectionPlane);
+    sectionPlane.geometry.dispose();
+    sectionPlane.material.dispose();
+    sectionPlane = null;
+  }
+}
+
+function selectedSampleIsVisible(index) {
+  if (!lastGenerated || !el('show-workspace').checked || !cloud) return false;
+  if (!el('section-enabled').checked) return cloud.visible;
+  return Boolean(sectionCloud?.visible && sectionSlice?.indices.includes(index));
+}
+
+function updateSectionVisibility() {
+  const enabled = el('section-enabled').checked;
+  const shown = el('show-workspace').checked;
+  if (cloud) cloud.visible = shown && (!enabled || el('section-context').checked);
+  if (sectionCloud) sectionCloud.visible = shown && enabled;
+  if (sectionPlane) sectionPlane.visible = enabled;
+  if (selectionMarker) selectionMarker.visible =
+    selectedSampleIndex !== null && selectedSampleIsVisible(selectedSampleIndex);
+  applyDisplaySettings();
+  lastPick = null;
+}
+
+function resetSectionControls() {
+  sectionSlice = null;
+  sectionView.clear();
+  clearSectionGeometry();
+  el('section-enabled').checked = false;
+  el('section-enabled').disabled = !lastGenerated;
+  el('section-position').disabled = !lastGenerated;
+  el('section-thickness').disabled = !lastGenerated;
+  el('section-position-value').textContent = '—';
+  el('section-thickness-value').textContent = '—';
+  el('section-count').textContent = lastGenerated
+    ? 'Enable a section to filter sampled positions.'
+    : 'Generate a workspace to explore sections.';
+  updateSectionVisibility();
+}
+
+function configureSectionAxis() {
+  if (!sampleMetrics) return;
+  const settings = sectionSettings(sampleMetrics, el('section-axis').value);
+  const position = el('section-position');
+  const thickness = el('section-thickness');
+  const flat = settings.min === settings.max;
+  position.min = String(flat ? settings.min - settings.thickness : settings.min);
+  position.max = String(flat ? settings.max + settings.thickness : settings.max);
+  position.step = 'any';
+  position.value = String(settings.center);
+  thickness.min = String(Math.max(settings.thickness / 40, 1e-7));
+  thickness.max = String(settings.maximumThickness);
+  thickness.step = 'any';
+  thickness.value = String(settings.thickness);
+  updateSection();
+}
+
+function updateSection() {
+  if (!lastGenerated || !sampleMetrics || !el('section-enabled').checked) {
+    sectionSlice = null;
+    sectionView.clear();
+    clearSectionGeometry();
+    updateSectionVisibility();
+    return;
+  }
+  const axis = el('section-axis').value;
+  const center = Number(el('section-position').value);
+  const thickness = Number(el('section-thickness').value);
+  el('section-position-value').textContent = center.toFixed(2);
+  el('section-thickness-value').textContent = thickness.toFixed(2);
+  const slice = sliceWorkspaceSamples(lastGenerated, axis, center, thickness);
+  sectionSlice = slice;
+  el('section-count').textContent = slice.count.toLocaleString('en-US') + ' / ' +
+    slice.total.toLocaleString('en-US') + ' samples inside the band (' +
+    (100 * slice.count / slice.total).toFixed(1) + '%).';
+  el('section-plane-label').textContent = SECTION_AXES[axis].plane.toUpperCase() +
+    ' band · ' + axis.toUpperCase() + ' = ' + center.toFixed(2);
+  if (selectedSampleIndex !== null && !slice.indices.includes(selectedSampleIndex)) {
+    resetSampleSelection();
+  }
+  clearSectionGeometry();
+  if (slice.count > 0) {
+    const positions = new Float32Array(3 * slice.count);
+    for (let i = 0; i < slice.count; i++) {
+      const source = 3 * slice.indices[i];
+      positions[3 * i] = lastGenerated.positions[source];
+      positions[3 * i + 1] = lastGenerated.positions[source + 1];
+      positions[3 * i + 2] = lastGenerated.positions[source + 2];
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+    geometry.computeBoundingSphere();
+    sectionCloud = new THREE.Points(geometry, new THREE.PointsMaterial({
+      color: window.RoboticsTheme?.getTheme() === 'light' ? 0x0f766e : 0xfde047,
+      size: Math.max(3, Number(el('point-size').value)),
+      sizeAttenuation: false,
+      transparent: true, opacity: Number(el('point-opacity').value),
+      depthWrite: false
+    }));
+    sectionCloud.name = 'sampled-workspace-section';
+    viewer.scene.add(sectionCloud);
+  }
+
+  const fullSpan = Math.max(sampleMetrics.x.span, sampleMetrics.y.span,
+    sampleMetrics.z.span, thickness, 1);
+  const planeGeometry = new THREE.PlaneGeometry(fullSpan * 1.12, fullSpan * 1.12);
+  const planeMaterial = new THREE.MeshBasicMaterial({
+    color: 0xf59e0b, transparent: true, opacity: 0.15,
+    side: THREE.DoubleSide, depthWrite: false
+  });
+  sectionPlane = new THREE.Mesh(planeGeometry, planeMaterial);
+  sectionPlane.name = 'workspace-section-plane';
+  sectionPlane.position.set(
+    (sampleMetrics.x.min + sampleMetrics.x.max) / 2,
+    (sampleMetrics.y.min + sampleMetrics.y.max) / 2,
+    (sampleMetrics.z.min + sampleMetrics.z.max) / 2
+  );
+  sectionPlane.position[axis] = center;
+  if (axis === 'x') sectionPlane.rotation.y = Math.PI / 2;
+  else if (axis === 'y') sectionPlane.rotation.x = -Math.PI / 2;
+  sectionPlane.renderOrder = 1;
+  viewer.scene.add(sectionPlane);
+
+  sectionView.show(lastGenerated, sampleMetrics, slice);
+  updateSectionVisibility();
+}
+
 function clearWorkspace(message = 'Generate the workspace to see reachable positions.') {
   if (cloud) {
     viewer.scene.remove(cloud);
@@ -374,7 +528,8 @@ function clearWorkspace(message = 'Generate the workspace to see reachable posit
   }
   generatedSignature = null;
   lastGenerated = null;
-  projectionViews.clear();
+  sampleMetrics = null;
+  resetSectionControls();
   resetSampleMetrics();
   resetSampleSelection();
   el('sample-summary').textContent = 'No samples generated';
@@ -575,6 +730,9 @@ function generate() {
     const result = generateWorkspaceSamples(viewer.dhParams, options);
     const metrics = summarizeWorkspaceSamples(result);
     resetSampleSelection();
+    clearSectionGeometry();
+    sectionSlice = null;
+    sectionView.clear();
     if (cloud) {
       viewer.scene.remove(cloud);
       cloud.geometry.dispose();
@@ -596,8 +754,10 @@ function generate() {
     viewer.scene.add(cloud);
     renderSampleMetrics(metrics);
     lastGenerated = result;
+    sampleMetrics = metrics;
     resetSampleSelection();
-    projectionViews.show(result, metrics);
+    resetSectionControls();
+    configureSectionAxis();
     el('sample-index').max = String(result.sampleCount);
     generatedSignature = modelSignature();
     el('sample-summary').textContent =
@@ -653,12 +813,12 @@ el('show-robot').addEventListener('change', applyDisplaySettings);
 for (const control of ['point-size', 'point-opacity']) {
   el(control).addEventListener('input', applyDisplaySettings);
 }
-el('show-workspace').addEventListener('change', () => {
-  if (cloud) cloud.visible = el('show-workspace').checked;
-  if (selectionMarker) selectionMarker.visible =
-    Boolean(cloud?.visible && selectedSampleIndex !== null);
-  lastPick = null;
-});
+el('show-workspace').addEventListener('change', updateSectionVisibility);
+el('section-enabled').addEventListener('change', updateSection);
+el('section-axis').addEventListener('change', configureSectionAxis);
+el('section-position').addEventListener('input', updateSection);
+el('section-thickness').addEventListener('input', updateSection);
+el('section-context').addEventListener('change', updateSectionVisibility);
 el('sampling-method').addEventListener('change', () => {
   const grid = el('sampling-method').value === 'grid';
   el('grid-controls').hidden = !grid;
@@ -695,13 +855,15 @@ el('clear-selected').addEventListener('click', resetSampleSelection);
 el('generate-workspace').addEventListener('click', generate);
 el('clear-workspace').addEventListener('click', () => clearWorkspace());
 el('fit-view').addEventListener('click', fitView);
-el('projection-panel').addEventListener('toggle', () => {
-  if (el('projection-panel').open) projectionViews.redraw();
+el('section-panel').addEventListener('toggle', () => {
+  if (el('section-panel').open) sectionView.redraw();
 });
 // RobotViewer.renderTable() already binds view controls once.
 document.addEventListener('robotics:themechange', () => {
   if (cloud) cloud.material.color.setHex(window.RoboticsTheme.getTheme() === 'light' ? 0x2563eb : 0x38bdf8);
-  projectionViews.redraw();
+  if (sectionCloud) sectionCloud.material.color.setHex(
+    window.RoboticsTheme.getTheme() === 'light' ? 0x0f766e : 0xfde047);
+  sectionView.redraw();
 });
 window.addEventListener('beforeunload', () => {
   if (cloud) { cloud.geometry.dispose(); cloud.material.dispose(); }
@@ -709,13 +871,15 @@ window.addEventListener('beforeunload', () => {
     selectionMarker.geometry.dispose();
     selectionMarker.material.dispose();
   }
-  projectionViews.destroy();
+  clearSectionGeometry();
+  sectionView.destroy();
   viewer.destroy();
 });
 
 viewer.init3D();
 applyDisplaySettings();
 resetSampleMetrics();
+resetSectionControls();
 initSampleMarker();
 attachWorkspacePicking();
 resetSampleSelection();
