@@ -16,7 +16,10 @@ test('workspace HTML has unique IDs and all required control roots', () => {
     'domain-rows', 'robot-preset', 'sampling-method', 'sample-count',
     'grid-steps', 'grid-summary', 'generate-workspace', 'workspace-status', 'sample-summary',
     'sample-index', 'go-to-sample', 'clear-selected', 'selected-position',
-    'selected-joint-values', 'selection-empty', 'selection-details', 'selection-feedback'
+    'selected-joint-values', 'selection-empty', 'selection-details', 'selection-feedback',
+    'show-workspace', 'show-robot', 'point-size', 'point-size-value',
+    'point-opacity', 'point-opacity-value', 'metrics-rows', 'metrics-count',
+    'metrics-empty', 'metrics-details'
   ]) assert.ok(ids.includes(id), `Missing #${id}`);
 });
 
@@ -62,4 +65,17 @@ test('view presets are registered by RobotViewer only, without duplicate lab han
 test('sampling resolution edits invalidate stale clouds immediately', () => {
   assert.match(lab, /el\('grid-steps'\)\.addEventListener\('input', \(\) => \{/);
   assert.match(lab, /clearWorkspace\('Sampling resolution changed/);
+});
+
+test('W4 display controls and metrics are wired independently of sampling', () => {
+  assert.match(lab, /from '\.\/workspace-metrics\.js'/);
+  assert.match(lab, /summarizeWorkspaceSamples\(result\)/);
+  assert.match(lab, /renderSampleMetrics\(metrics\)/);
+  assert.match(lab, /resetSampleMetrics\(\)/);
+  assert.match(lab, /el\('show-robot'\)\.addEventListener\('change', applyDisplaySettings\)/);
+  assert.match(lab, /cloud\.material\.size = size/);
+  assert.match(lab, /cloud\.material\.opacity = opacity/);
+  assert.match(lab, /viewer\.robotGroup\.visible = el\('show-robot'\)\.checked/);
+  assert.match(page, /id="metrics-panel"/);
+  assert.match(page, /id="display-panel"/);
 });

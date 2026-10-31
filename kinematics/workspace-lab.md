@@ -46,3 +46,22 @@ W3 supports discrete point inspection and recovery. It does **not** calculate ex
 ## Adaptive grid control
 
 Uniform grid cost is exponential in the joint count: for n joints and k samples per joint, the count is k^n. The Grid control now uses a numeric value instead of the earlier fixed options 4/6/8/10. When the number of joints changes, the default is recomputed to approximate 25,000 samples without exceeding the shared 200,000-sample ceiling. The displayed maximum is model-dependent. Users may choose a custom valid integer from 2 to that maximum; invalid input disables grid generation and shows a message rather than launching an oversized allocation. The point-count preview is updated while editing.
+
+## W4 — Visual refinement and sampled metrics (first iteration)
+
+The Display panel controls cloud visibility, independent robot visibility, point diameter (in screen pixels), and point opacity. Point size and opacity update the existing Three.js material without resampling or discarding the selected sample; hiding samples also hides the selected-sample marker, while the inspector remains available.
+
+The Sampled Extents panel reports observed minima, maxima and spans along the base-frame X, Y and Z axes, plus minimum and maximum XY radius `sqrt(x^2 + y^2)` and distance from the base origin `sqrt(x^2 + y^2 + z^2)`. Values come exclusively from the generated Float32 XYZ buffer and are cleared when that workspace is invalidated or cleared. Hiding either the robot or point cloud does not erase them.
+
+These are **sample statistics**, not certified workspace boundaries, volume, area, collision-free reach or global extrema. Sampling choice, density and joint-domain limits affect reported results. Avoid interpreting the bounding box as a reachable solid.
+
+### W4 manual checks
+
+- Generate 2R with Grid, toggle robot and points independently. Point appearance edits must not regenerate samples or reset the selected point.
+- Set size to 1 and 12 px, opacity to 10% and 100%, and confirm both themes retain contrast.
+- Inspect a sample by index, hide/show points, and confirm the marker follows visibility while the inspector remains populated.
+- Change a DH geometric parameter, sampling domain or method: the cloud, marker and stats must all clear.
+- Compare Halton and Grid observed ranges for equivalent domains; small differences are expected.
+- Check 3R and RRP in XY/XZ/YZ and mobile width. Bounds must refer to base-frame coordinates regardless of camera orientation.
+
+The analytic planar-2R comparison remains a **later W4 iteration**.

@@ -4,6 +4,7 @@ import { generateWorkspaceSamples, resolveSamplingRanges } from './workspace-cor
 import { workspaceSampleAt, rankProjectedSampleHits, nextSelectedSample } from './workspace-selection.js';
 import { fitOrthographicObjects } from '../shared/camera-fit.js';
 import { gridResolutionSettings, gridPointCount } from './workspace-grid.js';
+import { summarizeWorkspaceSamples } from './workspace-metrics.js';
 
 const presets = {
   planar2r: {
@@ -154,6 +155,56 @@ function status(message, error = false) {
   el('workspace-status').classList.toggle('text-slate-400', !error);
 }
 
+
+
+// Display controls never change the numerical sample domain or the cloud buffers.
+function applyDisplaySettings() {
+  const size = Number(el('point-size').value);
+  const opacity = Number(el('point-opacity').value);
+  el('point-size-value').textContent = size + ' px';
+  el('point-opacity-value').textContent = Math.round(opacity * 100) + '%';
+  if (viewer.robotGroup) viewer.robotGroup.visible = el('show-robot').checked;
+  if (cloud) {
+    cloud.material.size = size;
+    cloud.material.opacity = opacity;
+  }
+}
+
+function resetSampleMetrics() {
+  el('metrics-rows').replaceChildren();
+  el('metrics-count').textContent = '';
+  el('metrics-details').hidden = true;
+  el('metrics-empty').hidden = false;
+}
+
+function renderSampleMetrics(stats) {
+  const values = [
+    ['X', stats.x, true],
+    ['Y', stats.y, true],
+    ['Z', stats.z, true],
+    ['XY radius', stats.xyRadius, false],
+    ['3D distance', stats.distance, false]
+  ];
+  const format = value => (Math.abs(value) < 0.005 ? 0 : value).toFixed(2);
+  const body = el('metrics-rows');
+  body.replaceChildren();
+  for (const [title, range, showSpan] of values) {
+    const row = document.createElement('tr');
+    row.className = 'border-t border-slate-700';
+    for (const [i, label] of [title, format(range.min), format(range.max),
+      showSpan ? format(range.span) : '—'].entries()) {
+      const cell = document.createElement(i === 0 ? 'th' : 'td');
+      cell.className = 'px-2 py-2 whitespace-nowrap font-mono' + (i === 0 ? ' font-semibold text-slate-200' : '');
+      if (i === 0) cell.scope = 'row';
+      cell.textContent = label;
+      row.append(cell);
+    }
+    body.append(row);
+  }
+  el('metrics-count').textContent = stats.sampleCount.toLocaleString('en-US') + ' positions sampled';
+  el('metrics-empty').hidden = true;
+  el('metrics-details').hidden = false;
+}
 
 function resetSampleSelection() {
   selectedSampleIndex = null;
@@ -307,6 +358,7 @@ function clearWorkspace(message = 'Generate the workspace to see reachable posit
   }
   generatedSignature = null;
   lastGenerated = null;
+  resetSampleMetrics();
   resetSampleSelection();
   el('sample-summary').textContent = 'No samples generated';
   status(message);
@@ -504,6 +556,7 @@ function generate() {
       options.sampleCount = Number(el('sample-count').value);
     }
     const result = generateWorkspaceSamples(viewer.dhParams, options);
+    const metrics = summarizeWorkspaceSamples(result);
     resetSampleSelection();
     if (cloud) {
       viewer.scene.remove(cloud);
@@ -516,13 +569,15 @@ function generate() {
     const light = window.RoboticsTheme?.getTheme() === 'light';
     const material = new THREE.PointsMaterial({
       color: light ? 0x2563eb : 0x38bdf8,
-      size: 3, sizeAttenuation: false, opacity: 0.72,
+      size: Number(el('point-size').value), sizeAttenuation: false,
+      opacity: Number(el('point-opacity').value),
       transparent: true, depthWrite: false
     });
     cloud = new THREE.Points(geometry, material);
     cloud.name = 'reachable-workspace-samples';
     cloud.visible = el('show-workspace').checked;
     viewer.scene.add(cloud);
+    renderSampleMetrics(metrics);
     lastGenerated = result;
     resetSampleSelection();
     el('sample-index').max = String(result.sampleCount);
@@ -576,6 +631,10 @@ el('reset-joints').addEventListener('click', () => {
   viewer.renderTable();
   viewer.updateRobotGeometry();
 });
+el('show-robot').addEventListener('change', applyDisplaySettings);
+for (const control of ['point-size', 'point-opacity']) {
+  el(control).addEventListener('input', applyDisplaySettings);
+}
 el('show-workspace').addEventListener('change', () => {
   if (cloud) cloud.visible = el('show-workspace').checked;
   if (selectionMarker) selectionMarker.visible =
@@ -632,6 +691,8 @@ window.addEventListener('beforeunload', () => {
 });
 
 viewer.init3D();
+applyDisplaySettings();
+resetSampleMetrics();
 initSampleMarker();
 attachWorkspacePicking();
 resetSampleSelection();
