@@ -61,3 +61,10 @@ export function rankProjectedSampleHits(hits, projectIndex, pointer, options = {
   return ranked.filter(item => item.distance <= tolerance)
     .slice(0, maxCandidates).map(item => item.index);
 }
+
+/** Cycle candidates only when the next click is at the same screen location. */
+export function nextSelectedSample(candidates, previousIndex = null, sameSpot = false) {
+  if (!Array.isArray(candidates) || candidates.length === 0) return null;
+  const previous = sameSpot ? candidates.indexOf(previousIndex) : -1;
+  return candidates[previous < 0 ? 0 : (previous + 1) % candidates.length];
+}
