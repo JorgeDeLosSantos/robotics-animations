@@ -10,7 +10,8 @@
  */
 
 const DEG = Math.PI / 180;
-const MAX_SAMPLES = 200_000;
+export const MAX_WORKSPACE_SAMPLES = 200_000;
+const MAX_SAMPLES = MAX_WORKSPACE_SAMPLES;
 
 /** Validate a finite interval, or return null when limits are unspecified. */
 export function validateJointLimits(limits) {
