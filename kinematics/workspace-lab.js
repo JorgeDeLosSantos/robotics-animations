@@ -5,7 +5,7 @@ import { workspaceSampleAt, rankProjectedSampleHits, nextSelectedSample } from '
 import { fitOrthographicObjects } from '../shared/camera-fit.js';
 import { gridResolutionSettings, gridPointCount } from './workspace-grid.js';
 import { summarizeWorkspaceSamples } from './workspace-metrics.js';
-import { WorkspaceSectionView } from './workspace-projection-view.js';
+import { WorkspaceSectionView } from './workspace-section-view.js';
 import { SECTION_AXES, sectionSettings, sliceWorkspaceSamples } from './workspace-sections.js';
 
 const presets = {
