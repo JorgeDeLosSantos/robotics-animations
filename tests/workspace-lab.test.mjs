@@ -19,10 +19,11 @@ test('workspace HTML has unique IDs and all required control roots', () => {
     'selected-joint-values', 'selection-empty', 'selection-details', 'selection-feedback',
     'show-workspace', 'show-robot', 'point-size', 'point-size-value',
     'point-opacity', 'point-opacity-value', 'metrics-rows', 'metrics-count',
-    'metrics-empty', 'metrics-details', 'projection-panel',
-    'projections-empty', 'projections-charts', 'projection-xy', 'projection-xz',
-    'projection-yz', 'projection-marker-xy', 'projection-marker-xz',
-    'projection-marker-yz'
+    'metrics-empty', 'metrics-details', 'section-panel',
+    'section-enabled', 'section-axis', 'section-position', 'section-position-value',
+    'section-thickness', 'section-thickness-value', 'section-context',
+    'section-count', 'section-empty', 'section-plot', 'section-canvas',
+    'section-marker', 'section-plane-label'
   ]) assert.ok(ids.includes(id), `Missing #${id}`);
 });
 
@@ -83,14 +84,17 @@ test('W4 display controls and metrics are wired independently of sampling', () =
   assert.match(page, /id="display-panel"/);
 });
 
-test('W4 Cartesian projections use an independent view, preserve sampled q and connect selection', () => {
-  assert.match(lab, /from '\.\/workspace-projection-view\.js'/);
-  assert.match(lab, /new WorkspaceProjectionViews\(/);
-  assert.match(lab, /projectionViews\.show\(result, metrics\)/);
-  assert.match(lab, /projectionViews\.highlight\(index\)/);
-  assert.match(lab, /projectionViews\.highlight\(null\)/);
-  assert.match(lab, /projectionViews\.clear\(\)/);
-  assert.match(lab, /projectionViews\.redraw\(\)/);
-  assert.match(page, /not planar sections/i);
-  assert.match(page, /id="projection-panel"/);
+test('W4 sampled sections replace redundant 3-view projections', () => {
+  assert.match(lab, /from '\.\/workspace-sections\.js'/);
+  assert.match(lab, /new WorkspaceSectionView\(/);
+  assert.match(lab, /sliceWorkspaceSamples\(lastGenerated, axis, center, thickness\)/);
+  assert.match(lab, /sectionView\.show\(lastGenerated, sampleMetrics, slice\)/);
+  assert.match(lab, /sectionView\.highlight\(index\)/);
+  assert.match(lab, /sectionView\.clear\(\)/);
+  assert.match(lab, /sectionCloud\.name = 'sampled-workspace-section'/);
+  assert.match(lab, /sectionPlane\.name = 'workspace-section-plane'/);
+  assert.match(lab, /const mappedHits = el\('section-enabled'\)\.checked/);
+  assert.match(page, /id="section-panel"/);
+  assert.match(page, /does not compute a continuous intersection/i);
+  assert.doesNotMatch(page, /id="projection-xy"/);
 });
