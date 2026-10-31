@@ -14,6 +14,7 @@ Colección de visualizaciones y laboratorios didácticos para explorar transform
 ## Cinemática de robots
 
 - [Cinemática directa con parámetros DH](kinematics/forward-kinematics.html)
+- [Espacio de trabajo alcanzable de posición](kinematics/workspace.html)
 - [Matriz Jacobiana y velocidad del efector final](kinematics/jacobian-matrix.html)
 - [Cinemática inversa de posición: CCD, juntas R y P](kinematics/inverse-kinematics-position.html)
 - [Cinemática inversa de pose completa: DLS, 6 GDL](kinematics/inverse-kinematics-6dof.html)
