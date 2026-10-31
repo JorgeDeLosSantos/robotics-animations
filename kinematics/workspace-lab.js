@@ -496,7 +496,7 @@ function updateSection() {
     geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     geometry.computeBoundingSphere();
     sectionCloud = new THREE.Points(geometry, new THREE.PointsMaterial({
-      color: window.RoboticsTheme?.getTheme() === 'light' ? 0x0f766e : 0xfde047,
+      color: window.RoboticsTheme?.getTheme() === 'light' ? 0x0f766e : 0x34d399,
       size: Math.max(3, Number(el('point-size').value)),
       sizeAttenuation: false,
       transparent: true, opacity: Number(el('point-opacity').value),
@@ -873,7 +873,7 @@ el('section-panel').addEventListener('toggle', () => {
 document.addEventListener('robotics:themechange', () => {
   if (cloud) cloud.material.color.setHex(window.RoboticsTheme.getTheme() === 'light' ? 0x2563eb : 0x38bdf8);
   if (sectionCloud) sectionCloud.material.color.setHex(
-    window.RoboticsTheme.getTheme() === 'light' ? 0x0f766e : 0xfde047);
+    window.RoboticsTheme.getTheme() === 'light' ? 0x0f766e : 0x34d399);
   sectionView.redraw();
 });
 window.addEventListener('beforeunload', () => {
