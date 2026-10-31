@@ -22,13 +22,15 @@ export function summarizeWorkspaceSamples(samples) {
     const x = positions[3 * k];
     const y = positions[3 * k + 1];
     const z = positions[3 * k + 2];
-    if (![x, y, z].every(Number.isFinite)) {
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) {
       throw new RangeError('Workspace positions must be finite.');
     }
-    for (const [range, value] of [[xRange, x], [yRange, y], [zRange, z]]) {
-      range.min = Math.min(range.min, value);
-      range.max = Math.max(range.max, value);
-    }
+    xRange.min = Math.min(xRange.min, x);
+    xRange.max = Math.max(xRange.max, x);
+    yRange.min = Math.min(yRange.min, y);
+    yRange.max = Math.max(yRange.max, y);
+    zRange.min = Math.min(zRange.min, z);
+    zRange.max = Math.max(zRange.max, z);
     const radius = Math.hypot(x, y);
     const radialDistance = Math.hypot(x, y, z);
     xyRadius.min = Math.min(xyRadius.min, radius);
