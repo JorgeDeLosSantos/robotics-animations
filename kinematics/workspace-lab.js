@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { RobotViewer } from './shared-robot-viewer.js';
 import { generateWorkspaceSamples, resolveSamplingRanges } from './workspace-core.js';
+import { workspaceSampleAt, rankProjectedSampleHits } from './workspace-selection.js';
 import { fitOrthographicObjects } from '../shared/camera-fit.js';
 
 const presets = {
@@ -49,6 +50,14 @@ let knownJointType = new WeakMap();
 let homePose = new WeakMap();
 let cloud = null;
 let generatedSignature = null;
+let lastGenerated = null;
+let selectedSampleIndex = null;
+let applyingPickedSample = false;
+let selectionMarker = null;
+let pointerStart = null;
+let lastPick = null;
+const pickRaycaster = new THREE.Raycaster();
+const pickNdc = new THREE.Vector2();
 
 function defaultDomain(joint) {
   if (joint.limits) return { ...joint.limits };
@@ -110,6 +119,149 @@ function status(message, error = false) {
   el('workspace-status').classList.toggle('text-slate-400', !error);
 }
 
+
+function resetSampleSelection() {
+  selectedSampleIndex = null;
+  lastPick = null;
+  if (selectionMarker) selectionMarker.visible = false;
+  el('selection-details').hidden = true;
+  el('selection-empty').hidden = false;
+  el('selection-empty').textContent = lastGenerated
+    ? 'Click a visible sample, or enter its number to inspect a configuration.'
+    : 'Generate a workspace to inspect sampled configurations.';
+  el('sample-index').value = '';
+  el('sample-index').disabled = !lastGenerated;
+  el('go-to-sample').disabled = !lastGenerated;
+  el('clear-selected').disabled = true;
+}
+
+function showSample(index, nearbyCount = 1) {
+  if (!lastGenerated || !cloud) return;
+  const sample = workspaceSampleAt(lastGenerated, index);
+  if (sample.jointValues.length !== viewer.dhParams.length) {
+    throw new Error('Sample and manipulator joint counts differ.');
+  }
+
+  // The numerical samples belong to the static sampled domain, not the pose.
+  // Rendering the recovered q does not invalidate or regenerate the cloud.
+  applyingPickedSample = true;
+  try {
+    viewer.dhParams.forEach((joint, i) => {
+      joint[joint.type === 'R' ? 'theta' : 'd'] = sample.jointValues[i];
+    });
+    viewer.renderTable();
+    viewer.updateRobotGeometry();
+  } finally {
+    applyingPickedSample = false;
+  }
+
+  selectedSampleIndex = index;
+  el('selection-empty').hidden = true;
+  el('selection-details').hidden = false;
+  el('selected-sample').textContent =
+    'Sample ' + (index + 1).toLocaleString('en-US') +
+    ' / ' + lastGenerated.sampleCount.toLocaleString('en-US');
+  const format = x => Math.abs(x) < 0.0005 ? '0.000' : x.toFixed(3);
+  el('selected-position').textContent = '(' + sample.position.map(format).join(', ') + ')';
+  const rows = el('selected-joint-values');
+  rows.replaceChildren();
+  sample.jointValues.forEach((value, i) => {
+    const joint = viewer.dhParams[i];
+    const row = document.createElement('div');
+    row.className = 'flex items-center justify-between gap-2 text-xs border-b border-slate-700 py-1';
+    const name = document.createElement('span');
+    name.textContent = 'q' + (i + 1) + ' · ' + joint.type;
+    const amount = document.createElement('output');
+    amount.className = 'font-mono text-indigo-300';
+    amount.textContent = format(value) + (joint.type === 'R' ? '°' : ' units');
+    row.append(name, amount);
+    rows.append(row);
+  });
+  el('selection-hint').textContent = nearbyCount > 1
+    ? nearbyCount + ' nearby samples in this view. Click again at the same spot to cycle.'
+    : 'This joint configuration generated the highlighted point; it is not an IK result.';
+  el('sample-index').value = String(index + 1);
+  el('clear-selected').disabled = false;
+
+  if (selectionMarker) {
+    selectionMarker.position.set(...sample.position);
+    selectionMarker.visible = cloud.visible;
+  }
+}
+
+function cameraPickSignature() {
+  const c = viewer.camera;
+  // A different camera orientation/zoom must not continue an older click cycle.
+  return [...c.position.toArray(), ...c.quaternion.toArray(), c.zoom]
+    .map(x => x.toFixed(6)).join(',');
+}
+
+function pickWorkspaceSample(event) {
+  if (!lastGenerated || !cloud?.visible) return;
+  const canvas = viewer.renderer.domElement;
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const pointer = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+  pickNdc.set(2 * pointer.x / rect.width - 1, 1 - 2 * pointer.y / rect.height);
+  viewer.camera.updateMatrixWorld(true);
+  pickRaycaster.setFromCamera(pickNdc, viewer.camera);
+  // Three.js point-raycast threshold is in model units, unlike PointsMaterial
+  // whose size is fixed in screen pixels; convert an 11 px tolerance.
+  const c = viewer.camera;
+  pickRaycaster.params.Points.threshold = 11 * Math.max(
+    (c.right - c.left) / (c.zoom * rect.width),
+    (c.top - c.bottom) / (c.zoom * rect.height)
+  );
+  const hits = pickRaycaster.intersectObject(cloud, false);
+  const projection = index => {
+    const pos = lastGenerated.positions;
+    const p = new THREE.Vector3(pos[3 * index], pos[3 * index + 1], pos[3 * index + 2]);
+    p.project(c);
+    return { x: (p.x + 1) * rect.width / 2,
+      y: (1 - p.y) * rect.height / 2, z: p.z };
+  };
+  const candidates = rankProjectedSampleHits(hits, projection, pointer);
+  if (!candidates.length) return;
+
+  const signature = cameraPickSignature();
+  const sameSpot = lastPick && lastPick.cloud === cloud &&
+    lastPick.signature === signature &&
+    Math.hypot(lastPick.x - pointer.x, lastPick.y - pointer.y) <= 6;
+  const currentAt = sameSpot ? candidates.indexOf(selectedSampleIndex) : -1;
+  const chosen = candidates[currentAt < 0 ? 0 : (currentAt + 1) % candidates.length];
+  showSample(chosen, candidates.length);
+  lastPick = { x: pointer.x, y: pointer.y, cloud, signature };
+}
+
+function attachWorkspacePicking() {
+  const canvas = viewer.renderer.domElement;
+  canvas.addEventListener('pointerdown', event => {
+    if (event.button !== 0 || !event.isPrimary) return;
+    pointerStart = { pointerId: event.pointerId, x: event.clientX, y: event.clientY };
+  });
+  canvas.addEventListener('pointerup', event => {
+    if (!pointerStart || event.pointerId !== pointerStart.pointerId) return;
+    const moved = Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y);
+    pointerStart = null;
+    if (moved > 6) { lastPick = null; return; }
+    pickWorkspaceSample(event);
+  });
+  canvas.addEventListener('pointercancel', () => { pointerStart = null; lastPick = null; });
+}
+
+function initSampleMarker() {
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0], 3));
+  selectionMarker = new THREE.Points(geometry, new THREE.PointsMaterial({
+    color: 0xfbbf24, size: 13, sizeAttenuation: false,
+    depthTest: false, depthWrite: false
+  }));
+  selectionMarker.name = 'workspace-picked-sample';
+  selectionMarker.renderOrder = 1000;
+  selectionMarker.visible = false;
+  viewer.scene.add(selectionMarker);
+}
+
 function clearWorkspace(message = 'Generate the workspace to see reachable positions.') {
   if (cloud) {
     viewer.scene.remove(cloud);
@@ -118,6 +270,8 @@ function clearWorkspace(message = 'Generate the workspace to see reachable posit
     cloud = null;
   }
   generatedSignature = null;
+  lastGenerated = null;
+  resetSampleSelection();
   el('sample-summary').textContent = 'No samples generated';
   status(message);
 }
@@ -310,6 +464,7 @@ function generate() {
       options.sampleCount = Number(el('sample-count').value);
     }
     const result = generateWorkspaceSamples(viewer.dhParams, options);
+    resetSampleSelection();
     if (cloud) {
       viewer.scene.remove(cloud);
       cloud.geometry.dispose();
@@ -328,6 +483,8 @@ function generate() {
     cloud.name = 'reachable-workspace-samples';
     cloud.visible = el('show-workspace').checked;
     viewer.scene.add(cloud);
+    lastGenerated = result;
+    resetSampleSelection();
     generatedSignature = modelSignature();
     el('sample-summary').textContent =
       result.sampleCount.toLocaleString('en-US') + ' reachable samples · ' + result.jointCount + ' joints';
@@ -346,6 +503,7 @@ viewer.renderTable = () => {
 };
 const originalUpdateRobotGeometry = viewer.updateRobotGeometry.bind(viewer);
 viewer.updateRobotGeometry = () => {
+  if (!applyingPickedSample && selectedSampleIndex !== null) resetSampleSelection();
   originalUpdateRobotGeometry();
   refreshWorkspaceValidity();
   updatePoseWarning();
@@ -379,6 +537,9 @@ el('reset-joints').addEventListener('click', () => {
 });
 el('show-workspace').addEventListener('change', () => {
   if (cloud) cloud.visible = el('show-workspace').checked;
+  if (selectionMarker) selectionMarker.visible =
+    Boolean(cloud?.visible && selectedSampleIndex !== null);
+  lastPick = null;
 });
 el('sampling-method').addEventListener('change', () => {
   const grid = el('sampling-method').value === 'grid';
@@ -391,6 +552,23 @@ for (const id of ['sample-count', 'grid-steps']) {
     if (cloud) clearWorkspace('Sampling resolution changed. Generate a new workspace.');
   });
 }
+el('go-to-sample').addEventListener('click', () => {
+  const value = Number(el('sample-index').value);
+  if (!lastGenerated || !Number.isSafeInteger(value) ||
+      value < 1 || value > lastGenerated.sampleCount) {
+    el('selection-empty').textContent = 'Enter a sample number between 1 and the sample count.';
+    return;
+  }
+  lastPick = null;
+  showSample(value - 1);
+});
+el('sample-index').addEventListener('keydown', event => {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    el('go-to-sample').click();
+  }
+});
+el('clear-selected').addEventListener('click', resetSampleSelection);
 el('generate-workspace').addEventListener('click', generate);
 el('clear-workspace').addEventListener('click', () => clearWorkspace());
 el('fit-view').addEventListener('click', fitView);
@@ -402,10 +580,17 @@ document.addEventListener('robotics:themechange', () => {
 });
 window.addEventListener('beforeunload', () => {
   if (cloud) { cloud.geometry.dispose(); cloud.material.dispose(); }
+  if (selectionMarker) {
+    selectionMarker.geometry.dispose();
+    selectionMarker.material.dispose();
+  }
   viewer.destroy();
 });
 
 viewer.init3D();
+initSampleMarker();
+attachWorkspacePicking();
+resetSampleSelection();
 viewer.controls.mouseButtons = {
   LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN
 };
