@@ -65,6 +65,7 @@ let sampleMetrics = null;
 let sectionSlice = null;
 let sectionCloud = null;
 let sectionPlane = null;
+let sectionUpdateScheduled = false;
 const pickRaycaster = new THREE.Raycaster();
 const pickNdc = new THREE.Vector2();
 const sectionView = new WorkspaceSectionView({
@@ -449,6 +450,15 @@ function configureSectionAxis() {
   updateSection();
 }
 
+function queueSectionUpdate() {
+  if (sectionUpdateScheduled) return;
+  sectionUpdateScheduled = true;
+  requestAnimationFrame(() => {
+    sectionUpdateScheduled = false;
+    updateSection();
+  });
+}
+
 function updateSection() {
   if (!lastGenerated || !sampleMetrics || !el('section-enabled').checked) {
     sectionSlice = null;
@@ -816,8 +826,8 @@ for (const control of ['point-size', 'point-opacity']) {
 el('show-workspace').addEventListener('change', updateSectionVisibility);
 el('section-enabled').addEventListener('change', updateSection);
 el('section-axis').addEventListener('change', configureSectionAxis);
-el('section-position').addEventListener('input', updateSection);
-el('section-thickness').addEventListener('input', updateSection);
+el('section-position').addEventListener('input', queueSectionUpdate);
+el('section-thickness').addEventListener('input', queueSectionUpdate);
 el('section-context').addEventListener('change', updateSectionVisibility);
 el('sampling-method').addEventListener('change', () => {
   const grid = el('sampling-method').value === 'grid';
