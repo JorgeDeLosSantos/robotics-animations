@@ -66,22 +66,32 @@ These are **sample statistics**, not certified workspace boundaries, volume, are
 
 The analytic planar-2R comparison remains a **later W4 iteration**.
 
-## W4 — Independent Cartesian projections (second iteration)
+## W4 — Sampled workspace sections (second iteration)
 
-Three collapsible Canvas2D views display **XY**, **XZ**, and **YZ** projections of the same sampled XYZ point buffer. Each view has equal scale on its two Cartesian axes (up is +Y in XY, +Z in XZ/YZ); the camera settings of the 3D manipulator do not affect these plots. Dotted axes indicate coordinate zero if visible.
+The earlier three-view projection proposal was replaced by a **single interactive sectional tool**. It provides a genuinely different capability from choosing an orthographic camera.
 
-They are **projections of the entire sampled 3D workspace**, not sections at a fixed coordinate or true analytic boundaries. Distinct 3D positions may map to the same 2D pixel, and sparse or dense areas should be interpreted relative to the sampling method.
+The user can activate sections and select a Cartesian normal **X, Y or Z**, placing a semitransparent plane inside the 3D workspace. A position slider moves the plane along that normal, and a thickness slider defines a symmetric sampled band:
 
-The selected W3 sample receives a synchronized amber highlight in all three views. Clicking or tapping a sample in any 2D view recovers its **stored** joint configuration through the existing inspector without solving inverse kinematics. When several points fall in the same screen neighborhood, repeated clicks cycle through a bounded set of nearby sampled configurations. The static 2D clouds only redraw when a new workspace is generated, the theme changes, or the plot dimensions change. Moving the pose / changing selection only repositions inexpensive HTML markers.
+```text
+  |p_axis - plane_position| <= thickness / 2
+```
 
-The 2D views are intentionally independent of the 3D cloud-visibility toggle and the 3D point-size/opacity controls. Changing robot geometry, limits, sampling domains, method or resolution clears the 3D cloud, 2D plots and inspector together. The panels use native Canvas2D; no charting library or new numerical sampling engine is required.
+The 3D display emphasizes only the sampled positions belonging to the band. An optional checkbox shows the complete sample cloud as faint context. The single 2D plot shows the corresponding **YZ**, **XZ**, or **XY** view, with equal Cartesian scale. It reports selected-sample count and percentage. It uses a fixed plot scale derived from the *full sampled extents* of the model so comparisons across plane positions are meaningful.
 
-### Projection review checklist
+Selecting a point in the 2D band updates the existing W3 inspector and robot pose by recovering the original sampled joint configuration. The 3D cloud's sectional vertices are also mapped back to their original sample indices, avoiding an incorrect q index for filtered subsets. Changing section position/normal/thickness may clear a previously selected sample if it falls outside the new band. The original W1 buffers are never mutated or resampled.
 
-- Compare 2R XY circles/annulus against XZ and YZ projections (the latter collapse for a planar robot, as expected).
-- Test 3R and RRP: verify vertical coordinates consistently use Z and axes do not stretch independently.
-- Select a 3D point and check yellow markers in all plots. Select in XZ and confirm robot/inspector updates without rerunning sampling.
-- Try repeated clicks near overlapping points. Drag on a plot should not select samples.
-- Hide the 3D cloud: 2D projections must stay independently visible.
-- Test dark/light, opening and closing the projection panel, desktop/mobile widths, and near-budget grids.
-- Change a DH geometric parameter or the sampling domain: all projections and markers should clear.
+### Interpretation and limitations
+
+These are **finite-thickness bands around section planes**, filtered from existing finite Grid/Halton samples—not exact mathematical intersections, boundaries, collision-free regions, or conditional samples generated on the requested plane. Sparse or empty sections can result from insufficient sampling density or a very small thickness.
+
+For planar 2R, Z has zero sampled range. The section control still supports a positive band thickness and plane motion to illustrate how samples enter and leave the band. For spatial 3R/RRP, sweeping the Z plane is especially informative.
+
+### Manual review checklist
+
+- Generate planar 2R, enable Z section and confirm XY includes all points when the band crosses z=0; sweep the plane away and confirm the count drops to zero.
+- Generate spatial 3R or RRP, choose X, Y and Z normal in turn; confirm the 3D plane rotates and the 2D labels change to YZ, XZ, XY, respectively.
+- Set a thin band, observe sample count, and widen it; no workspace samples should be regenerated.
+- Select one visible section sample in 2D and in 3D; both must recover the same original q and highlight the point.
+- Toggle full-cloud context and Show Samples independently; the plane and filtered results should remain conceptually consistent.
+- Edit the DH model, sampling domain or method: the old section, plane, 2D view and selection should disappear.
+- Check dark/light, responsive layout, and high-density inputs. Extremely rapid slider motion on a large cloud may require throttling in a subsequent optimization pass.
