@@ -618,9 +618,7 @@ el('clear-selected').addEventListener('click', resetSampleSelection);
 el('generate-workspace').addEventListener('click', generate);
 el('clear-workspace').addEventListener('click', () => clearWorkspace());
 el('fit-view').addEventListener('click', fitView);
-for (const view of ['top', 'front', 'side', 'iso']) {
-  el('btn-view-' + view).addEventListener('click', () => viewer.changeView(view));
-}
+// RobotViewer.renderTable() already binds view controls once.
 document.addEventListener('robotics:themechange', () => {
   if (cloud) cloud.material.color.setHex(window.RoboticsTheme.getTheme() === 'light' ? 0x2563eb : 0x38bdf8);
 });
