@@ -14,7 +14,9 @@ test('workspace HTML has unique IDs and all required control roots', () => {
   for (const id of [
     'canvas-container', 'dh-table-body', 'add-row-btn', 'pose-rows',
     'domain-rows', 'robot-preset', 'sampling-method', 'sample-count',
-    'grid-steps', 'generate-workspace', 'workspace-status', 'sample-summary'
+    'grid-steps', 'generate-workspace', 'workspace-status', 'sample-summary',
+    'sample-index', 'go-to-sample', 'clear-selected', 'selected-position',
+    'selected-joint-values', 'selection-empty', 'selection-details', 'selection-feedback'
   ]) assert.ok(ids.includes(id), `Missing #${id}`);
 });
 
@@ -35,4 +37,13 @@ test('workspace loads the shared viewer and the pure numerical core', () => {
 test('workspace is discoverable in homepage and shared navigation', () => {
   assert.match(index, /kinematics\/workspace\.html/);
   assert.match(nav, /kinematics\/workspace\.html/);
+});
+
+test('sample picking retains the generated buffers and does not call IK', () => {
+  assert.match(lab, /from '\.\/workspace-selection\.js'/);
+  assert.match(lab, /lastGenerated = result/);
+  assert.match(lab, /pickRaycaster\.intersectObject\(cloud, false\)/);
+  assert.match(lab, /rankProjectedSampleHits\(/);
+  assert.match(lab, /selectionMarker\.visible/);
+  assert.doesNotMatch(lab, /solveIKPosition|solveIKFull6DoF/);
 });
