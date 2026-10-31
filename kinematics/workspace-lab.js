@@ -589,13 +589,13 @@ el('sampling-method').addEventListener('change', () => {
   updateGridSummary();
   if (cloud) clearWorkspace('Sampling method changed. Generate a new workspace.');
 });
-el('grid-steps').addEventListener('input', updateGridSummary);
-for (const id of ['sample-count', 'grid-steps']) {
-  el(id).addEventListener('change', () => {
-    if (id === 'grid-steps') updateGridSummary();
-    if (cloud) clearWorkspace('Sampling resolution changed. Generate a new workspace.');
-  });
-}
+el('grid-steps').addEventListener('input', () => {
+  updateGridSummary();
+  if (cloud) clearWorkspace('Sampling resolution changed. Generate a new workspace.');
+});
+el('sample-count').addEventListener('change', () => {
+  if (cloud) clearWorkspace('Sampling resolution changed. Generate a new workspace.');
+});
 el('go-to-sample').addEventListener('click', () => {
   const value = Number(el('sample-index').value);
   if (!lastGenerated || !Number.isSafeInteger(value) ||
