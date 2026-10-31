@@ -23,7 +23,8 @@
     #workspace-status { min-height: 2rem; }
     #domain-rows input[type="number"] { width: 100%; }
     #grid-controls[hidden], #halton-controls[hidden], #pose-warning[hidden],
-    #selection-details[hidden], #selection-empty[hidden], #metrics-details[hidden], #metrics-empty[hidden] { display: none !important; }
+    #selection-details[hidden], #selection-empty[hidden], #metrics-details[hidden], #metrics-empty[hidden],
+    #projections-charts[hidden], #projections-empty[hidden], .projection-marker[hidden] { display: none !important; }
     button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
   </style>
 </head>
@@ -163,6 +164,38 @@
           <p class="text-[11px] text-slate-400">XY radius is distance from the Z-axis; 3D distance is measured from the base origin. Spans are shown only for X, Y and Z.</p>
         </div>
       </section>
+
+      <details id="projection-panel" open class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
+        <summary class="cursor-pointer text-sm font-semibold text-indigo-400">Cartesian Projections · XY / XZ / YZ</summary>
+        <div class="pt-3 flex flex-col gap-3">
+          <p class="text-xs text-slate-400">Orthographic projections of the same sampled positions. Axes have equal scale; these are not planar sections. Click a point to inspect its joint configuration.</p>
+          <p id="projections-empty" class="text-xs text-slate-400">Generate the workspace to see its Cartesian projections.</p>
+          <div id="projections-charts" hidden class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="flex flex-col gap-1">
+              <span class="text-xs font-semibold text-sky-300">XY · X horizontal / Y vertical</span>
+              <div class="relative w-full rounded border border-slate-700 overflow-hidden">
+                <canvas id="projection-xy" class="block w-full aspect-[4/3] cursor-crosshair touch-none" aria-label="XY projection of sampled workspace positions. Click to inspect a point.">XY sampled workspace projection</canvas>
+                <div id="projection-marker-xy" class="projection-marker absolute size-3 border-2 border-amber-400 rounded-full bg-amber-400/30 pointer-events-none" style="transform: translate(-50%, -50%);" hidden></div>
+              </div>
+            </div>
+            <div class="flex flex-col gap-1">
+              <span class="text-xs font-semibold text-sky-300">XZ · X horizontal / Z vertical</span>
+              <div class="relative w-full rounded border border-slate-700 overflow-hidden">
+                <canvas id="projection-xz" class="block w-full aspect-[4/3] cursor-crosshair touch-none" aria-label="XZ projection of sampled workspace positions. Click to inspect a point.">XZ sampled workspace projection</canvas>
+                <div id="projection-marker-xz" class="projection-marker absolute size-3 border-2 border-amber-400 rounded-full bg-amber-400/30 pointer-events-none" style="transform: translate(-50%, -50%);" hidden></div>
+              </div>
+            </div>
+            <div class="flex flex-col gap-1">
+              <span class="text-xs font-semibold text-sky-300">YZ · Y horizontal / Z vertical</span>
+              <div class="relative w-full rounded border border-slate-700 overflow-hidden">
+                <canvas id="projection-yz" class="block w-full aspect-[4/3] cursor-crosshair touch-none" aria-label="YZ projection of sampled workspace positions. Click to inspect a point.">YZ sampled workspace projection</canvas>
+                <div id="projection-marker-yz" class="projection-marker absolute size-3 border-2 border-amber-400 rounded-full bg-amber-400/30 pointer-events-none" style="transform: translate(-50%, -50%);" hidden></div>
+              </div>
+            </div>
+          </div>
+          <p class="text-[11px] text-slate-400">Projected points may overlap even when their omitted coordinate differs. Repeated clicks can cycle nearby samples.</p>
+        </div>
+      </details>
 
       <section id="selection-panel" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Selected workspace sample">
         <div class="flex items-center justify-between gap-2">
