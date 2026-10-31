@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { RobotViewer } from './shared-robot-viewer.js';
 import { generateWorkspaceSamples, resolveSamplingRanges } from './workspace-core.js';
-import { workspaceSampleAt, rankProjectedSampleHits } from './workspace-selection.js';
+import { workspaceSampleAt, rankProjectedSampleHits, nextSelectedSample } from './workspace-selection.js';
 import { fitOrthographicObjects } from '../shared/camera-fit.js';
 
 const presets = {
@@ -130,6 +130,7 @@ function resetSampleSelection() {
     ? 'Click a visible sample, or enter its number to inspect a configuration.'
     : 'Generate a workspace to inspect sampled configurations.';
   el('sample-index').value = '';
+  el('selection-feedback').textContent = '';
   el('sample-index').disabled = !lastGenerated;
   el('go-to-sample').disabled = !lastGenerated;
   el('clear-selected').disabled = true;
@@ -156,6 +157,7 @@ function showSample(index, nearbyCount = 1) {
   }
 
   selectedSampleIndex = index;
+  el('selection-feedback').textContent = '';
   el('selection-empty').hidden = true;
   el('selection-details').hidden = false;
   el('selected-sample').textContent =
@@ -227,8 +229,7 @@ function pickWorkspaceSample(event) {
   const sameSpot = lastPick && lastPick.cloud === cloud &&
     lastPick.signature === signature &&
     Math.hypot(lastPick.x - pointer.x, lastPick.y - pointer.y) <= 6;
-  const currentAt = sameSpot ? candidates.indexOf(selectedSampleIndex) : -1;
-  const chosen = candidates[currentAt < 0 ? 0 : (currentAt + 1) % candidates.length];
+  const chosen = nextSelectedSample(candidates, selectedSampleIndex, Boolean(sameSpot));
   showSample(chosen, candidates.length);
   lastPick = { x: pointer.x, y: pointer.y, cloud, signature };
 }
@@ -556,7 +557,9 @@ el('go-to-sample').addEventListener('click', () => {
   const value = Number(el('sample-index').value);
   if (!lastGenerated || !Number.isSafeInteger(value) ||
       value < 1 || value > lastGenerated.sampleCount) {
-    el('selection-empty').textContent = 'Enter a sample number between 1 and the sample count.';
+    el('selection-feedback').textContent = lastGenerated
+      ? 'Enter an integer from 1 to ' + lastGenerated.sampleCount + '.'
+      : 'Generate the workspace before selecting a sample.';
     return;
   }
   lastPick = null;
