@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Explore the reachable position workspace of serial manipulators using DH parameters and joint-domain sampling.">
+  <title>Workspace — Serial Robot Kinematics</title>
+  <script src="../shared/theme.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+  <link rel="stylesheet" href="../shared/navigation.css">
+  <link rel="stylesheet" href="../shared/theme.css">
+  <style>
+    #controls-panel > * { flex-shrink: 0; }
+    #canvas-container canvas { touch-action: none; }
+    #workspace-status { min-height: 2rem; }
+    #domain-rows input[type="number"] { width: 100%; }
+    #grid-controls[hidden], #halton-controls[hidden], #pose-warning[hidden],
+    #selection-details[hidden], #selection-empty[hidden] { display: none !important; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #a5b4fc; outline-offset: 2px; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen md:min-h-[560px] md:h-dvh flex flex-col font-sans">
+  <main class="flex-none md:flex-1 md:min-h-0 flex flex-col md:flex-row md:overflow-hidden">
+    <aside id="controls-panel" class="w-full md:w-5/12 md:min-h-0 p-4 md:overflow-y-auto md:overscroll-contain border-r border-slate-700 bg-slate-850 flex flex-col gap-4">
+      <div class="lab-sidebar-heading">
+        <p class="lab-sidebar-category">Kinematics</p>
+        <h1>Workspace</h1>
+        <p class="lab-sidebar-description">Explore reachable end-effector positions as joint variables span a finite domain.</p>
+      </div>
+
+      <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
+        <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Example Manipulator</label>
+        <select id="robot-preset" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2">
+          <option value="planar2r">Planar 2R</option>
+          <option value="spatial3r">Spatial 3R</option>
+          <option value="mixedRRP">Spatial RRP</option>
+          <option value="custom" disabled>Custom Configuration</option>
+        </select>
+        <p id="preset-description" class="text-xs text-slate-400"></p>
+      </section>
+
+      <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3">
+        <div class="flex justify-between items-center gap-2">
+          <h2 class="text-sm font-semibold text-indigo-400">Current Joint Configuration</h2>
+          <button id="reset-joints" type="button" class="text-xs bg-slate-700 hover:bg-slate-600 rounded px-2 py-1.5">Reset</button>
+        </div>
+        <div id="pose-rows" class="flex flex-col gap-3"></div>
+        <p id="pose-warning" class="text-xs text-rose-400" hidden></p>
+        <p class="text-xs text-slate-400">Changing the current pose moves the robot without changing the sampled workspace.</p>
+      </section>
+
+      <details id="dh-details" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
+        <summary class="cursor-pointer text-sm font-semibold text-indigo-400">DH Configuration · Edit Geometry</summary>
+        <div class="pt-3 flex flex-col gap-3">
+          <div class="flex justify-between items-center gap-2">
+            <h2 class="text-sm font-semibold text-slate-200">Standard DH Parameters</h2>
+            <button id="add-row-btn" type="button" class="bg-indigo-600 text-white rounded text-xs font-semibold px-2.5 py-1.5">+ Add Link</button>
+          </div>
+          <div class="overflow-x-auto rounded border border-slate-700">
+            <table class="min-w-[440px] w-full text-xs text-center border-collapse">
+              <thead class="bg-slate-800">
+                <tr><th class="p-2">#</th><th class="p-2">Type</th><th class="p-2">a</th><th class="p-2">α (deg)</th><th class="p-2">d</th><th class="p-2">θ (deg)</th><th class="p-2"></th></tr>
+              </thead>
+              <tbody id="dh-table-body"></tbody>
+            </table>
+          </div>
+          <p class="text-xs text-slate-400">Changing geometry or topology invalidates previously generated samples.</p>
+        </div>
+      </details>
+
+      <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3">
+        <div>
+          <h2 class="text-sm font-semibold text-indigo-400">Joint Limits & Sampling Domain</h2>
+          <p class="text-xs text-slate-400 mt-1">Mechanical limits belong to the robot; the sampling domain determines the explored configurations.</p>
+        </div>
+        <div id="domain-rows" class="flex flex-col gap-3"></div>
+        <p class="text-xs text-slate-400">For joints without mechanical limits, the selected finite domain describes an exploration, not necessarily the complete workspace.</p>
+      </section>
+
+      <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3">
+        <h2 class="text-sm font-semibold text-indigo-400">Sampling</h2>
+        <label for="sampling-method" class="text-xs text-slate-300">Method</label>
+        <select id="sampling-method" class="bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2 text-sm">
+          <option value="halton">Halton sequence (general)</option>
+          <option value="grid">Uniform joint-space grid</option>
+        </select>
+        <div id="halton-controls">
+          <label for="sample-count" class="text-xs text-slate-300">Sample count</label>
+          <select id="sample-count" class="mt-1 w-full bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2 text-sm">
+            <option value="2000">2,000</option>
+            <option value="5000" selected>5,000</option>
+            <option value="10000">10,000</option>
+            <option value="20000">20,000</option>
+          </select>
+        </div>
+        <div id="grid-controls" hidden>
+          <label for="grid-steps" class="text-xs text-slate-300">Samples per joint</label>
+          <input id="grid-steps" type="number" inputmode="numeric" min="2" step="1" value="158"
+            class="mt-1 w-full bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2 text-sm">
+          <p id="grid-summary" role="status" aria-live="polite" class="text-xs text-slate-400 mt-2"></p>
+          <p class="text-xs text-slate-400 mt-1">The total grows as (samples per joint) ^ (number of joints). The maximum permitted is 200,000 points.</p>
+        </div>
+        <label class="flex items-center gap-2 text-xs text-slate-300">
+          <input id="show-workspace" type="checkbox" checked class="accent-indigo-500">
+          Show reachable samples
+        </label>
+        <div class="flex gap-2">
+          <button id="generate-workspace" type="button" class="flex-1 bg-indigo-600 hover:bg-indigo-500 rounded px-3 py-2 text-white text-xs font-semibold disabled:opacity-40 disabled:cursor-not-allowed">Generate Workspace</button>
+          <button id="clear-workspace" type="button" class="bg-slate-700 hover:bg-slate-600 rounded px-3 py-2 text-xs">Clear</button>
+        </div>
+        <p id="sample-summary" class="text-xs font-semibold text-sky-300">No samples generated</p>
+        <p id="workspace-status" role="status" aria-live="polite" class="text-xs text-slate-400"></p>
+      </section>
+      <section id="selection-panel" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3" aria-label="Selected workspace sample">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="text-sm font-semibold text-indigo-400">Sample Inspector</h2>
+          <button id="clear-selected" type="button" disabled class="bg-slate-700 hover:bg-slate-600 rounded px-2 py-1 text-xs disabled:opacity-40">Clear selection</button>
+        </div>
+        <p class="text-xs text-slate-400">Click or tap a visible workspace point to recover the joint configuration used to generate it. Repeated clicks near overlapping points cycle through alternatives.</p>
+        <div class="flex flex-wrap items-end gap-2">
+          <label class="text-xs text-slate-300 flex-1 min-w-[110px]" for="sample-index">
+            Sample number (starting at 1)
+            <input id="sample-index" type="number" min="1" step="1" disabled
+              class="mt-1 w-full bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2 text-sm disabled:opacity-40" placeholder="e.g. 100">
+          </label>
+          <button id="go-to-sample" type="button" disabled class="bg-indigo-600 hover:bg-indigo-500 text-white rounded px-3 py-2 text-xs font-semibold disabled:opacity-40">Inspect</button>
+        </div>
+        <p id="selection-feedback" role="status" aria-live="polite" class="text-xs text-rose-400"></p>
+        <p id="selection-empty" role="status" aria-live="polite" class="text-xs text-slate-400">Generate a workspace to inspect sampled configurations.</p>
+        <div id="selection-details" class="flex flex-col gap-2" hidden>
+          <strong id="selected-sample" class="text-xs text-amber-300"></strong>
+          <div class="bg-slate-900/50 border border-slate-700 rounded p-2 flex flex-col gap-1">
+            <span class="text-[11px] text-slate-400">End-effector position (x, y, z) in base frame</span>
+            <output id="selected-position" class="font-mono text-sm text-sky-300"></output>
+          </div>
+          <div id="selected-joint-values" class="flex flex-col gap-1" aria-label="Recovered joint configuration"></div>
+          <p id="selection-hint" class="text-xs text-slate-400"></p>
+        </div>
+      </section>
+    </aside>
+
+    <section class="w-full md:w-7/12 relative flex-1 min-h-[450px] md:min-h-0 bg-slate-950" aria-label="3D manipulator and reachable workspace">
+      <div id="canvas-container" class="w-full h-full"></div>
+      <p class="absolute bottom-2 left-3 text-[11px] text-slate-400/80 pointer-events-none select-none z-10">Click a point: inspect · drag: rotate · right-click drag: pan · scroll: zoom</p>
+      <div class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow z-10" role="group" aria-label="Camera controls">
+        <button id="btn-view-top" type="button" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded border border-slate-600/30">Top (XY)</button>
+        <button id="btn-view-front" type="button" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded border border-slate-600/30">Front (XZ)</button>
+        <button id="btn-view-side" type="button" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded border border-slate-600/30">Side (YZ)</button>
+        <button id="btn-view-iso" type="button" class="view-btn bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold py-1 px-2.5 rounded border border-slate-600/30">Isometric</button>
+        <button id="fit-view" type="button" class="bg-indigo-600 text-white text-xs font-semibold py-1 px-2.5 rounded">Fit View</button>
+      </div>
+    </section>
+  </main>
+  <footer class="shrink-0 bg-slate-900 border-t border-slate-800 py-3 px-6 text-center text-xs text-slate-500">
+    Reachable position workspace · ideal DH model · no collision checking
+  </footer>
+  <script type="module" src="./workspace-lab.js"></script>
+  <script type="module" src="../shared/navigation.js"></script>
+</body>
+</html>
