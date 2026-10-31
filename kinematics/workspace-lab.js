@@ -5,6 +5,7 @@ import { workspaceSampleAt, rankProjectedSampleHits, nextSelectedSample } from '
 import { fitOrthographicObjects } from '../shared/camera-fit.js';
 import { gridResolutionSettings, gridPointCount } from './workspace-grid.js';
 import { summarizeWorkspaceSamples } from './workspace-metrics.js';
+import { WorkspaceProjectionViews } from './workspace-projection-view.js';
 
 const presets = {
   planar2r: {
@@ -61,6 +62,19 @@ let pointerStart = null;
 let lastPick = null;
 const pickRaycaster = new THREE.Raycaster();
 const pickNdc = new THREE.Vector2();
+const projectionViews = new WorkspaceProjectionViews({
+  getSelectedIndex: () => selectedSampleIndex,
+  onPick: (index, nearbyCount, plane) => {
+    // Keep 3D and 2D click cycling independent from each other.
+    lastPick = null;
+    showSample(index, nearbyCount);
+    el('selection-hint').textContent = nearbyCount > 1
+      ? plane.toUpperCase() + ' projection: ' + nearbyCount +
+        ' nearby samples. Click again in the same location to cycle.'
+      : 'Recovered from the ' + plane.toUpperCase() +
+        ' projection. This is a stored sample, not an IK solution.';
+  }
+});
 
 function defaultDomain(joint) {
   if (joint.limits) return { ...joint.limits };
@@ -208,6 +222,7 @@ function renderSampleMetrics(stats) {
 
 function resetSampleSelection() {
   selectedSampleIndex = null;
+  projectionViews.highlight(null);
   lastPick = null;
   if (selectionMarker) selectionMarker.visible = false;
   el('selection-details').hidden = true;
@@ -275,6 +290,7 @@ function showSample(index, nearbyCount = 1) {
     selectionMarker.position.set(...sample.position);
     selectionMarker.visible = cloud.visible;
   }
+  projectionViews.highlight(index);
 }
 
 function cameraPickSignature() {
@@ -358,6 +374,7 @@ function clearWorkspace(message = 'Generate the workspace to see reachable posit
   }
   generatedSignature = null;
   lastGenerated = null;
+  projectionViews.clear();
   resetSampleMetrics();
   resetSampleSelection();
   el('sample-summary').textContent = 'No samples generated';
@@ -580,6 +597,7 @@ function generate() {
     renderSampleMetrics(metrics);
     lastGenerated = result;
     resetSampleSelection();
+    projectionViews.show(result, metrics);
     el('sample-index').max = String(result.sampleCount);
     generatedSignature = modelSignature();
     el('sample-summary').textContent =
@@ -677,9 +695,13 @@ el('clear-selected').addEventListener('click', resetSampleSelection);
 el('generate-workspace').addEventListener('click', generate);
 el('clear-workspace').addEventListener('click', () => clearWorkspace());
 el('fit-view').addEventListener('click', fitView);
+el('projection-panel').addEventListener('toggle', () => {
+  if (el('projection-panel').open) projectionViews.redraw();
+});
 // RobotViewer.renderTable() already binds view controls once.
 document.addEventListener('robotics:themechange', () => {
   if (cloud) cloud.material.color.setHex(window.RoboticsTheme.getTheme() === 'light' ? 0x2563eb : 0x38bdf8);
+  projectionViews.redraw();
 });
 window.addEventListener('beforeunload', () => {
   if (cloud) { cloud.geometry.dispose(); cloud.material.dispose(); }
@@ -687,6 +709,7 @@ window.addEventListener('beforeunload', () => {
     selectionMarker.geometry.dispose();
     selectionMarker.material.dispose();
   }
+  projectionViews.destroy();
   viewer.destroy();
 });
 
