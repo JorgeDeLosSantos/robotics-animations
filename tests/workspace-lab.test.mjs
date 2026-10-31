@@ -19,7 +19,10 @@ test('workspace HTML has unique IDs and all required control roots', () => {
     'selected-joint-values', 'selection-empty', 'selection-details', 'selection-feedback',
     'show-workspace', 'show-robot', 'point-size', 'point-size-value',
     'point-opacity', 'point-opacity-value', 'metrics-rows', 'metrics-count',
-    'metrics-empty', 'metrics-details'
+    'metrics-empty', 'metrics-details', 'projection-panel',
+    'projections-empty', 'projections-charts', 'projection-xy', 'projection-xz',
+    'projection-yz', 'projection-marker-xy', 'projection-marker-xz',
+    'projection-marker-yz'
   ]) assert.ok(ids.includes(id), `Missing #${id}`);
 });
 
@@ -78,4 +81,16 @@ test('W4 display controls and metrics are wired independently of sampling', () =
   assert.match(lab, /viewer\.robotGroup\.visible = el\('show-robot'\)\.checked/);
   assert.match(page, /id="metrics-panel"/);
   assert.match(page, /id="display-panel"/);
+});
+
+test('W4 Cartesian projections use an independent view, preserve sampled q and connect selection', () => {
+  assert.match(lab, /from '\.\/workspace-projection-view\.js'/);
+  assert.match(lab, /new WorkspaceProjectionViews\(/);
+  assert.match(lab, /projectionViews\.show\(result, metrics\)/);
+  assert.match(lab, /projectionViews\.highlight\(index\)/);
+  assert.match(lab, /projectionViews\.highlight\(null\)/);
+  assert.match(lab, /projectionViews\.clear\(\)/);
+  assert.match(lab, /projectionViews\.redraw\(\)/);
+  assert.match(page, /not planar sections/i);
+  assert.match(page, /id="projection-panel"/);
 });
