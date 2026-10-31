@@ -97,3 +97,14 @@ export function nearestSectionSamples(samples, slice, layout, pointer,
   }
   return ranked.map(hit => hit.index);
 }
+
+/** Map compact Three.js section vertices to their stable full-workspace indices. */
+export function remapSectionRayHits(hits, slice) {
+  if (!Array.isArray(hits) || !slice || !slice.indices) {
+    throw new TypeError('Invalid section raycast input.');
+  }
+  return hits.filter(hit => Number.isSafeInteger(hit?.index) &&
+    hit.index >= 0 && hit.index < slice.indices.length).map(hit => ({
+    ...hit, index: slice.indices[hit.index]
+  }));
+}
