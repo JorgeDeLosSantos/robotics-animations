@@ -14,7 +14,7 @@ test('workspace HTML has unique IDs and all required control roots', () => {
   for (const id of [
     'canvas-container', 'dh-table-body', 'add-row-btn', 'pose-rows',
     'domain-rows', 'robot-preset', 'sampling-method', 'sample-count',
-    'grid-steps', 'generate-workspace', 'workspace-status', 'sample-summary',
+    'grid-steps', 'grid-summary', 'generate-workspace', 'workspace-status', 'sample-summary',
     'sample-index', 'go-to-sample', 'clear-selected', 'selected-position',
     'selected-joint-values', 'selection-empty', 'selection-details', 'selection-feedback'
   ]) assert.ok(ids.includes(id), `Missing #${id}`);
@@ -46,4 +46,11 @@ test('sample picking retains the generated buffers and does not call IK', () => 
   assert.match(lab, /rankProjectedSampleHits\(/);
   assert.match(lab, /selectionMarker\.visible/);
   assert.doesNotMatch(lab, /solveIKPosition|solveIKFull6DoF/);
+});
+
+test('grid control accepts an integer, previews the count, and scales with robot DOF', () => {
+  assert.match(page, /<input id="grid-steps" type="number"/);
+  assert.match(lab, /gridResolutionSettings\(jointCount\)\.recommendedPerJoint/);
+  assert.match(lab, /gridPointCount\(jointCount, value\)/);
+  assert.match(lab, /el\('grid-steps'\)\.addEventListener\('input', updateGridSummary\)/);
 });
