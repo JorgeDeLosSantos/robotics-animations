@@ -6,7 +6,9 @@ import { fitOrthographicObjects } from '../shared/camera-fit.js';
 import { gridResolutionSettings, gridPointCount } from './workspace-grid.js';
 import { summarizeWorkspaceSamples } from './workspace-metrics.js';
 import { WorkspaceSectionView } from './workspace-section-view.js';
-import { SECTION_AXES, sectionSettings, sliceWorkspaceSamples } from './workspace-sections.js';
+import {
+  SECTION_AXES, sectionSettings, sliceWorkspaceSamples, remapSectionRayHits
+} from './workspace-sections.js';
 
 const presets = {
   planar2r: {
@@ -333,8 +335,7 @@ function pickWorkspaceSample(event) {
   // Section geometry is a compact buffer; map its vertex indices back
   // to the stable sample indices stored in the complete workspace result.
   const mappedHits = el('section-enabled').checked
-    ? hits.map(hit => ({ ...hit, index: sectionSlice.indices[hit.index] }))
-    : hits;
+    ? remapSectionRayHits(hits, sectionSlice) : hits;
   const projection = index => {
     const pos = lastGenerated.positions;
     const p = new THREE.Vector3(pos[3 * index], pos[3 * index + 1], pos[3 * index + 2]);
