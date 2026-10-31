@@ -52,5 +52,14 @@ test('grid control accepts an integer, previews the count, and scales with robot
   assert.match(page, /<input id="grid-steps" type="number"/);
   assert.match(lab, /gridResolutionSettings\(jointCount\)\.recommendedPerJoint/);
   assert.match(lab, /gridPointCount\(jointCount, value\)/);
-  assert.match(lab, /el\('grid-steps'\)\.addEventListener\('input', updateGridSummary\)/);
+  assert.match(lab, /el\('grid-steps'\)\.addEventListener\('input', \(\) =>/);
+});
+
+test('view presets are registered by RobotViewer only, without duplicate lab handlers', () => {
+  assert.doesNotMatch(lab, /el\('btn-view-' \+ view\)\.addEventListener\('click'/);
+});
+
+test('sampling resolution edits invalidate stale clouds immediately', () => {
+  assert.match(lab, /el\('grid-steps'\)\.addEventListener\('input', \(\) => \{/);
+  assert.match(lab, /clearWorkspace\('Sampling resolution changed/);
 });
