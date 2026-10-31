@@ -3,6 +3,7 @@ import { RobotViewer } from './shared-robot-viewer.js';
 import { generateWorkspaceSamples, resolveSamplingRanges } from './workspace-core.js';
 import { workspaceSampleAt, rankProjectedSampleHits, nextSelectedSample } from './workspace-selection.js';
 import { fitOrthographicObjects } from '../shared/camera-fit.js';
+import { gridResolutionSettings, gridPointCount } from './workspace-grid.js';
 
 const presets = {
   planar2r: {
@@ -50,6 +51,7 @@ let knownJointType = new WeakMap();
 let homePose = new WeakMap();
 let cloud = null;
 let generatedSignature = null;
+let gridJointCount = null;
 let lastGenerated = null;
 let selectedSampleIndex = null;
 let applyingPickedSample = false;
@@ -77,6 +79,39 @@ function syncJointMetadata() {
     if (!perJointDomain.has(joint)) perJointDomain.set(joint, defaultDomain(joint));
     if (!homePose.has(joint)) homePose.set(joint, joint.type === 'R' ? joint.theta : joint.d);
   }
+}
+
+function updateGridSummary() {
+  const jointCount = viewer.dhParams.length;
+  const settings = gridResolutionSettings(jointCount);
+  const input = el('grid-steps');
+  const info = el('grid-summary');
+  input.min = '2';
+  input.max = String(settings.maxPerJoint);
+  const value = input.value.trim() ? Number(input.value) : NaN;
+  try {
+    const total = gridPointCount(jointCount, value);
+    info.textContent = value + ' per joint × ' + jointCount + ' joints = ' +
+      total.toLocaleString('en-US') + ' total samples. Max: ' +
+      settings.maxPerJoint + ' per joint.';
+    info.classList.remove('text-rose-400');
+    info.classList.add('text-slate-400');
+    el('generate-workspace').disabled = false;
+  } catch (error) {
+    info.textContent = error.message;
+    info.classList.add('text-rose-400');
+    info.classList.remove('text-slate-400');
+    el('generate-workspace').disabled = el('sampling-method').value === 'grid';
+  }
+}
+
+function syncGridResolution() {
+  const jointCount = viewer.dhParams.length;
+  if (jointCount !== gridJointCount) {
+    el('grid-steps').value = String(gridResolutionSettings(jointCount).recommendedPerJoint);
+    gridJointCount = jointCount;
+  }
+  updateGridSummary();
 }
 
 function getDomain() {
@@ -443,6 +478,7 @@ function renderJointControls() {
     configRows.append(row);
   });
   updatePoseWarning();
+  syncGridResolution();
 }
 
 function fitView() {
@@ -460,7 +496,10 @@ function generate() {
     const method = el('sampling-method').value;
     const options = { method, samplingRanges: getDomain() };
     if (method === 'grid') {
-      options.samplesPerJoint = Number(el('grid-steps').value);
+      const text = el('grid-steps').value.trim();
+      options.samplesPerJoint = text ? Number(text) : NaN;
+      // Catch invalid values before sampling (in addition to disabled UI).
+      gridPointCount(viewer.dhParams.length, options.samplesPerJoint);
     } else {
       options.sampleCount = Number(el('sample-count').value);
     }
@@ -547,10 +586,13 @@ el('sampling-method').addEventListener('change', () => {
   const grid = el('sampling-method').value === 'grid';
   el('grid-controls').hidden = !grid;
   el('halton-controls').hidden = grid;
+  updateGridSummary();
   if (cloud) clearWorkspace('Sampling method changed. Generate a new workspace.');
 });
+el('grid-steps').addEventListener('input', updateGridSummary);
 for (const id of ['sample-count', 'grid-steps']) {
   el(id).addEventListener('change', () => {
+    if (id === 'grid-steps') updateGridSummary();
     if (cloud) clearWorkspace('Sampling resolution changed. Generate a new workspace.');
   });
 }
