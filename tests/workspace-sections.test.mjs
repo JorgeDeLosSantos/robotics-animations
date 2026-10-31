@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   SECTION_AXES, sectionSettings, sliceWorkspaceSamples,
-  sectionContains, nearestSectionSamples
+  sectionContains, nearestSectionSamples, remapSectionRayHits
 } from '../kinematics/workspace-sections.js';
 import { WORKSPACE_PLANES, projectionLayout, projectPosition } from '../kinematics/workspace-projections.js';
 import { summarizeWorkspaceSamples } from '../kinematics/workspace-metrics.js';
@@ -96,4 +96,15 @@ test('slicing a 2R grid uses stored positions without rerunning forward kinemati
   const slice = sliceWorkspaceSamples(samples, 'z', 0, 1);
   assert.equal(slice.count, samples.sampleCount);
   assert.equal(slice.indices.length, 25);
+});
+
+test('compact section ray hits resolve the stable original sample indices', () => {
+  const slice = sliceWorkspaceSamples(data, 'z', 0, 2);
+  assert.deepEqual([...slice.indices], [1, 2, 3]);
+  assert.deepEqual(remapSectionRayHits([
+    { index: 0, distance: 1 }, { index: 2, distance: 2 },
+    { index: 99, distance: 3 }
+  ], slice), [
+    { index: 1, distance: 1 }, { index: 3, distance: 2 }
+  ]);
 });
