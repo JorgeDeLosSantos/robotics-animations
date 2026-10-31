@@ -103,13 +103,10 @@
         </div>
         <div id="grid-controls" hidden>
           <label for="grid-steps" class="text-xs text-slate-300">Samples per joint</label>
-          <select id="grid-steps" class="mt-1 w-full bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2 text-sm">
-            <option value="4">4</option>
-            <option value="6">6</option>
-            <option value="8" selected>8</option>
-            <option value="10">10</option>
-          </select>
-          <p class="text-xs text-slate-400 mt-1">Total samples = (samples per joint) ^ (number of joints), up to 200,000.</p>
+          <input id="grid-steps" type="number" inputmode="numeric" min="2" step="1" value="158"
+            class="mt-1 w-full bg-slate-900 text-slate-100 border border-slate-600 rounded px-2 py-2 text-sm">
+          <p id="grid-summary" role="status" aria-live="polite" class="text-xs text-slate-400 mt-2"></p>
+          <p class="text-xs text-slate-400 mt-1">The total grows as (samples per joint) ^ (number of joints). The maximum permitted is 200,000 points.</p>
         </div>
         <label class="flex items-center gap-2 text-xs text-slate-300">
           <input id="show-workspace" type="checkbox" checked class="accent-indigo-500">
