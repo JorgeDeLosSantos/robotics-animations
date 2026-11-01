@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const html = read('trajectories/joint-space.html');
 const lab = read('trajectories/joint-trajectory-lab.js');
@@ -87,4 +89,18 @@ test('changing a trajectory parameter recalculates without generating stale fram
   assert.match(lab, /renderPoseSelection\(\)/);
   assert.match(lab, /setStatus\('Cannot generate trajectory:/);
   assert.match(lab, /id === 'acceleration-fraction' \? 'input' : 'change'/);
+});
+
+
+test('active joint drag does not re-create its DOM row on every input event', () => {
+  assert.match(lab, /rebuildTrajectory\(false\)/);
+  assert.match(lab, /if \(refreshControls !== false\) renderJointControls\(\)/);
+});
+
+test('stage B browser module and all trajectory JavaScript files pass Node syntax check', () => {
+  for (const file of ['trajectories/joint-trajectory-lab.js',
+                      'trajectories/joint-trajectory-core.js']) {
+    assert.doesNotThrow(() => execFileSync(process.execPath,
+      ['--check', fileURLToPath(new URL('../' + file, import.meta.url))], {stdio: 'pipe'}));
+  }
 });
