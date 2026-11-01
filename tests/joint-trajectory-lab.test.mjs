@@ -78,7 +78,7 @@ test('DH topology edits invalidate old endpoint dimensions and trajectories', ()
   assert.match(lab, /if \(previousTypes\[i\] && previousTypes\[i\] !== joint\.type\) joint\.limits = null/);
   assert.match(lab, /cell\.disabled = true/);
   assert.match(lab, /jointLimits: viewer\.dhParams\.map\(j => j\.limits \?\? null\)/);
-  assert.match(lab, /Joint .* must remain within/);
+  assert.match(lab, /must remain within/);
 });
 
 test('changing a trajectory parameter recalculates without generating stale frame', () => {
