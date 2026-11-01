@@ -395,17 +395,30 @@ viewer.renderTable = () => {
   baseRenderTable();
   syncTable();
   const nextTopology = topology();
-  if (state.lastTopology !== null && nextTopology !== state.lastTopology) {
+  const changed = state.lastTopology !== null && nextTopology !== state.lastTopology;
+  if (changed) {
+    const previousTypes = state.lastTopology.split(',');
+    viewer.dhParams.forEach((joint, i) => {
+      // A limit measured in degrees must never become a prismatic length limit.
+      if (previousTypes[i] && previousTypes[i] !== joint.type) joint.limits = null;
+    });
     stopAnimation();
     state.mode = 'edit';
     state.time = 0;
     state.initial = currentValues();
     state.final = [...state.initial];
-    setStatus('Joint topology changed. Initial and final configurations were reset to the DH values.');
   }
   state.lastTopology = nextTopology;
-  renderJointControls();
-  renderPoseSelection();
+  if (changed) {
+    rebuildTrajectory();
+    if (state.trajectory) {
+      setStatus('Joint topology changed: both endpoints reset to the current DH values. ' +
+        'Limits on retyped joints were cleared.');
+    }
+  } else {
+    renderJointControls();
+    renderPoseSelection();
+  }
 };
 
 viewer.tableBody.addEventListener('input', event => {
