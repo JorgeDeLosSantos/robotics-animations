@@ -127,7 +127,7 @@ function syncPlayback() {
   el('restart').disabled = !traj;
   el('timeline').disabled = !traj;
   el('timeline').value = traj ? String(Math.round(1000 * state.time / traj.duration)) : '0';
-  el('time-label').textContent = fmt(state.time).replace(/\.0$/, '.00') + ' / ' +
+  el('time-label').textContent = state.time.toFixed(2) + ' / ' +
     (traj ? traj.duration.toFixed(2) : '—') + ' s';
   el('view-mode').textContent = state.mode === 'edit'
     ? 'Editing ' + state.active
