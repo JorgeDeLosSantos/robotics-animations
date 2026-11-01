@@ -167,7 +167,7 @@ function setJointValue(index, next) {
     return false;
   }
   state[state.active][index] = next;
-  rebuildTrajectory();
+  rebuildTrajectory(false);
   return true;
 }
 
@@ -286,7 +286,7 @@ function updateDisplayedPose() {
   syncPlayback();
 }
 
-function rebuildTrajectory() {
+function rebuildTrajectory(refreshControls = true) {
   stopAnimation();
   state.mode = 'edit';
   state.time = 0;
@@ -311,7 +311,8 @@ function rebuildTrajectory() {
     clearGroup(ghostGroup);
     setStatus('Cannot generate trajectory: ' + error.message, true);
   }
-  renderJointControls();
+  // Preserve the input DOM while the student is dragging a joint slider.
+  if (refreshControls !== false) renderJointControls();
   renderPoseSelection();
   updateDisplayedPose();
 }
