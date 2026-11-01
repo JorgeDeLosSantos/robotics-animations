@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Explore joint-space trajectory interpolation and synchronized robot motion.">
+  <title>Joint-Space Trajectories — Robotics Lab</title>
+  <script src="../shared/theme.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  <script type="importmap">
+  {"imports":{
+    "three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }}
+  </script>
+  <link rel="stylesheet" href="../shared/navigation.css">
+  <link rel="stylesheet" href="../shared/theme.css">
+  <style>
+    #controls-panel > * { flex-shrink: 0; }
+    #canvas-container canvas { touch-action: none; }
+    #phase-controls[hidden], #trajectory-error[hidden] { display: none !important; }
+    button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--ui-accent); outline-offset: 2px; }
+    .pose-tab[aria-pressed="true"] { background: #4338ca; border-color: #818cf8; color: #fff; }
+    html[data-theme="light"] .pose-tab[aria-pressed="true"] { background: #4338ca; color: #fff; }
+    #timeline { width: 100%; accent-color: #818cf8; }
+    input[type="range"] { cursor: pointer; }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen md:min-h-[560px] md:h-dvh flex flex-col font-sans">
+  <main class="flex-none md:flex-1 md:min-h-0 flex flex-col md:flex-row md:overflow-hidden">
+    <aside id="controls-panel" class="w-full md:w-5/12 md:min-h-0 md:overflow-y-auto md:overscroll-contain border-r border-slate-700 p-4 bg-slate-850 flex flex-col gap-4">
+      <div class="lab-sidebar-heading">
+        <p class="lab-sidebar-category">Trajectories</p>
+        <h1>Joint-Space Trajectories</h1>
+        <p class="lab-sidebar-description">Define two joint configurations, select a time law and explore the resulting motion.</p>
+      </div>
+
+      <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
+        <label for="robot-preset" class="text-sm font-semibold text-indigo-400">Example Manipulator</label>
+        <select id="robot-preset" class="bg-slate-900 border border-slate-600 rounded px-2 py-2 text-sm">
+          <option value="planar2r">Planar 2R</option>
+          <option value="spatial3r">Spatial 3R</option>
+          <option value="mixedRRP">Mixed RRP</option>
+          <option value="custom" disabled>Custom Configuration</option>
+        </select>
+        <p id="preset-description" class="text-xs text-slate-400"></p>
+      </section>
+
+      <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3">
+        <h2 class="text-sm font-semibold text-indigo-400">Joint Configurations</h2>
+        <div class="grid grid-cols-2 gap-2" role="group" aria-label="Configuration to edit">
+          <button type="button" id="pose-initial" class="pose-tab rounded border border-slate-600 bg-slate-900 p-2 text-left" aria-pressed="true">
+            <span class="block text-xs font-semibold">Initial · q₀</span>
+            <span id="summary-initial" class="block text-[11px] mt-1 truncate"></span>
+          </button>
+          <button type="button" id="pose-final" class="pose-tab rounded border border-slate-600 bg-slate-900 p-2 text-left" aria-pressed="false">
+            <span class="block text-xs font-semibold">Final · qƒ</span>
+            <span id="summary-final" class="block text-[11px] mt-1 truncate"></span>
+          </button>
+        </div>
+        <p id="editor-hint" class="text-xs text-slate-400">Editing the initial configuration. Changes are saved automatically.</p>
+        <div id="joint-controls" class="flex flex-col gap-3"></div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" id="copy-pose" class="bg-slate-700 hover:bg-slate-600 rounded px-3 py-2 text-xs">Initial → Final</button>
+          <button type="button" id="swap-pose" class="bg-slate-700 hover:bg-slate-600 rounded px-3 py-2 text-xs">Swap Initial / Final</button>
+        </div>
+      </section>
+
+      <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-3">
+        <h2 class="text-sm font-semibold text-indigo-400">Interpolation</h2>
+        <label for="trajectory-method" class="text-xs text-slate-300">Time law</label>
+        <select id="trajectory-method" class="bg-slate-900 border border-slate-600 rounded px-2 py-2 text-sm">
+          <option value="linear">Linear</option>
+          <option value="cubic" selected>Cubic (zero endpoint velocity)</option>
+          <option value="quintic">Quintic (zero endpoint velocity and acceleration)</option>
+          <option value="trapezoidal">Trapezoidal velocity</option>
+        </select>
+        <label for="duration" class="text-xs text-slate-300">Physical duration T (seconds)</label>
+        <input id="duration" type="number" min="0.01" step="any" value="3" class="bg-slate-900 border border-slate-600 rounded px-2 py-2 text-sm">
+        <div id="phase-controls" hidden class="flex flex-col gap-2">
+          <label for="acceleration-fraction" class="text-xs text-slate-300">Acceleration phase fraction · <output id="acceleration-label">25%</output> per ramp</label>
+          <input id="acceleration-fraction" type="range" min="0.05" max="0.5" step="0.01" value="0.25" class="accent-indigo-500">
+          <p class="text-[11px] text-slate-400">At 50%, the constant-velocity phase disappears (triangular profile).</p>
+        </div>
+        <p class="text-xs text-slate-400">All joints follow the same normalized progress law. Motion is interpolated in joint space, not along a Cartesian straight line.</p>
+      </section>
+
+      <details id="dh-details" class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
+        <summary class="cursor-pointer text-sm font-semibold text-indigo-400">DH Configuration · Edit Geometry</summary>
+        <div class="pt-3 flex flex-col gap-2">
+          <div class="flex justify-between items-center gap-2">
+            <p class="text-xs text-slate-400">Standard DH; active joint coordinates are edited above.</p>
+            <button id="add-row-btn" type="button" class="bg-indigo-600 hover:bg-indigo-500 rounded px-2 py-1 text-xs text-white shrink-0">+ Add Link</button>
+          </div>
+          <div class="overflow-x-auto border border-slate-700 rounded">
+            <table class="min-w-[440px] w-full text-xs border-collapse text-center">
+              <thead class="bg-slate-800">
+                <tr><th class="p-2">#</th><th class="p-2">Type</th><th class="p-2">a</th><th class="p-2">α (deg)</th><th class="p-2">d</th><th class="p-2">θ (deg)</th><th class="p-2"></th></tr>
+              </thead>
+              <tbody id="dh-table-body"></tbody>
+            </table>
+          </div>
+          <p class="text-[11px] text-slate-400">Topology changes reset both endpoints to the current DH configuration. Existing mechanical limits are retained where compatible.</p>
+        </div>
+      </details>
+
+      <section class="bg-slate-800/60 border border-slate-700 rounded-lg p-3 flex flex-col gap-2">
+        <h2 class="text-sm font-semibold text-indigo-400">Display</h2>
+        <label class="flex items-center gap-2 text-xs"><input type="checkbox" id="show-path" checked class="accent-indigo-500"> Show TCP path</label>
+        <label class="flex items-center gap-2 text-xs"><input type="checkbox" id="show-endpoints" class="accent-indigo-500"> Show initial and final ghost configurations</label>
+        <p class="text-[11px] text-slate-400">Ghosts are simplified joint-frame skeletons; the TCP path is calculated with standard DH forward kinematics.</p>
+      </section>
+      <p id="trajectory-error" role="alert" hidden class="text-xs text-rose-400"></p>
+      <p id="trajectory-status" role="status" aria-live="polite" class="text-xs text-slate-400"></p>
+    </aside>
+
+    <section class="w-full md:w-7/12 relative flex-1 min-h-[520px] md:min-h-0 bg-slate-950" aria-label="3D trajectory visualization">
+      <div id="canvas-container" class="w-full h-full"></div>
+      <div class="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Camera controls">
+        <button id="btn-view-top" class="view-btn bg-slate-800 border border-slate-600/30 rounded px-2 py-1 text-xs">Top (XY)</button>
+        <button id="btn-view-front" class="view-btn bg-slate-800 border border-slate-600/30 rounded px-2 py-1 text-xs">Front (XZ)</button>
+        <button id="btn-view-side" class="view-btn bg-slate-800 border border-slate-600/30 rounded px-2 py-1 text-xs">Side (YZ)</button>
+        <button id="btn-view-iso" class="view-btn bg-slate-800 border border-slate-600/30 rounded px-2 py-1 text-xs">Isometric</button>
+        <button id="fit-view" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded px-2 py-1 text-xs">Fit View</button>
+      </div>
+
+      <div id="playback-panel" class="absolute left-3 right-3 bottom-3 z-10 bg-slate-900/90 border border-slate-700 rounded-lg p-3 shadow-lg backdrop-blur-sm flex flex-col gap-2">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <button id="play-pause" type="button" class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 rounded px-3 py-1.5 text-white text-xs font-semibold">Play</button>
+            <button id="restart" type="button" class="bg-slate-700 hover:bg-slate-600 disabled:opacity-40 rounded px-3 py-1.5 text-xs">Restart</button>
+          </div>
+          <div class="flex items-center gap-2">
+            <span id="view-mode" class="text-[11px] text-indigo-300">Editing initial</span>
+            <label for="playback-speed" class="text-xs text-slate-400">Speed</label>
+            <select id="playback-speed" class="bg-slate-800 border border-slate-600 rounded px-1 py-1 text-xs">
+              <option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option>
+            </select>
+          </div>
+        </div>
+        <label for="timeline" class="flex justify-between items-center text-xs">
+          <span>Time</span><output id="time-label" class="font-mono text-indigo-300">0.00 / 3.00 s</output>
+        </label>
+        <input id="timeline" type="range" min="0" max="1000" step="1" value="0" aria-label="Trajectory time">
+        <p id="playback-values" class="text-[11px] text-slate-400 truncate"></p>
+        <p class="text-[10px] text-slate-400">Drag to rotate · right-drag to pan · scroll to zoom. Playback speed changes only the display rate.</p>
+      </div>
+    </section>
+  </main>
+  <script type="module" src="./joint-trajectory-lab.js"></script>
+  <script type="module" src="../shared/navigation.js"></script>
+</body>
+</html>
