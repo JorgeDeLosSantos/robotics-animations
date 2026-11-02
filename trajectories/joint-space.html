@@ -114,8 +114,8 @@
       <p id="trajectory-status" role="status" aria-live="polite" class="text-xs text-slate-400"></p>
     </aside>
 
-    <section class="w-full md:w-7/12 flex-1 min-h-[560px] md:min-h-0 bg-slate-950 flex flex-col" aria-label="3D trajectory visualization">
-      <div id="viewer-stage" class="relative flex-1 min-h-[390px] md:min-h-0">
+    <section class="w-full md:w-7/12 flex-1 min-h-[560px] md:min-h-0 md:overflow-y-auto md:overscroll-contain bg-slate-950 flex flex-col" aria-label="3D trajectory visualization">
+      <div id="viewer-stage" class="relative flex-1 min-h-[390px] md:min-h-[270px]">
         <div id="canvas-container" class="w-full h-full"></div>
         <div id="camera-toolbar" class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Camera controls">
         <button id="btn-view-top" class="view-btn bg-slate-800 border border-slate-600/30 rounded px-2 py-1 text-xs">Top (XY)</button>
@@ -148,6 +148,31 @@
         <p id="playback-values" class="text-[11px] text-slate-400 truncate"></p>
         <p class="text-[10px] text-slate-400">Drag to rotate · right-drag to pan · scroll to zoom. Playback speed changes only the display rate.</p>
       </div>
+
+      <details id="trajectory-plots" open class="shrink-0 border-t border-slate-700 bg-slate-900">
+        <summary class="cursor-pointer px-3 py-2 text-sm font-semibold text-indigo-300">Trajectory Plots · Position / Velocity / Acceleration</summary>
+        <div class="px-3 pb-3 flex flex-col gap-2">
+          <div class="flex flex-wrap gap-2 items-center justify-between">
+            <label for="plot-joint" class="text-xs text-slate-300">Displayed joint</label>
+            <select id="plot-joint" class="bg-slate-800 border border-slate-600 rounded px-2 py-1 text-xs"></select>
+          </div>
+          <div id="plot-grid" class="grid gap-2 max-h-[310px] overflow-y-auto pr-1" style="grid-template-columns:repeat(auto-fit,minmax(min(100%,255px),1fr))">
+            <article class="bg-slate-800/60 border border-slate-700 rounded-lg p-2 min-w-0">
+              <div class="flex justify-between items-baseline gap-2 text-xs"><h3 class="font-semibold">Position q(t)</h3><output id="position-plot-value" class="font-mono text-cyan-400 text-right">—</output></div>
+              <div id="position-plot" class="w-full"></div>
+            </article>
+            <article class="bg-slate-800/60 border border-slate-700 rounded-lg p-2 min-w-0">
+              <div class="flex justify-between items-baseline gap-2 text-xs"><h3 class="font-semibold">Velocity dq/dt</h3><output id="velocity-plot-value" class="font-mono text-violet-400 text-right">—</output></div>
+              <div id="velocity-plot" class="w-full"></div>
+            </article>
+            <article class="bg-slate-800/60 border border-slate-700 rounded-lg p-2 min-w-0">
+              <div class="flex justify-between items-baseline gap-2 text-xs"><h3 class="font-semibold">Acceleration d²q/dt²</h3><output id="acceleration-plot-value" class="font-mono text-orange-400 text-right">—</output></div>
+              <div id="acceleration-plot" class="w-full"></div>
+            </article>
+          </div>
+          <p class="text-[11px] text-slate-400">Drag or use arrow keys on a graph to seek. Values follow physical time, not playback speed. At trapezoidal phase switches acceleration is undefined.</p>
+        </div>
+      </details>
     </section>
   </main>
   <script type="module" src="./joint-trajectory-lab.js"></script>
