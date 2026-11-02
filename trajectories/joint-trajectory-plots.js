@@ -64,6 +64,8 @@ export class JointTrajectoryPlots {
 
   render() {
     this.views.clear();
+    const allSeries = this.trajectory
+      ? buildJointPlotSeries(this.trajectory, this.jointIndex) : null;
     for (const metric of JOINT_PLOT_METRICS) {
       const root = this.roots[metric];
       root.replaceChildren();
@@ -75,7 +77,7 @@ export class JointTrajectoryPlots {
         this.outputs[metric].textContent = '—';
         continue;
       }
-      const series = buildJointPlotSeries(this.trajectory, this.jointIndex)[metric];
+      const series = allSeries[metric];
       const { min, max } = series;
       const duration = this.trajectory.duration;
       const x = time => AREA.left + PLOT_WIDTH * time / duration;
