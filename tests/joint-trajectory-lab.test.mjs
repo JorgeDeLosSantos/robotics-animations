@@ -99,7 +99,9 @@ test('active joint drag does not re-create its DOM row on every input event', ()
 
 test('stage B browser module and all trajectory JavaScript files pass Node syntax check', () => {
   for (const file of ['trajectories/joint-trajectory-lab.js',
-                      'trajectories/joint-trajectory-core.js']) {
+                      'trajectories/joint-trajectory-core.js',
+                      'trajectories/joint-trajectory-plot-data.js',
+                      'trajectories/joint-trajectory-plots.js']) {
     assert.doesNotThrow(() => execFileSync(process.execPath,
       ['--check', fileURLToPath(new URL('../' + file, import.meta.url))], {stdio: 'pipe'}));
   }
@@ -119,4 +121,39 @@ test('camera toolbar is compact on desktop and respected by Fit View', () => {
   assert.match(lab, /sidebar: el\('camera-toolbar'\)/);
   assert.match(lab, /toolbar: el\('camera-toolbar'\)/);
   assert.match(lab, /fitOrthographicObjects\(\{/);
+});
+
+
+test('plot panel is outside the canvas and includes three independent graphs', () => {
+  const required = [
+    'trajectory-plots', 'plot-joint', 'position-plot', 'velocity-plot',
+    'acceleration-plot','position-plot-value','velocity-plot-value',
+    'acceleration-plot-value'
+  ];
+  const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]));
+  for (const id of required) assert.ok(ids.has(id), 'Missing plot element '+id);
+  const viewerStart = html.indexOf('id="viewer-stage"');
+  const playbackStart = html.indexOf('id="playback-panel"');
+  const plotStart = html.indexOf('id="trajectory-plots"');
+  assert.ok(viewerStart >= 0 && playbackStart > viewerStart && plotStart > playbackStart);
+  assert.match(html, /max-h-\[310px\] overflow-y-auto/);
+  assert.match(html, /<details id="trajectory-plots" open/);
+});
+
+test('plots are synchronized from the same trajectory state as 3D playback', () => {
+  assert.match(lab, /import \{ JointTrajectoryPlots \} from '\.\/joint-trajectory-plots\.js'/);
+  assert.match(lab, /new JointTrajectoryPlots\(/);
+  assert.match(lab, /plots\.refresh\(state\.trajectory/);
+  assert.match(lab, /plots\.refresh\(null/);
+  assert.match(lab, /plots\.setTime\(state\.time\)/);
+  assert.match(lab, /onSeek: time => \{\s*stopAnimation\(\);\s*setPreviewTime\(time\)/);
+  assert.match(lab, /state\.time = key === 'final' \?/);
+  assert.match(lab, /if \(enteringPreview\) renderJointControls\(\)/);
+});
+
+test('plot area resizing also updates and refits the Three.js camera', () => {
+  assert.match(lab, /new ResizeObserver\(/);
+  assert.match(lab, /observer\.observe\(viewer\.canvasContainer\)/);
+  assert.match(lab, /viewer\._onWindowResize\(\)/);
+  assert.match(lab, /el\('trajectory-plots'\)\.addEventListener\('toggle'/);
 });
