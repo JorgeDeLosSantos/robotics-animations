@@ -3,6 +3,7 @@ import { RobotViewer } from '../kinematics/shared-robot-viewer.js';
 import { forwardKinematicsPosition } from '../kinematics/workspace-core.js';
 import { fitOrthographicObjects } from '../shared/camera-fit.js';
 import { createJointTrajectory } from './joint-trajectory-core.js';
+import { JointTrajectoryPlots } from './joint-trajectory-plots.js';
 
 // Match the existing DH examples and mechanical limits in the Workspace lab.
 // A common preset registry can be extracted when more labs require the same data.
@@ -66,6 +67,23 @@ const state = {
   activePreset: 'planar2r',
   lastTopology: null
 };
+const plots = new JointTrajectoryPlots({
+  jointSelect: el('plot-joint'),
+  roots: {
+    position: el('position-plot'),
+    velocity: el('velocity-plot'),
+    acceleration: el('acceleration-plot')
+  },
+  outputs: {
+    position: el('position-plot-value'),
+    velocity: el('velocity-plot-value'),
+    acceleration: el('acceleration-plot-value')
+  },
+  onSeek: time => {
+    stopAnimation();
+    setPreviewTime(time);
+  }
+});
 const pathGroup = new THREE.Group();
 const ghostGroup = new THREE.Group();
 pathGroup.name = 'joint-trajectory-tcp-path';
@@ -135,6 +153,7 @@ function syncPlayback() {
   const frame = timeFrame();
   el('playback-values').textContent = frame.q.map((v, i) =>
     'q' + (i + 1) + ' ' + fmt(v) + unit(viewer.dhParams[i])).join('  ·  ');
+  plots.setTime(state.time);
 }
 
 function renderPoseSelection() {
@@ -302,13 +321,16 @@ function rebuildTrajectory(refreshControls = true) {
       jointTypes: viewer.dhParams.map(j => j.type),
       jointLimits: viewer.dhParams.map(j => j.limits ?? null)
     });
+    state.time = state.active === 'final' ? state.trajectory.duration : 0;
     drawPath();
+    plots.refresh(state.trajectory, viewer.dhParams.map(j => j.type));
     setStatus('Trajectory ready · ' + state.trajectory.method +
       ' · ' + state.trajectory.duration.toFixed(2) + ' s. Select Play or scrub the timeline.');
   } catch (error) {
     state.trajectory = null;
     clearGroup(pathGroup);
     clearGroup(ghostGroup);
+    plots.refresh(null, viewer.dhParams.map(j => j.type));
     setStatus('Cannot generate trajectory: ' + error.message, true);
   }
   // Preserve the input DOM while the student is dragging a joint slider.
@@ -321,7 +343,7 @@ function selectPose(key) {
   stopAnimation();
   state.mode = 'edit';
   state.active = key;
-  state.time = 0;
+  state.time = key === 'final' ? (state.trajectory?.duration ?? 0) : 0;
   renderJointControls();
   renderPoseSelection();
   updateDisplayedPose();
@@ -329,11 +351,12 @@ function selectPose(key) {
 
 function setPreviewTime(time) {
   if (!state.trajectory) return;
+  const enteringPreview = state.mode !== 'playback';
   state.mode = 'playback';
   state.time = Math.max(0, Math.min(state.trajectory.duration, time));
-  updateDisplayedPose();
-  renderJointControls();
+  if (enteringPreview) renderJointControls();
   renderPoseSelection();
+  updateDisplayedPose();
 }
 
 function tick(timestamp) {
@@ -495,6 +518,30 @@ el('show-endpoints').addEventListener('change', () => {
   ghostGroup.visible = el('show-endpoints').checked;
 });
 el('fit-view').addEventListener('click', fitView);
+
+// Opening plots changes canvas height without a window resize event.
+// Resize the Three.js renderer and fit the path to the remaining stage area.
+let pendingViewerResize = null;
+if (typeof ResizeObserver !== 'undefined') {
+  const observer = new ResizeObserver(() => {
+    if (pendingViewerResize !== null) cancelAnimationFrame(pendingViewerResize);
+    pendingViewerResize = requestAnimationFrame(() => {
+      pendingViewerResize = null;
+      if (!viewer.renderer) return;
+      const { clientWidth: width, clientHeight: height } = viewer.canvasContainer;
+      if (width <= 0 || height <= 0) return;
+      viewer._onWindowResize();
+      fitView();
+    });
+  });
+  observer.observe(viewer.canvasContainer);
+  window.addEventListener('beforeunload', () => observer.disconnect());
+}
+el('trajectory-plots').addEventListener('toggle', () => {
+  requestAnimationFrame(() => {
+    if (viewer.renderer) fitView();
+  });
+});
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && state.playing) {
     stopAnimation();
