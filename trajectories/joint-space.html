@@ -114,9 +114,10 @@
       <p id="trajectory-status" role="status" aria-live="polite" class="text-xs text-slate-400"></p>
     </aside>
 
-    <section class="w-full md:w-7/12 relative flex-1 min-h-[520px] md:min-h-0 bg-slate-950" aria-label="3D trajectory visualization">
-      <div id="canvas-container" class="w-full h-full"></div>
-      <div class="absolute top-3 left-3 right-3 flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Camera controls">
+    <section class="w-full md:w-7/12 flex-1 min-h-[560px] md:min-h-0 bg-slate-950 flex flex-col" aria-label="3D trajectory visualization">
+      <div id="viewer-stage" class="relative flex-1 min-h-[390px] md:min-h-0">
+        <div id="canvas-container" class="w-full h-full"></div>
+        <div id="camera-toolbar" class="absolute top-3 left-3 right-3 sm:left-auto flex flex-wrap items-center justify-end gap-1.5 bg-slate-900/80 backdrop-blur-sm border border-slate-700/60 p-1.5 rounded-lg shadow-lg z-10" role="group" aria-label="Camera controls">
         <button id="btn-view-top" class="view-btn bg-slate-800 border border-slate-600/30 rounded px-2 py-1 text-xs">Top (XY)</button>
         <button id="btn-view-front" class="view-btn bg-slate-800 border border-slate-600/30 rounded px-2 py-1 text-xs">Front (XZ)</button>
         <button id="btn-view-side" class="view-btn bg-slate-800 border border-slate-600/30 rounded px-2 py-1 text-xs">Side (YZ)</button>
@@ -124,7 +125,9 @@
         <button id="fit-view" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded px-2 py-1 text-xs">Fit View</button>
       </div>
 
-      <div id="playback-panel" class="absolute left-3 right-3 bottom-3 z-10 bg-slate-900/90 border border-slate-700 rounded-lg p-3 shadow-lg backdrop-blur-sm flex flex-col gap-2">
+      </div>
+
+      <div id="playback-panel" class="shrink-0 border-t border-slate-700 bg-slate-900 p-3 flex flex-col gap-2" aria-label="Trajectory playback controls">
         <div class="flex flex-wrap items-center justify-between gap-2">
           <div class="flex items-center gap-2">
             <button id="play-pause" type="button" class="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 rounded px-3 py-1.5 text-white text-xs font-semibold">Play</button>
