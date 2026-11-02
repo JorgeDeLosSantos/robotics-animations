@@ -367,11 +367,19 @@ function startPlayback() {
 }
 
 function fitView() {
+  // Playback lives below the canvas, so its height is excluded by layout.
+  // The camera toolbar remains an overlay at the TOP in both layouts.
+  // camera-fit treats "sidebar" as top on narrow screens and "toolbar"
+  // as top on wider screens; provide the same element accordingly.
+  const overlay = window.matchMedia('(max-width: 720px)').matches
+    ? { sidebar: el('camera-toolbar') }
+    : { toolbar: el('camera-toolbar') };
   fitOrthographicObjects({
     camera: viewer.camera,
     controls: viewer.controls,
     canvas: viewer.renderer.domElement,
     objects: [viewer.robotGroup, pathGroup, ghostGroup],
+    ...overlay,
     padding: 1.5
   });
 }
