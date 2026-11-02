@@ -104,3 +104,19 @@ test('stage B browser module and all trajectory JavaScript files pass Node synta
       ['--check', fileURLToPath(new URL('../' + file, import.meta.url))], {stdio: 'pipe'}));
   }
 });
+
+
+test('timeline is docked below the canvas and cannot cover the fitted robot', () => {
+  assert.match(html, /id="viewer-stage" class="relative flex-1/);
+  assert.match(html, /id="canvas-container" class="w-full h-full"/);
+  assert.match(html, /<\/div>\s*<\/div>\s*<div id="playback-panel" class="shrink-0 border-t/);
+  assert.doesNotMatch(html, /id="playback-panel" class="absolute/);
+});
+
+test('camera toolbar is compact on desktop and respected by Fit View', () => {
+  assert.match(html, /id="camera-toolbar" class="absolute top-3 left-3 right-3 sm:left-auto/);
+  assert.match(lab, /window\.matchMedia\('\(max-width: 720px\)'\)/);
+  assert.match(lab, /sidebar: el\('camera-toolbar'\)/);
+  assert.match(lab, /toolbar: el\('camera-toolbar'\)/);
+  assert.match(lab, /fitOrthographicObjects\(\{/);
+});
