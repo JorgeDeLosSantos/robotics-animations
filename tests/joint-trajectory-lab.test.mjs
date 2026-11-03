@@ -1,0 +1,159 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
+const html = read('trajectories/joint-space.html');
+const lab = read('trajectories/joint-trajectory-lab.js');
+const nav = read('shared/navigation.js');
+const index = read('index.html');
+
+test('joint trajectory page has unique IDs and required controls', () => {
+  const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]);
+  assert.equal(new Set(ids).size, ids.length);
+  const expected = [
+    'canvas-container','robot-preset','dh-table-body','add-row-btn',
+    'pose-initial','pose-final','joint-controls','summary-initial','summary-final',
+    'copy-pose','swap-pose','trajectory-method','duration','phase-controls',
+    'acceleration-fraction','acceleration-label',
+    'show-path','show-endpoints','trajectory-error','trajectory-status',
+    'play-pause','restart','timeline','time-label','playback-speed',
+    'playback-values','view-mode','fit-view',
+    'btn-view-top','btn-view-front','btn-view-side','btn-view-iso'
+  ];
+  for (const id of expected) assert.ok(ids.includes(id), 'Missing #' + id);
+  for (const [, id] of lab.matchAll(/\bel\('([^']+)'\)/g)) {
+    assert.ok(ids.includes(id), 'Missing element for JS reference #' + id);
+  }
+});
+
+test('page contains valid module and library wiring', () => {
+  assert.match(html, /type="importmap"/);
+  assert.match(html, /src="\.\/joint-trajectory-lab\.js"/);
+  assert.match(html, /src="\.\.\/shared\/navigation\.js"/);
+  assert.match(lab, /from '\.\/joint-trajectory-core\.js'/);
+  assert.match(lab, /from '\.\.\/kinematics\/shared-robot-viewer\.js'/);
+  assert.match(lab, /from '\.\.\/kinematics\/workspace-core\.js'/);
+  assert.match(lab, /from '\.\.\/shared\/camera-fit\.js'/);
+});
+
+test('laboratory can be discovered in home and global navigation', () => {
+  assert.match(index, /trajectories\/joint-space\.html/);
+  assert.match(nav, /Trajectories/);
+  assert.match(nav, /trajectories\/joint-space\.html/);
+});
+
+test('initial and final editor is distinct from time-based playback', () => {
+  assert.match(lab, /state\.mode = 'playback'/);
+  assert.match(lab, /state\.mode = 'edit'/);
+  assert.match(lab, /state\[state\.active\]\[index\] = next/);
+  assert.match(lab, /createJointTrajectory\(/);
+  assert.match(lab, /state\.final = \[\.\.\.state\.initial\]/);
+  assert.match(lab, /\[state\.initial, state\.final\] = \[state\.final, state\.initial\]/);
+  assert.match(lab, /timeFrame\(\)\.q/);
+  assert.match(lab, /renderJointControls\(\)/);
+});
+
+test('playback timeline and displayed rate remain separate from physical T', () => {
+  assert.match(lab, /requestAnimationFrame\(tick\)/);
+  assert.match(lab, /stopAnimation\(\)/);
+  assert.match(lab, /state\.trajectory\.duration \* Number\(el\('timeline'\)\.value\) \/ 1000/);
+  assert.match(lab, /elapsed \* speed/);
+  assert.match(lab, /visibilitychange/);
+  assert.match(html, /Playback speed changes only the display rate/);
+});
+
+test('path and endpoint ghosts use FK, and camera uses shared fit', () => {
+  assert.match(lab, /forwardKinematicsPosition\(viewer\.dhParams, frame\.q\)/);
+  assert.match(lab, /new THREE\.Line\(/);
+  assert.match(lab, /ghostGroup\.visible/);
+  assert.match(lab, /pathGroup\.visible/);
+  assert.match(lab, /fitOrthographicObjects\(/);
+  assert.match(lab, /viewer\.controls\.mouseButtons/);
+  assert.doesNotMatch(lab, /solveIK/);
+});
+
+test('DH topology edits invalidate old endpoint dimensions and trajectories', () => {
+  assert.match(lab, /state\.lastTopology !== null && nextTopology !== state\.lastTopology/);
+  assert.match(lab, /if \(changed\) \{\s*rebuildTrajectory\(\)/);
+  assert.match(lab, /if \(previousTypes\[i\] && previousTypes\[i\] !== joint\.type\) joint\.limits = null/);
+  assert.match(lab, /cell\.disabled = true/);
+  assert.match(lab, /jointLimits: viewer\.dhParams\.map\(j => j\.limits \?\? null\)/);
+  assert.match(lab, /must remain within/);
+});
+
+test('changing a trajectory parameter recalculates without generating stale frame', () => {
+  assert.match(lab, /state\.trajectory = null/);
+  assert.match(lab, /clearGroup\(pathGroup\)/);
+  assert.match(lab, /renderPoseSelection\(\)/);
+  assert.match(lab, /setStatus\('Cannot generate trajectory:/);
+  assert.match(lab, /id === 'acceleration-fraction' \? 'input' : 'change'/);
+});
+
+
+test('active joint drag does not re-create its DOM row on every input event', () => {
+  assert.match(lab, /rebuildTrajectory\(false\)/);
+  assert.match(lab, /if \(refreshControls !== false\) renderJointControls\(\)/);
+});
+
+test('stage B browser module and all trajectory JavaScript files pass Node syntax check', () => {
+  for (const file of ['trajectories/joint-trajectory-lab.js',
+                      'trajectories/joint-trajectory-core.js',
+                      'trajectories/joint-trajectory-plot-data.js',
+                      'trajectories/joint-trajectory-plots.js']) {
+    assert.doesNotThrow(() => execFileSync(process.execPath,
+      ['--check', fileURLToPath(new URL('../' + file, import.meta.url))], {stdio: 'pipe'}));
+  }
+});
+
+
+test('timeline is docked below the canvas and cannot cover the fitted robot', () => {
+  assert.match(html, /id="viewer-stage" class="relative flex-1/);
+  assert.match(html, /id="canvas-container" class="w-full h-full"/);
+  assert.match(html, /<\/div>\s*<\/div>\s*<div id="playback-panel" class="shrink-0 border-t/);
+  assert.doesNotMatch(html, /id="playback-panel" class="absolute/);
+});
+
+test('camera toolbar is compact on desktop and respected by Fit View', () => {
+  assert.match(html, /id="camera-toolbar" class="absolute top-3 left-3 right-3 sm:left-auto/);
+  assert.match(lab, /window\.matchMedia\('\(max-width: 720px\)'\)/);
+  assert.match(lab, /sidebar: el\('camera-toolbar'\)/);
+  assert.match(lab, /toolbar: el\('camera-toolbar'\)/);
+  assert.match(lab, /fitOrthographicObjects\(\{/);
+});
+
+
+test('plot panel is outside the canvas and includes three independent graphs', () => {
+  const required = [
+    'trajectory-plots', 'plot-joint', 'position-plot', 'velocity-plot',
+    'acceleration-plot','position-plot-value','velocity-plot-value',
+    'acceleration-plot-value'
+  ];
+  const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]));
+  for (const id of required) assert.ok(ids.has(id), 'Missing plot element '+id);
+  const viewerStart = html.indexOf('id="viewer-stage"');
+  const playbackStart = html.indexOf('id="playback-panel"');
+  const plotStart = html.indexOf('id="trajectory-plots"');
+  assert.ok(viewerStart >= 0 && playbackStart > viewerStart && plotStart > playbackStart);
+  assert.match(html, /max-h-\[310px\] overflow-y-auto/);
+  assert.match(html, /<details id="trajectory-plots" open/);
+});
+
+test('plots are synchronized from the same trajectory state as 3D playback', () => {
+  assert.match(lab, /import \{ JointTrajectoryPlots \} from '\.\/joint-trajectory-plots\.js'/);
+  assert.match(lab, /new JointTrajectoryPlots\(/);
+  assert.match(lab, /plots\.refresh\(state\.trajectory/);
+  assert.match(lab, /plots\.refresh\(null/);
+  assert.match(lab, /plots\.setTime\(state\.time\)/);
+  assert.match(lab, /onSeek: time => \{\s*stopAnimation\(\);\s*setPreviewTime\(time\)/);
+  assert.match(lab, /state\.time = key === 'final' \?/);
+  assert.match(lab, /if \(enteringPreview\) renderJointControls\(\)/);
+});
+
+test('plot area resizing also updates and refits the Three.js camera', () => {
+  assert.match(lab, /new ResizeObserver\(/);
+  assert.match(lab, /observer\.observe\(viewer\.canvasContainer\)/);
+  assert.match(lab, /viewer\._onWindowResize\(\)/);
+  assert.match(lab, /el\('trajectory-plots'\)\.addEventListener\('toggle'/);
+});
