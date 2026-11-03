@@ -11,6 +11,9 @@ const sections = [
     ['Position Inverse Kinematics', 'kinematics/inverse-kinematics-position.html'],
     ['Full-Pose Inverse Kinematics', 'kinematics/inverse-kinematics-6dof.html'],
   ] },
+  { name: 'Trajectories', items: [
+    ['Joint-Space Trajectories', 'trajectories/joint-space.html'],
+  ] },
 ];
 const root = new URL('../', import.meta.url);
 const nav = document.createElement('nav');
